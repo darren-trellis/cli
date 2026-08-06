@@ -169,6 +169,10 @@ func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.helpViewport.LineDown(1)
 	case "k", "up":
 		m.helpViewport.LineUp(1)
+	case "pgdown":
+		m.helpViewport.ViewDown()
+	case "pgup":
+		m.helpViewport.ViewUp()
 	}
 	return m, nil
 }
@@ -290,6 +294,12 @@ func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "k", "up":
 		m.moveList(-1)
 		return m, nil
+	case "pgdown":
+		m.moveList(m.pageSize())
+		return m, nil
+	case "pgup":
+		m.moveList(-m.pageSize())
+		return m, nil
 	case " ":
 		if m.focus == focusProjects {
 			return m.toggleFold()
@@ -330,6 +340,18 @@ func (m *Model) moveList(delta int) {
 		}
 		m.secretIdx = clamp(m.secretIdx+delta, 0, len(idxs)-1)
 		m.loadEditorFromSelection()
+	}
+}
+
+func (m Model) pageSize() int {
+	layout := m.computeLayout()
+	switch m.focus {
+	case focusProjects:
+		return max(1, layout.projects.h-2)
+	case focusSecrets:
+		return max(1, layout.secrets.h-2)
+	default:
+		return 10
 	}
 }
 
@@ -593,14 +615,16 @@ Themes:
     Choice is saved in your Doppler config
 
 Projects (with configs):
-    j / k   Move
+    j / k / ↑↓     Move
+    PgUp / PgDown  Page
     Space   Fold / unfold project or env
     Enter   Select project or config
     Folded nodes still show the active
     config when it belongs under them
 
 Secrets List:
-    j / k   Move
+    j / k / ↑↓     Move
+    PgUp / PgDown  Page
     Enter/e Edit selected secret
     a       Add secret
     d       Delete / mark delete

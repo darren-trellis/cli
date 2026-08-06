@@ -112,6 +112,34 @@ func TestMoveSecretsList(t *testing.T) {
 	assert.Equal(t, 0, next.(Model).secretIdx)
 }
 
+func TestPageUpDownSecrets(t *testing.T) {
+	m := newModel(models.ScopedOptions{})
+	m.fetching = false
+	m.focus = focusSecrets
+	m.width = 80
+	m.height = 24
+	m.secrets = make([]secretRow, 30)
+	for i := range m.secrets {
+		m.secrets[i] = newSecretRow(string(rune('A'+i%26))+string(rune('0'+i/26)), "1", "masked")
+	}
+	m.secretIdx = 0
+
+	page := m.pageSize()
+	require.Greater(t, page, 1)
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	assert.Equal(t, page, next.(Model).secretIdx)
+
+	next, _ = next.Update(tea.KeyMsg{Type: tea.KeyPgUp})
+	assert.Equal(t, 0, next.(Model).secretIdx)
+
+	next, _ = next.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	next, _ = next.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	next, _ = next.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	next, _ = next.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	assert.Equal(t, 29, next.(Model).secretIdx)
+}
+
 func TestEnterEditorAndEsc(t *testing.T) {
 	m := newModel(models.ScopedOptions{})
 	m.fetching = false
