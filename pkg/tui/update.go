@@ -525,7 +525,10 @@ const helpText = `Global Keybinds:
     q Exit
 
 Themes:
-    doppler tui --theme default|cool|warm|mono
+    doppler tui --theme <name>
+    Built-ins: default, cool, warm, mono
+    Plus teleminator themes (catppuccin, nord,
+    tokyo-night, gruvbox, dracula, ...)
     Choice is saved in your Doppler config
 
 Configs / Projects:

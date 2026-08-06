@@ -18,6 +18,7 @@ package tui
 import (
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,6 +35,40 @@ func TestApplyTheme(t *testing.T) {
 	assert.Contains(t, err.Error(), "unknown theme")
 }
 
-func TestThemeNames(t *testing.T) {
-	assert.Equal(t, []string{"cool", "default", "mono", "warm"}, themeNames())
+func TestTeleminatorThemesLoaded(t *testing.T) {
+	names := themeNames()
+	assert.Contains(t, names, "catppuccin")
+	assert.Contains(t, names, "tokyo-night")
+	assert.Contains(t, names, "nord")
+	assert.Contains(t, names, "gruvbox")
+	assert.Contains(t, names, "default")
+
+	require.NoError(t, applyTheme("catppuccin"))
+	assert.Equal(t, themes["catppuccin"].Accent, accent)
+	assert.Equal(t, themes["catppuccin"].Background, background)
+
+	require.NoError(t, applyTheme("tokyo-night"))
+	assert.Equal(t, themes["tokyo-night"].Accent, accent)
+}
+
+func TestParseTeleminatorTheme(t *testing.T) {
+	theme, err := parseTeleminatorTheme([]byte(`
+name = "example"
+[colors]
+background = "#111111"
+foreground = "#eeeeee"
+selection_bg = "#222222"
+selection_fg = "#ffffff"
+border = "#333333"
+window_focus_border = "#ffcc00"
+dim = "#666666"
+[levels]
+warn = "#f0c000"
+error = { fg = "#ff0000", bg = "#200000" }
+`))
+	require.NoError(t, err)
+	assert.Equal(t, "example", theme.Name)
+	assert.Equal(t, lipgloss.Color("#ffcc00"), theme.Accent)
+	assert.Equal(t, lipgloss.Color("#ff0000"), theme.Error)
+	assert.Equal(t, lipgloss.Color("#f0c000"), theme.Dirty)
 }

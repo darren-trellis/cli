@@ -18,8 +18,10 @@ package tui
 import "github.com/charmbracelet/lipgloss"
 
 var (
-	accent lipgloss.Color
-	dim    lipgloss.Color
+	accent     lipgloss.Color
+	dim        lipgloss.Color
+	background lipgloss.Color
+	textColor  lipgloss.Color
 
 	panelStyle       lipgloss.Style
 	activePanelStyle lipgloss.Style
@@ -33,28 +35,37 @@ var (
 	statusStyle      lipgloss.Style
 	modalStyle       lipgloss.Style
 	helpStyle        lipgloss.Style
+	appStyle         lipgloss.Style
 
 	roundedBorder = lipgloss.RoundedBorder()
 )
 
-func init() {
-	_ = applyTheme(defaultThemeName)
-}
-
 func rebuildStyles(theme Theme) {
 	accent = theme.Accent
 	dim = theme.Dim
+	background = theme.Background
+	textColor = theme.Text
+
+	borderColor := theme.Border
+	if borderColor == "" {
+		borderColor = theme.Dim
+	}
 
 	panelStyle = lipgloss.NewStyle().
 		Border(roundedBorder).
-		BorderForeground(theme.Dim).
+		BorderForeground(borderColor).
 		Padding(0, 1)
 
 	activePanelStyle = panelStyle.BorderForeground(theme.Accent)
 
 	titleStyle = lipgloss.NewStyle().Foreground(theme.Title).Bold(true)
 	activeTitleStyle = titleStyle.Foreground(theme.Accent)
-	selectedStyle = lipgloss.NewStyle().Foreground(theme.Accent).Bold(true)
+
+	selectedStyle = lipgloss.NewStyle().Foreground(theme.SelectionFg).Bold(true)
+	if theme.SelectionBg != "" {
+		selectedStyle = selectedStyle.Background(theme.SelectionBg)
+	}
+
 	dimStyle = lipgloss.NewStyle().Foreground(theme.Dim)
 	dirtyStyle = lipgloss.NewStyle().Foreground(theme.Dirty)
 	deleteStyle = lipgloss.NewStyle().Foreground(theme.Delete)
@@ -67,4 +78,12 @@ func rebuildStyles(theme Theme) {
 		BorderForeground(theme.Accent).
 		Padding(1, 2).
 		Width(60)
+
+	appStyle = lipgloss.NewStyle().Foreground(theme.Text)
+	if theme.Background != "" {
+		appStyle = appStyle.Background(theme.Background)
+		panelStyle = panelStyle.Background(theme.Background)
+		activePanelStyle = activePanelStyle.Background(theme.Background)
+		modalStyle = modalStyle.Background(theme.Background)
+	}
 }

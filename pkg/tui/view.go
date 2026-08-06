@@ -121,14 +121,14 @@ func (m Model) View() string {
 
 	switch m.focus {
 	case focusIntro:
-		return m.renderOverlay(base, m.renderIntroModal())
+		base = m.renderOverlay(base, m.renderIntroModal())
 	case focusHelp:
-		return m.renderOverlay(base, m.renderHelpModal())
+		base = m.renderOverlay(base, m.renderHelpModal())
 	case focusSave:
-		return m.renderOverlay(base, m.renderSaveModal())
-	default:
-		return base
+		base = m.renderOverlay(base, m.renderSaveModal())
 	}
+
+	return appStyle.Width(m.width).Height(m.height).Render(base)
 }
 
 func (m Model) renderConfigTree(width, height int) string {

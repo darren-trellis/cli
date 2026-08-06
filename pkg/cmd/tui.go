@@ -49,7 +49,7 @@ func tui(cmd *cobra.Command, args []string) {
 func init() {
 	tuiCmd.Flags().StringP("project", "p", "", "project (e.g. backend)")
 	tuiCmd.Flags().StringP("config", "c", "", "config (e.g. dev)")
-	tuiCmd.Flags().String("theme", "default", "TUI theme (default, cool, warm, mono)")
+	tuiCmd.Flags().String("theme", "default", "TUI theme (default, cool, warm, mono, or a teleminator theme like catppuccin)")
 	tuiCmd.Flags().BoolVar(&utils.DebugTUI, "debug-tui", utils.DebugTUI, "log TUI messages to file")
 	rootCmd.AddCommand(tuiCmd)
 }
