@@ -335,12 +335,10 @@ func TestCyclePane(t *testing.T) {
 	m.cyclePane(1)
 	assert.Equal(t, focusEditorValue, m.focus)
 	m.cyclePane(1)
-	assert.Equal(t, focusFilter, m.focus)
-	m.cyclePane(1)
 	assert.Equal(t, focusProjects, m.focus)
 
 	m.cyclePane(-1)
-	assert.Equal(t, focusFilter, m.focus)
+	assert.Equal(t, focusEditorValue, m.focus)
 }
 
 func configNames(rows []configRow) []string {

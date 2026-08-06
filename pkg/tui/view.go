@@ -35,7 +35,6 @@ type layoutRegions struct {
 	projects rect
 	secrets  rect
 	editor   rect
-	filter   rect
 	status   rect
 }
 
@@ -46,12 +45,11 @@ func (m Model) computeLayout() layoutRegions {
 	leftW := max(18, w/5)
 	rightW := w - leftW
 	statusH := 1
-	filterH := 3
 	editorH := max(8, h/3)
-	secretsH := h - editorH - statusH - filterH
+	secretsH := h - editorH - statusH
 	if secretsH < 4 {
 		secretsH = 4
-		editorH = max(6, h-secretsH-statusH-filterH)
+		editorH = max(6, h-secretsH-statusH)
 	}
 	topH := secretsH + editorH
 
@@ -60,7 +58,6 @@ func (m Model) computeLayout() layoutRegions {
 		secrets:  rect{leftW, 0, rightW, secretsH},
 		editor:   rect{leftW, secretsH, rightW, editorH},
 		status:   rect{0, topH, w, statusH},
-		filter:   rect{0, topH + statusH, w, filterH},
 	}
 }
 
@@ -103,9 +100,8 @@ func (m Model) View() string {
 
 	main := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
 	status := m.renderStatus(layout.status.w)
-	filter := m.renderFilter(layout.filter.w, layout.filter.h)
 
-	base := lipgloss.JoinVertical(lipgloss.Left, main, status, filter)
+	base := lipgloss.JoinVertical(lipgloss.Left, main, status)
 
 	switch m.focus {
 	case focusIntro:
@@ -191,28 +187,42 @@ func (m Model) renderEditor(width, height int) string {
 }
 
 func (m Model) renderStatus(width int) string {
-	var text string
+	var left string
 	if m.fetching {
-		text = m.spinner.View() + " Loading…"
+		left = m.spinner.View() + " Loading…"
+	} else if m.focus == focusFilter {
+		left = helpStyle.Render("filter · enter/esc apply")
 	} else if m.errMsg != "" {
-		text = errorStyle.Render(m.errMsg)
+		left = errorStyle.Render(m.errMsg)
 	} else if m.statusMsg != "" {
-		text = statusStyle.Render(m.statusMsg)
+		left = statusStyle.Render(m.statusMsg)
 	} else {
-		text = helpStyle.Render("tab cycle · / filter · ? help · q quit")
+		left = helpStyle.Render("tab cycle · / filter · ? help · q quit")
 	}
-	return lipgloss.NewStyle().Width(width).Render(text)
-}
 
-func (m Model) renderFilter(width, height int) string {
-	active := m.focus == focusFilter
-	content := m.filterInput.View()
-	if !active && m.filter != "" {
-		content = "/ " + m.filter
-	} else if !active {
-		content = dimStyle.Render("/ filter")
+	var right string
+	if m.focus == focusFilter {
+		rightW := max(12, min(40, width/2))
+		m.filterInput.Width = max(8, rightW-2)
+		right = m.filterInput.View()
+	} else if m.filter != "" {
+		right = activeEnvStyle.Render("/ " + m.filter)
 	}
-	return renderTitledPanel("Filter", content, width, height, active)
+
+	if right == "" {
+		return lipgloss.NewStyle().Width(width).MaxWidth(width).Render(left)
+	}
+
+	leftW := lipgloss.Width(left)
+	rightW := lipgloss.Width(right)
+	gap := width - leftW - rightW
+	if gap < 1 {
+		maxLeft := max(0, width-rightW-1)
+		left = lipgloss.NewStyle().MaxWidth(maxLeft).Render(left)
+		leftW = lipgloss.Width(left)
+		gap = max(1, width-leftW-rightW)
+	}
+	return left + strings.Repeat(" ", gap) + right
 }
 
 func renderTitledPanel(title, content string, width, height int, active bool) string {

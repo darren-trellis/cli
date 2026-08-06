@@ -227,7 +227,6 @@ var paneOrder = []focusArea{
 	focusSecrets,
 	focusEditorName,
 	focusEditorValue,
-	focusFilter,
 }
 
 func (m *Model) setFocus(f focusArea) {

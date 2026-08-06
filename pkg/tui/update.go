@@ -196,15 +196,7 @@ func (m Model) handleSaveKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "tab":
-		m.filter = m.filterInput.Value()
-		m.cyclePane(1)
-		return m, nil
-	case "shift+tab":
-		m.filter = m.filterInput.Value()
-		m.cyclePane(-1)
-		return m, nil
-	case "enter", "esc":
+	case "tab", "shift+tab", "enter", "esc":
 		m.filter = m.filterInput.Value()
 		m.secretIdx = 0
 		m.loadEditorFromSelection()
@@ -541,7 +533,7 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 	case layout.editor.contains(msg.X, msg.Y):
 		m.enterEditor(msg.Y > layout.editor.y+2)
-	case layout.filter.contains(msg.X, msg.Y):
+	case layout.status.contains(msg.X, msg.Y):
 		m.setFocus(focusFilter)
 	}
 	return m, nil
@@ -589,7 +581,7 @@ const helpText = `Global Keybinds:
     Tab / Shift+Tab  Cycle panes
     1 Focus Projects
     2 Focus Secrets
-    / Focus Filter
+    / Filter secrets (status bar)
     ? Help
     q Exit
 
@@ -616,6 +608,12 @@ Secrets List:
     y       Copy value to clipboard
     s       Save prompt
 
+Filter:
+    /       Edit filter in status bar
+    Enter / Esc / Tab  Apply and return
+    Active filter shows on the right
+    of the status bar
+
 Editor:
     Tab     Next pane (name → value → …)
     Esc     Return to secrets list
@@ -627,4 +625,5 @@ Save Prompt:
 Mouse:
     Click lists to focus/select
     Click editor to edit
+    Click status bar to filter
     Scroll wheel to navigate`
