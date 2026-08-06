@@ -347,13 +347,14 @@ func (m Model) toggleFold() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if row.kind == treeConfig && row.foldRoot != "" {
-		if row.hasChildren || row.depth == 2 {
-			return m.toggleEnvFold(row.project, row.foldRoot)
-		}
+	switch {
+	case row.kind == treeProject:
+		return m.toggleProjectFold(row.project)
+	case row.kind == treeConfig && row.hasChildren:
+		return m.toggleEnvFold(row.project, row.foldRoot)
+	default:
+		return m, nil
 	}
-
-	return m.toggleProjectFold(row.project)
 }
 
 func (m Model) toggleEnvFold(project, rootConfig string) (tea.Model, tea.Cmd) {

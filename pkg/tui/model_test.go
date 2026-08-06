@@ -292,6 +292,36 @@ func TestToggleEnvFold(t *testing.T) {
 	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd"}, treeLabels(mod.tree))
 }
 
+func TestSpaceOnLeafDoesNothing(t *testing.T) {
+	m := newModel(models.ScopedOptions{})
+	m.fetching = false
+	m.focus = focusProjects
+	m.projects = []string{"api"}
+	m.projectConfigs["api"] = buildConfigTree([]models.ConfigInfo{
+		{Name: "dev", Environment: "dev", Root: true},
+		{Name: "dev_personal", Environment: "dev", Root: false},
+		{Name: "prd", Environment: "prd", Root: true},
+	})
+	m.expanded["api"] = true
+	m.activeProject = "api"
+	m.activeConfig = "prd"
+	m.rebuildTree()
+	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "prd")
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	mod := next.(Model)
+	assert.Nil(t, cmd)
+	assert.True(t, mod.expanded["api"])
+	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd"}, treeLabels(mod.tree))
+
+	mod.treeIdx = findTreeIndex(mod.tree, treeConfig, "api", "dev_personal")
+	next, cmd = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	mod = next.(Model)
+	assert.Nil(t, cmd)
+	assert.True(t, isEnvExpanded(mod.expandedEnvs, "api", "dev"))
+	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd"}, treeLabels(mod.tree))
+}
+
 func TestCyclePane(t *testing.T) {
 	m := newModel(models.ScopedOptions{})
 	m.fetching = false
