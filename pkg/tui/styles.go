@@ -35,6 +35,8 @@ var (
 
 	activeTitleStyle = titleStyle.Foreground(magenta)
 
+	roundedBorder = lipgloss.RoundedBorder()
+
 	selectedStyle = lipgloss.NewStyle().Foreground(magenta).Bold(true)
 
 	dimStyle = lipgloss.NewStyle().Foreground(dim)

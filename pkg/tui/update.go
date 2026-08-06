@@ -439,17 +439,16 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case layout.projects.contains(msg.X, msg.Y):
 		m.setFocus(focusProjects)
-		rel := msg.Y - layout.projects.y - 2
+		rel := msg.Y - layout.projects.y - 1
 		if rel >= 0 && rel < len(m.projects) {
 			m.projectIdx = rel
 			return m.activateSelection()
 		}
 	case layout.configs.contains(msg.X, msg.Y):
 		m.setFocus(focusConfigs)
-		rel := msg.Y - layout.configs.y - 2
+		rel := msg.Y - layout.configs.y - 1
 		if rel >= 0 {
-			// account for scroll offset in renderLinesPanel
-			visible := max(1, layout.configs.h-3)
+			visible := max(1, layout.configs.h-2)
 			start := 0
 			if m.configIdx >= visible {
 				start = m.configIdx - visible + 1
@@ -462,14 +461,14 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 	case layout.secrets.contains(msg.X, msg.Y):
 		m.setFocus(focusSecrets)
-		rel := msg.Y - layout.secrets.y - 2
+		rel := msg.Y - layout.secrets.y - 1
 		idxs := m.filteredIndexes()
 		if rel >= 0 && rel < len(idxs) {
 			m.secretIdx = rel
 			m.loadEditorFromSelection()
 		}
 	case layout.editor.contains(msg.X, msg.Y):
-		m.enterEditor(msg.Y > layout.editor.y+3)
+		m.enterEditor(msg.Y > layout.editor.y+2)
 	case layout.filter.contains(msg.X, msg.Y):
 		m.setFocus(focusFilter)
 	}

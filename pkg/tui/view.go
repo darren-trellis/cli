@@ -160,23 +160,10 @@ func (m Model) renderListPanel(title string, items []string, selected int, activ
 }
 
 func (m Model) renderLinesPanel(title string, lines []string, selected int, active bool, width, height int) string {
-	style := panelStyle
-	tStyle := titleStyle
-	if active {
-		style = activePanelStyle
-		tStyle = activeTitleStyle
-	}
-
 	innerW := max(1, width-4)
 	innerH := max(1, height-2)
 
-	var body []string
-	body = append(body, tStyle.Render(title))
-
-	visible := innerH - 1
-	if visible < 1 {
-		visible = 1
-	}
+	visible := innerH
 	start := 0
 	if selected >= visible {
 		start = selected - visible + 1
@@ -186,6 +173,7 @@ func (m Model) renderLinesPanel(title string, lines []string, selected int, acti
 		end = len(lines)
 	}
 
+	var body []string
 	for i := start; i < end; i++ {
 		line := truncatePreserve(lines[i], innerW)
 		if i == selected {
@@ -197,23 +185,16 @@ func (m Model) renderLinesPanel(title string, lines []string, selected int, acti
 		body = append(body, "")
 	}
 
-	content := strings.Join(body[:innerH], "\n")
-	return style.Width(width - 2).Height(height - 2).Render(content)
+	return renderTitledPanel(title, strings.Join(body[:innerH], "\n"), width, height, active)
 }
 
 func (m Model) renderEditor(width, height int) string {
 	active := m.inEditor()
-	style := panelStyle
-	tStyle := titleStyle
-	if active {
-		style = activePanelStyle
-		tStyle = activeTitleStyle
-	}
 
 	innerW := max(10, width-4)
 	m.nameInput.Width = max(8, innerW-7)
 	m.valueInput.SetWidth(innerW)
-	valueH := max(3, height-6)
+	valueH := max(3, height-5)
 	m.valueInput.SetHeight(valueH)
 
 	nameLine := m.nameInput.View()
@@ -231,13 +212,12 @@ func (m Model) renderEditor(width, height int) string {
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left,
-		tStyle.Render("Editor"),
 		nameLine,
 		valueLabel,
 		m.valueInput.View(),
 		helpStyle.Render("tab next pane · esc back"),
 	)
-	return style.Width(width - 2).Height(height - 2).Render(content)
+	return renderTitledPanel("Editor", content, width, height, active)
 }
 
 func (m Model) renderStatus(width int) string {
@@ -256,17 +236,57 @@ func (m Model) renderStatus(width int) string {
 
 func (m Model) renderFilter(width, height int) string {
 	active := m.focus == focusFilter
-	style := panelStyle
-	if active {
-		style = activePanelStyle
-	}
 	content := m.filterInput.View()
 	if !active && m.filter != "" {
 		content = "/ " + m.filter
 	} else if !active {
 		content = dimStyle.Render("/ filter")
 	}
-	return style.Width(width - 2).Height(height - 2).Render(content)
+	return renderTitledPanel("Filter", content, width, height, active)
+}
+
+func renderTitledPanel(title, content string, width, height int, active bool) string {
+	style := panelStyle
+	if active {
+		style = activePanelStyle
+	}
+
+	rendered := style.Width(width - 2).Height(height - 2).Render(content)
+	lines := strings.Split(rendered, "\n")
+	if len(lines) == 0 {
+		return rendered
+	}
+	lines[0] = titledTopBorder(title, width, active)
+	return strings.Join(lines, "\n")
+}
+
+func titledTopBorder(title string, width int, active bool) string {
+	fg := dim
+	tStyle := titleStyle
+	if active {
+		fg = magenta
+		tStyle = activeTitleStyle
+	}
+	borderStyle := lipgloss.NewStyle().Foreground(fg)
+
+	label := " " + strings.TrimSpace(title) + " "
+	inner := max(0, width-2)
+	if lipgloss.Width(label) > inner {
+		label = " " + truncate(strings.TrimSpace(title), max(1, inner-2)) + " "
+	}
+
+	gap := inner - lipgloss.Width(label)
+	left := 1
+	if gap < left {
+		left = gap
+	}
+	right := gap - left
+
+	return borderStyle.Render(roundedBorder.TopLeft) +
+		borderStyle.Render(strings.Repeat(roundedBorder.Top, left)) +
+		tStyle.Render(label) +
+		borderStyle.Render(strings.Repeat(roundedBorder.Top, right)) +
+		borderStyle.Render(roundedBorder.TopRight)
 }
 
 func (m Model) renderIntroModal() string {
@@ -279,13 +299,12 @@ Secrets use a list + editor: select a secret,
 press Enter/e to edit name and value.
 
 https://github.com/DopplerHQ/cli`
-	return modalStyle.Render(titleStyle.Render("Welcome") + "\n\n" + body)
+	return renderTitledPanel("Welcome", body, min(64, max(40, m.width-8)), 12, true)
 }
 
 func (m Model) renderHelpModal() string {
-	return modalStyle.Width(min(64, m.width-4)).Render(
-		activeTitleStyle.Render("Help") + "\n\n" + m.helpViewport.View() + "\n\n" + helpStyle.Render("Enter/Esc close"),
-	)
+	body := m.helpViewport.View() + "\n\n" + helpStyle.Render("Enter/Esc close")
+	return renderTitledPanel("Help", body, min(64, m.width-4), min(28, m.height-4), true)
 }
 
 func (m Model) renderSaveModal() string {
@@ -299,7 +318,7 @@ func (m Model) renderSaveModal() string {
 		}
 		body += "\nEnter confirm · Esc/q cancel"
 	}
-	return modalStyle.Render(activeTitleStyle.Render("Confirm Changes") + "\n\n" + body)
+	return renderTitledPanel("Confirm Changes", body, min(60, m.width-4), min(20, m.height-4), true)
 }
 
 func (m Model) renderOverlay(base, modal string) string {
