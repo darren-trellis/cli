@@ -75,7 +75,7 @@ func (m Model) View() string {
 	layout := m.computeLayout()
 
 	left := lipgloss.JoinVertical(lipgloss.Left,
-		m.renderListPanel("Projects (2)", m.projects, m.projectIdx, m.focus == focusProjects, layout.projects.w, layout.projects.h, func(i int, item string) string {
+		m.renderListPanel(fmt.Sprintf("Projects (%d)", len(m.projects)), m.projects, m.projectIdx, m.focus == focusProjects, layout.projects.w, layout.projects.h, func(i int, item string) string {
 			prefix := "  "
 			if item == m.activeProject {
 				prefix = "* "
@@ -85,9 +85,9 @@ func (m Model) View() string {
 		m.renderConfigTree(layout.configs.w, layout.configs.h),
 	)
 
-	secretsTitle := "Secrets (3)"
+	secretsTitle := fmt.Sprintf("Secrets (%d)", len(m.filteredIndexes()))
 	if m.activeProject != "" && m.activeConfig != "" {
-		secretsTitle = fmt.Sprintf("Secrets (3) [%s / %s]", m.activeProject, m.activeConfig)
+		secretsTitle = fmt.Sprintf("Secrets (%d) [%s / %s]", len(m.filteredIndexes()), m.activeProject, m.activeConfig)
 	}
 
 	idxs := m.filteredIndexes()
@@ -148,7 +148,7 @@ func (m Model) renderConfigTree(width, height int) string {
 		}
 		lines[i] = prefix + branch + row.name
 	}
-	return m.renderLinesPanel("Configs (1)", lines, m.configIdx, m.focus == focusConfigs, width, height)
+	return m.renderLinesPanel(fmt.Sprintf("Configs (%d)", len(m.configs)), lines, m.configIdx, m.focus == focusConfigs, width, height)
 }
 
 func (m Model) renderListPanel(title string, items []string, selected int, active bool, width, height int, format func(int, string) string) string {
@@ -249,7 +249,7 @@ func (m Model) renderStatus(width int) string {
 	} else if m.statusMsg != "" {
 		text = statusStyle.Render(m.statusMsg)
 	} else {
-		text = helpStyle.Render("tab cycle · 1 configs · 2 projects · 3 secrets · / filter · ? help · q quit")
+		text = helpStyle.Render("tab cycle · / filter · ? help · q quit")
 	}
 	return lipgloss.NewStyle().Width(width).Render(text)
 }
