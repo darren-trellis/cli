@@ -13,24 +13,27 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package configuration
+package tui
 
-var CURRENT_INTRO_VERSION = 1
+import (
+	"testing"
 
-func TUIShouldShowIntro() bool {
-	return configContents.TUI.IntroVersionSeen != CURRENT_INTRO_VERSION
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestApplyTheme(t *testing.T) {
+	require.NoError(t, applyTheme("cool"))
+	assert.Equal(t, themes["cool"].Accent, accent)
+
+	require.NoError(t, applyTheme("DEFAULT"))
+	assert.Equal(t, themes["default"].Accent, accent)
+
+	err := applyTheme("nope")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown theme")
 }
 
-func TUIMarkIntroSeen() {
-	configContents.TUI.IntroVersionSeen = CURRENT_INTRO_VERSION
-	writeConfig(configContents)
-}
-
-func TUITheme() string {
-	return configContents.TUI.Theme
-}
-
-func TUISetTheme(theme string) {
-	configContents.TUI.Theme = theme
-	writeConfig(configContents)
+func TestThemeNames(t *testing.T) {
+	assert.Equal(t, []string{"cool", "default", "mono", "warm"}, themeNames())
 }

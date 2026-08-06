@@ -16,6 +16,8 @@ limitations under the License.
 package cmd
 
 import (
+	"strings"
+
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	tuiApp "github.com/DopplerHQ/cli/pkg/tui"
 	"github.com/DopplerHQ/cli/pkg/utils"
@@ -31,12 +33,23 @@ var tuiCmd = &cobra.Command{
 
 func tui(cmd *cobra.Command, args []string) {
 	localConfig := configuration.LocalConfig(cmd)
-	tuiApp.Start(localConfig)
+
+	theme := configuration.TUITheme()
+	if cmd.Flags().Changed("theme") {
+		theme = cmd.Flag("theme").Value.String()
+		configuration.TUISetTheme(theme)
+	}
+	if strings.TrimSpace(theme) == "" {
+		theme = "default"
+	}
+
+	tuiApp.Start(localConfig, theme)
 }
 
 func init() {
 	tuiCmd.Flags().StringP("project", "p", "", "project (e.g. backend)")
 	tuiCmd.Flags().StringP("config", "c", "", "config (e.g. dev)")
+	tuiCmd.Flags().String("theme", "default", "TUI theme (default, cool, warm, mono)")
 	tuiCmd.Flags().BoolVar(&utils.DebugTUI, "debug-tui", utils.DebugTUI, "log TUI messages to file")
 	rootCmd.AddCommand(tuiCmd)
 }

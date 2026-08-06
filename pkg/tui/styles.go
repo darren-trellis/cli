@@ -18,42 +18,53 @@ package tui
 import "github.com/charmbracelet/lipgloss"
 
 var (
-	magenta = lipgloss.Color("5")
-	yellow  = lipgloss.Color("3")
-	red     = lipgloss.Color("1")
-	dim     = lipgloss.Color("8")
-	white   = lipgloss.Color("15")
+	accent lipgloss.Color
+	dim    lipgloss.Color
 
-	panelStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(dim).
-			Padding(0, 1)
-
-	activePanelStyle = panelStyle.BorderForeground(magenta)
-
-	titleStyle = lipgloss.NewStyle().Foreground(white).Bold(true)
-
-	activeTitleStyle = titleStyle.Foreground(magenta)
+	panelStyle       lipgloss.Style
+	activePanelStyle lipgloss.Style
+	titleStyle       lipgloss.Style
+	activeTitleStyle lipgloss.Style
+	selectedStyle    lipgloss.Style
+	dimStyle         lipgloss.Style
+	dirtyStyle       lipgloss.Style
+	deleteStyle      lipgloss.Style
+	errorStyle       lipgloss.Style
+	statusStyle      lipgloss.Style
+	modalStyle       lipgloss.Style
+	helpStyle        lipgloss.Style
 
 	roundedBorder = lipgloss.RoundedBorder()
+)
 
-	selectedStyle = lipgloss.NewStyle().Foreground(magenta).Bold(true)
+func init() {
+	_ = applyTheme(defaultThemeName)
+}
 
-	dimStyle = lipgloss.NewStyle().Foreground(dim)
+func rebuildStyles(theme Theme) {
+	accent = theme.Accent
+	dim = theme.Dim
 
-	dirtyStyle = lipgloss.NewStyle().Foreground(yellow)
+	panelStyle = lipgloss.NewStyle().
+		Border(roundedBorder).
+		BorderForeground(theme.Dim).
+		Padding(0, 1)
 
-	deleteStyle = lipgloss.NewStyle().Foreground(red)
+	activePanelStyle = panelStyle.BorderForeground(theme.Accent)
 
-	errorStyle = lipgloss.NewStyle().Foreground(red)
-
-	statusStyle = lipgloss.NewStyle().Foreground(white)
+	titleStyle = lipgloss.NewStyle().Foreground(theme.Title).Bold(true)
+	activeTitleStyle = titleStyle.Foreground(theme.Accent)
+	selectedStyle = lipgloss.NewStyle().Foreground(theme.Accent).Bold(true)
+	dimStyle = lipgloss.NewStyle().Foreground(theme.Dim)
+	dirtyStyle = lipgloss.NewStyle().Foreground(theme.Dirty)
+	deleteStyle = lipgloss.NewStyle().Foreground(theme.Delete)
+	errorStyle = lipgloss.NewStyle().Foreground(theme.Error)
+	statusStyle = lipgloss.NewStyle().Foreground(theme.Text)
+	helpStyle = lipgloss.NewStyle().Foreground(theme.Dim)
 
 	modalStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(magenta).
-			Padding(1, 2).
-			Width(60)
-
-	helpStyle = lipgloss.NewStyle().Foreground(dim)
-)
+		Border(roundedBorder).
+		BorderForeground(theme.Accent).
+		Padding(1, 2).
+		Width(60)
+}

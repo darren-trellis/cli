@@ -26,7 +26,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func Start(opts models.ScopedOptions) {
+func Start(opts models.ScopedOptions, themeName string) {
 	cmn, err := common.NewCommon(opts)
 	if err != nil {
 		log.Fatal(err)
@@ -34,6 +34,11 @@ func Start(opts models.ScopedOptions) {
 
 	if cmn.Opts.EnclaveProject.Value == "" {
 		utils.Log("You must run `doppler setup` prior to launching the TUI")
+		os.Exit(1)
+	}
+
+	if err := applyTheme(themeName); err != nil {
+		utils.Log(err.Error())
 		os.Exit(1)
 	}
 

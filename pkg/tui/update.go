@@ -524,6 +524,10 @@ const helpText = `Global Keybinds:
     ? Help
     q Exit
 
+Themes:
+    doppler tui --theme default|cool|warm|mono
+    Choice is saved in your Doppler config
+
 Configs / Projects:
     j / k   Move
     Enter   Select (project also loads a config)

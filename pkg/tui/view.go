@@ -264,7 +264,7 @@ func titledTopBorder(title string, width int, active bool) string {
 	fg := dim
 	tStyle := titleStyle
 	if active {
-		fg = magenta
+		fg = accent
 		tStyle = activeTitleStyle
 	}
 	borderStyle := lipgloss.NewStyle().Foreground(fg)
