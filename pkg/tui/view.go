@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type rect struct {
@@ -177,7 +178,8 @@ func (m Model) renderLinesPanel(title string, lines []string, selected int, acti
 	for i := start; i < end; i++ {
 		line := truncatePreserve(lines[i], innerW)
 		if i == selected {
-			line = selectedStyle.Render(truncate(plainLine(lines[i]), innerW))
+			plain := truncate(ansi.Strip(lines[i]), innerW)
+			line = selectedStyle.Width(innerW).MaxWidth(innerW).Render(plain)
 		}
 		body = append(body, line)
 	}
@@ -344,8 +346,4 @@ func truncate(s string, width int) string {
 
 func truncatePreserve(s string, width int) string {
 	return lipgloss.NewStyle().MaxWidth(width).Render(s)
-}
-
-func plainLine(s string) string {
-	return lipgloss.NewStyle().MaxWidth(1000).Render(s)
 }

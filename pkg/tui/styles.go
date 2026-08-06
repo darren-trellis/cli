@@ -62,9 +62,11 @@ func rebuildStyles(theme Theme) {
 	activeTitleStyle = titleStyle.Foreground(theme.Accent)
 
 	selectedStyle = lipgloss.NewStyle().Foreground(theme.SelectionFg).Bold(true)
-	if theme.SelectionBg != "" {
-		selectedStyle = selectedStyle.Background(theme.SelectionBg)
+	selectionBg := theme.SelectionBg
+	if selectionBg == "" {
+		selectionBg = lipgloss.Color("237")
 	}
+	selectedStyle = selectedStyle.Background(selectionBg)
 
 	dimStyle = lipgloss.NewStyle().Foreground(theme.Dim)
 	dirtyStyle = lipgloss.NewStyle().Foreground(theme.Dirty)
