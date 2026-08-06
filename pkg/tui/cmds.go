@@ -1,0 +1,158 @@
+/*
+Copyright © 2023 Doppler <support@doppler.com>
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+package tui
+
+import (
+	"context"
+
+	"github.com/DopplerHQ/cli/pkg/controllers"
+	"github.com/DopplerHQ/cli/pkg/models"
+	tea "github.com/charmbracelet/bubbletea"
+	"golang.org/x/sync/errgroup"
+)
+
+type errMsg struct{ err error }
+
+func (e errMsg) Error() string { return e.err.Error() }
+
+type loadedMsg struct {
+	projects           []string
+	configs            []string
+	secrets            []secretRow
+	selectedProjectIdx int
+	selectedConfigIdx  int
+	activeProject      string
+	activeConfig       string
+}
+
+type configsLoadedMsg struct {
+	configs []string
+}
+
+type secretsLoadedMsg struct {
+	secrets       []secretRow
+	activeProject string
+	activeConfig  string
+}
+
+func withProject(opts models.ScopedOptions, project string) models.ScopedOptions {
+	opts.EnclaveProject = models.ScopedOption{Scope: "", Source: "tui", Value: project}
+	return opts
+}
+
+func withProjectConfig(opts models.ScopedOptions, project, config string) models.ScopedOptions {
+	opts.EnclaveProject = models.ScopedOption{Scope: "", Source: "tui", Value: project}
+	opts.EnclaveConfig = models.ScopedOption{Scope: "", Source: "tui", Value: config}
+	return opts
+}
+
+func loadCmd(opts models.ScopedOptions) tea.Cmd {
+	return func() tea.Msg {
+		var projectIDs []string
+		var configInfos []models.ConfigInfo
+		var computed map[string]models.ComputedSecret
+
+		g, _ := errgroup.WithContext(context.Background())
+		g.Go(func() error {
+			var err controllers.Error
+			projectIDs, err = controllers.GetProjectIDs(opts)
+			return err.Unwrap()
+		})
+		g.Go(func() error {
+			var err controllers.Error
+			configInfos, err = controllers.GetConfigs(withProject(opts, opts.EnclaveProject.Value))
+			return err.Unwrap()
+		})
+		g.Go(func() error {
+			var err controllers.Error
+			computed, err = controllers.GetSecrets(withProjectConfig(opts, opts.EnclaveProject.Value, opts.EnclaveConfig.Value))
+			return err.Unwrap()
+		})
+		if err := g.Wait(); err != nil {
+			return errMsg{err}
+		}
+
+		projects := make([]string, len(projectIDs))
+		selectedProjectIdx := 0
+		for i, id := range projectIDs {
+			projects[i] = id
+			if id == opts.EnclaveProject.Value {
+				selectedProjectIdx = i
+			}
+		}
+
+		configs := make([]string, len(configInfos))
+		selectedConfigIdx := 0
+		for i, c := range configInfos {
+			configs[i] = c.Name
+			if c.Name == opts.EnclaveConfig.Value {
+				selectedConfigIdx = i
+			}
+		}
+
+		return loadedMsg{
+			projects:           projects,
+			configs:            configs,
+			secrets:            secretsFromComputed(computed),
+			selectedProjectIdx: selectedProjectIdx,
+			selectedConfigIdx:  selectedConfigIdx,
+			activeProject:      opts.EnclaveProject.Value,
+			activeConfig:       opts.EnclaveConfig.Value,
+		}
+	}
+}
+
+func selectProjectCmd(opts models.ScopedOptions, project string) tea.Cmd {
+	return func() tea.Msg {
+		configInfos, err := controllers.GetConfigs(withProject(opts, project))
+		if err.Unwrap() != nil {
+			return errMsg{err.Unwrap()}
+		}
+		configs := make([]string, len(configInfos))
+		for i, c := range configInfos {
+			configs[i] = c.Name
+		}
+		return configsLoadedMsg{configs: configs}
+	}
+}
+
+func selectConfigCmd(opts models.ScopedOptions, project, config string) tea.Cmd {
+	return func() tea.Msg {
+		computed, err := controllers.GetSecrets(withProjectConfig(opts, project, config))
+		if err.Unwrap() != nil {
+			return errMsg{err.Unwrap()}
+		}
+		return secretsLoadedMsg{
+			secrets:       secretsFromComputed(computed),
+			activeProject: project,
+			activeConfig:  config,
+		}
+	}
+}
+
+func saveSecretsCmd(opts models.ScopedOptions, project, config string, changes []models.ChangeRequest) tea.Cmd {
+	return func() tea.Msg {
+		computed, err := controllers.SetSecrets(withProjectConfig(opts, project, config), changes)
+		if err.Unwrap() != nil {
+			return errMsg{err.Unwrap()}
+		}
+		return secretsLoadedMsg{
+			secrets:       secretsFromComputed(computed),
+			activeProject: project,
+			activeConfig:  config,
+		}
+	}
+}

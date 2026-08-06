@@ -1,0 +1,318 @@
+/*
+Copyright © 2023 Doppler <support@doppler.com>
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+package tui
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
+
+type rect struct {
+	x, y, w, h int
+}
+
+func (r rect) contains(x, y int) bool {
+	return x >= r.x && x < r.x+r.w && y >= r.y && y < r.y+r.h
+}
+
+type layoutRegions struct {
+	projects rect
+	configs  rect
+	secrets  rect
+	editor   rect
+	filter   rect
+	status   rect
+}
+
+func (m Model) computeLayout() layoutRegions {
+	w := max(40, m.width)
+	h := max(12, m.height)
+
+	leftW := max(18, w/5)
+	rightW := w - leftW
+	statusH := 1
+	filterH := 3
+	editorH := max(8, h/3)
+	secretsH := h - editorH - statusH - filterH
+	if secretsH < 4 {
+		secretsH = 4
+		editorH = max(6, h-secretsH-statusH-filterH)
+	}
+	topH := secretsH + editorH
+	projectsH := topH / 2
+	configsH := topH - projectsH
+
+	return layoutRegions{
+		projects: rect{0, 0, leftW, projectsH},
+		configs:  rect{0, projectsH, leftW, configsH},
+		secrets:  rect{leftW, 0, rightW, secretsH},
+		editor:   rect{leftW, secretsH, rightW, editorH},
+		status:   rect{0, topH, w, statusH},
+		filter:   rect{0, topH + statusH, w, filterH},
+	}
+}
+
+func (m Model) View() string {
+	if m.width == 0 || m.height == 0 {
+		return ""
+	}
+
+	layout := m.computeLayout()
+
+	left := lipgloss.JoinVertical(lipgloss.Left,
+		m.renderListPanel("Projects (2)", m.projects, m.projectIdx, m.focus == focusProjects, layout.projects.w, layout.projects.h, func(i int, item string) string {
+			prefix := "  "
+			if item == m.activeProject {
+				prefix = "* "
+			}
+			return prefix + item
+		}),
+		m.renderListPanel("Configs (1)", m.configs, m.configIdx, m.focus == focusConfigs, layout.configs.w, layout.configs.h, func(i int, item string) string {
+			prefix := "  "
+			if item == m.activeConfig && m.currentProject() == m.activeProject {
+				prefix = "* "
+			}
+			return prefix + item
+		}),
+	)
+
+	secretsTitle := "Secrets (3)"
+	if m.activeProject != "" && m.activeConfig != "" {
+		secretsTitle = fmt.Sprintf("Secrets (3) [%s / %s]", m.activeProject, m.activeConfig)
+	}
+
+	idxs := m.filteredIndexes()
+	secretLines := make([]string, len(idxs))
+	for i, idx := range idxs {
+		s := m.secrets[idx]
+		marker := "  "
+		if s.shouldDelete {
+			marker = "D "
+		} else if s.isDirty() {
+			marker = "* "
+		}
+		line := fmt.Sprintf("%s%s  %s", marker, s.name, dimStyle.Render(s.previewValue()))
+		if s.shouldDelete {
+			line = deleteStyle.Render(fmt.Sprintf("%s%s  %s", marker, s.name, s.previewValue()))
+		} else if s.isDirty() {
+			line = dirtyStyle.Render(fmt.Sprintf("%s%s  %s", marker, s.name, s.previewValue()))
+		}
+		secretLines[i] = line
+	}
+
+	secretsPanel := m.renderLinesPanel(secretsTitle, secretLines, m.secretIdx, m.focus == focusSecrets, layout.secrets.w, layout.secrets.h)
+	editorPanel := m.renderEditor(layout.editor.w, layout.editor.h)
+	right := lipgloss.JoinVertical(lipgloss.Left, secretsPanel, editorPanel)
+
+	main := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
+	status := m.renderStatus(layout.status.w)
+	filter := m.renderFilter(layout.filter.w, layout.filter.h)
+
+	base := lipgloss.JoinVertical(lipgloss.Left, main, status, filter)
+
+	switch m.focus {
+	case focusIntro:
+		return m.renderOverlay(base, m.renderIntroModal())
+	case focusHelp:
+		return m.renderOverlay(base, m.renderHelpModal())
+	case focusSave:
+		return m.renderOverlay(base, m.renderSaveModal())
+	default:
+		return base
+	}
+}
+
+func (m Model) renderListPanel(title string, items []string, selected int, active bool, width, height int, format func(int, string) string) string {
+	lines := make([]string, len(items))
+	for i, item := range items {
+		lines[i] = format(i, item)
+	}
+	return m.renderLinesPanel(title, lines, selected, active, width, height)
+}
+
+func (m Model) renderLinesPanel(title string, lines []string, selected int, active bool, width, height int) string {
+	style := panelStyle
+	tStyle := titleStyle
+	if active {
+		style = activePanelStyle
+		tStyle = activeTitleStyle
+	}
+
+	innerW := max(1, width-4)
+	innerH := max(1, height-2)
+
+	var body []string
+	body = append(body, tStyle.Render(title))
+
+	visible := innerH - 1
+	if visible < 1 {
+		visible = 1
+	}
+	start := 0
+	if selected >= visible {
+		start = selected - visible + 1
+	}
+	end := start + visible
+	if end > len(lines) {
+		end = len(lines)
+	}
+
+	for i := start; i < end; i++ {
+		line := truncatePreserve(lines[i], innerW)
+		if i == selected {
+			line = selectedStyle.Render(truncate(plainLine(lines[i]), innerW))
+		}
+		body = append(body, line)
+	}
+	for len(body) < innerH {
+		body = append(body, "")
+	}
+
+	content := strings.Join(body[:innerH], "\n")
+	return style.Width(width - 2).Height(height - 2).Render(content)
+}
+
+func (m Model) renderEditor(width, height int) string {
+	active := m.inEditor()
+	style := panelStyle
+	tStyle := titleStyle
+	if active {
+		style = activePanelStyle
+		tStyle = activeTitleStyle
+	}
+
+	innerW := max(10, width-4)
+	m.nameInput.Width = max(8, innerW-7)
+	m.valueInput.SetWidth(innerW)
+	valueH := max(3, height-6)
+	m.valueInput.SetHeight(valueH)
+
+	nameLine := m.nameInput.View()
+	if m.focus == focusEditorName {
+		nameLine = selectedStyle.Render("▸ ") + m.nameInput.View()
+	} else {
+		nameLine = "  " + m.nameInput.View()
+	}
+
+	valueLabel := "Value:"
+	if m.focus == focusEditorValue {
+		valueLabel = selectedStyle.Render("▸ Value:")
+	} else {
+		valueLabel = "  Value:"
+	}
+
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		tStyle.Render("Editor"),
+		nameLine,
+		valueLabel,
+		m.valueInput.View(),
+		helpStyle.Render("tab switch · esc back"),
+	)
+	return style.Width(width - 2).Height(height - 2).Render(content)
+}
+
+func (m Model) renderStatus(width int) string {
+	var text string
+	if m.fetching {
+		text = m.spinner.View() + " Loading…"
+	} else if m.errMsg != "" {
+		text = errorStyle.Render(m.errMsg)
+	} else if m.statusMsg != "" {
+		text = statusStyle.Render(m.statusMsg)
+	} else {
+		text = helpStyle.Render("1 configs · 2 projects · 3 secrets · / filter · ? help · q quit")
+	}
+	return lipgloss.NewStyle().Width(width).Render(text)
+}
+
+func (m Model) renderFilter(width, height int) string {
+	active := m.focus == focusFilter
+	style := panelStyle
+	if active {
+		style = activePanelStyle
+	}
+	content := m.filterInput.View()
+	if !active && m.filter != "" {
+		content = "/ " + m.filter
+	} else if !active {
+		content = dimStyle.Render("/ filter")
+	}
+	return style.Width(width - 2).Height(height - 2).Render(content)
+}
+
+func (m Model) renderIntroModal() string {
+	body := `Welcome to the Doppler TUI!
+
+Close this window with Enter/Esc, then press ?
+for keybindings.
+
+Secrets use a list + editor: select a secret,
+press Enter/e to edit name and value.
+
+https://github.com/DopplerHQ/cli`
+	return modalStyle.Render(titleStyle.Render("Welcome") + "\n\n" + body)
+}
+
+func (m Model) renderHelpModal() string {
+	return modalStyle.Width(min(64, m.width-4)).Render(
+		activeTitleStyle.Render("Help") + "\n\n" + m.helpViewport.View() + "\n\n" + helpStyle.Render("Enter/Esc close"),
+	)
+}
+
+func (m Model) renderSaveModal() string {
+	var body string
+	if len(m.pendingChanges) == 0 {
+		body = "There are no changes to save"
+	} else {
+		body = "The following secrets will be updated:\n\n"
+		for _, c := range m.pendingChanges {
+			body += "● " + fmt.Sprint(c.Name) + "\n"
+		}
+		body += "\nEnter confirm · Esc/q cancel"
+	}
+	return modalStyle.Render(activeTitleStyle.Render("Confirm Changes") + "\n\n" + body)
+}
+
+func (m Model) renderOverlay(base, modal string) string {
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal,
+		lipgloss.WithWhitespaceChars(" "),
+		lipgloss.WithWhitespaceForeground(dim),
+	)
+}
+
+func truncate(s string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	if len(runes) <= width {
+		return s
+	}
+	if width <= 1 {
+		return string(runes[:width])
+	}
+	return string(runes[:width-1]) + "…"
+}
+
+func truncatePreserve(s string, width int) string {
+	return lipgloss.NewStyle().MaxWidth(width).Render(s)
+}
+
+func plainLine(s string) string {
+	return lipgloss.NewStyle().MaxWidth(1000).Render(s)
+}

@@ -16,19 +16,15 @@ limitations under the License.
 package tui
 
 import (
+	"fmt"
 	"log"
 	"os"
 
 	"github.com/DopplerHQ/cli/pkg/models"
 	"github.com/DopplerHQ/cli/pkg/tui/common"
-	"github.com/DopplerHQ/cli/pkg/tui/gui"
 	"github.com/DopplerHQ/cli/pkg/utils"
+	tea "github.com/charmbracelet/bubbletea"
 )
-
-type App struct {
-	*common.Common
-	gui *gui.Gui
-}
 
 func Start(opts models.ScopedOptions) {
 	cmn, err := common.NewCommon(opts)
@@ -41,15 +37,10 @@ func Start(opts models.ScopedOptions) {
 		os.Exit(1)
 	}
 
-	gui, err := gui.NewGui(cmn)
-	if err != nil {
-		log.Fatal(err)
+	m := newModel(cmn.Opts)
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	if _, err := p.Run(); err != nil {
+		fmt.Println("Error running TUI:", err)
+		os.Exit(1)
 	}
-
-	app := &App{
-		Common: cmn,
-		gui:    gui,
-	}
-
-	_ = app.gui.RunAndHandleError()
 }
