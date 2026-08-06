@@ -82,13 +82,7 @@ func (m Model) View() string {
 			}
 			return prefix + item
 		}),
-		m.renderListPanel("Configs (1)", m.configs, m.configIdx, m.focus == focusConfigs, layout.configs.w, layout.configs.h, func(i int, item string) string {
-			prefix := "  "
-			if item == m.activeConfig && m.currentProject() == m.activeProject {
-				prefix = "* "
-			}
-			return prefix + item
-		}),
+		m.renderConfigTree(layout.configs.w, layout.configs.h),
 	)
 
 	secretsTitle := "Secrets (3)"
@@ -135,6 +129,26 @@ func (m Model) View() string {
 	default:
 		return base
 	}
+}
+
+func (m Model) renderConfigTree(width, height int) string {
+	lines := make([]string, len(m.configs))
+	for i, row := range m.configs {
+		prefix := "  "
+		if row.name == m.activeConfig && m.currentProject() == m.activeProject {
+			prefix = "* "
+		}
+		branch := ""
+		if row.depth > 0 {
+			if row.lastSibling {
+				branch = "└─ "
+			} else {
+				branch = "├─ "
+			}
+		}
+		lines[i] = prefix + branch + row.name
+	}
+	return m.renderLinesPanel("Configs (1)", lines, m.configIdx, m.focus == focusConfigs, width, height)
 }
 
 func (m Model) renderListPanel(title string, items []string, selected int, active bool, width, height int, format func(int, string) string) string {
@@ -221,7 +235,7 @@ func (m Model) renderEditor(width, height int) string {
 		nameLine,
 		valueLabel,
 		m.valueInput.View(),
-		helpStyle.Render("tab switch · esc back"),
+		helpStyle.Render("tab next pane · esc back"),
 	)
 	return style.Width(width - 2).Height(height - 2).Render(content)
 }
@@ -235,7 +249,7 @@ func (m Model) renderStatus(width int) string {
 	} else if m.statusMsg != "" {
 		text = statusStyle.Render(m.statusMsg)
 	} else {
-		text = helpStyle.Render("1 configs · 2 projects · 3 secrets · / filter · ? help · q quit")
+		text = helpStyle.Render("tab cycle · 1 configs · 2 projects · 3 secrets · / filter · ? help · q quit")
 	}
 	return lipgloss.NewStyle().Width(width).Render(text)
 }

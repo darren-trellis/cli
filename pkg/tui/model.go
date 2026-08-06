@@ -49,7 +49,7 @@ type Model struct {
 
 	projects   []string
 	projectIdx int
-	configs    []string
+	configs    []configRow
 	configIdx  int
 
 	secrets   []secretRow
@@ -184,7 +184,7 @@ func (m Model) currentConfig() string {
 	if len(m.configs) == 0 || m.configIdx < 0 || m.configIdx >= len(m.configs) {
 		return ""
 	}
-	return m.configs[m.configIdx]
+	return m.configs[m.configIdx].name
 }
 
 func (m Model) inModal() bool {
@@ -193,4 +193,70 @@ func (m Model) inModal() bool {
 
 func (m Model) inEditor() bool {
 	return m.focus == focusEditorName || m.focus == focusEditorValue
+}
+
+var paneOrder = []focusArea{
+	focusProjects,
+	focusConfigs,
+	focusSecrets,
+	focusEditorName,
+	focusEditorValue,
+	focusFilter,
+}
+
+func (m *Model) setFocus(f focusArea) {
+	m.nameInput.Blur()
+	m.valueInput.Blur()
+	m.filterInput.Blur()
+
+	m.focus = f
+	switch f {
+	case focusEditorName:
+		if _, ok := m.selectedSecretIndex(); !ok {
+			m.focus = focusSecrets
+			return
+		}
+		m.loadEditorFromSelection()
+		m.nameInput.Focus()
+	case focusEditorValue:
+		if _, ok := m.selectedSecretIndex(); !ok {
+			m.focus = focusSecrets
+			return
+		}
+		m.loadEditorFromSelection()
+		m.focusValueEditor()
+	case focusFilter:
+		m.filterInput.SetValue(m.filter)
+		m.filterInput.CursorEnd()
+		m.filterInput.Focus()
+	}
+}
+
+func (m *Model) cyclePane(delta int) {
+	if m.inModal() {
+		return
+	}
+
+	cur := -1
+	for i, p := range paneOrder {
+		if p == m.focus {
+			cur = i
+			break
+		}
+	}
+	if cur == -1 {
+		m.setFocus(focusSecrets)
+		return
+	}
+
+	n := len(paneOrder)
+	for i := 0; i < n; i++ {
+		cur = (cur + delta%n + n) % n
+		next := paneOrder[cur]
+		if (next == focusEditorName || next == focusEditorValue) && len(m.filteredIndexes()) == 0 {
+			continue
+		}
+		m.setFocus(next)
+		return
+	}
 }

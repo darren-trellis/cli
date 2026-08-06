@@ -132,7 +132,7 @@ func TestLoadedMsgSetsState(t *testing.T) {
 	m := newModel(models.ScopedOptions{})
 	next, _ := m.Update(loadedMsg{
 		projects:           []string{"p1", "p2"},
-		configs:            []string{"dev", "prd"},
+		configs:            buildConfigTree([]models.ConfigInfo{{Name: "dev", Environment: "dev", Root: true}}),
 		secrets:            []secretRow{newSecretRow("X", "1", "masked")},
 		selectedProjectIdx: 1,
 		selectedConfigIdx:  0,
@@ -145,4 +145,53 @@ func TestLoadedMsgSetsState(t *testing.T) {
 	assert.Equal(t, 1, mod.projectIdx)
 	assert.Equal(t, "p2", mod.activeProject)
 	assert.Equal(t, "X", mod.nameInput.Value())
+}
+
+func TestBuildConfigTree(t *testing.T) {
+	rows := buildConfigTree([]models.ConfigInfo{
+		{Name: "dev_feature", Environment: "dev", Root: false},
+		{Name: "dev", Environment: "dev", Root: true},
+		{Name: "prd", Environment: "prd", Root: true},
+		{Name: "dev_personal", Environment: "dev", Root: false},
+		{Name: "stg_only", Environment: "stg", Root: false},
+	})
+
+	assert.Equal(t, []string{"dev", "dev_feature", "dev_personal", "prd", "stg_only"}, configNames(rows))
+	assert.Equal(t, 0, rows[0].depth)
+	assert.True(t, rows[0].root)
+	assert.Equal(t, 1, rows[1].depth)
+	assert.False(t, rows[1].lastSibling)
+	assert.True(t, rows[2].lastSibling)
+	assert.Equal(t, 0, rows[4].depth) // no root for stg
+}
+
+func TestCyclePane(t *testing.T) {
+	m := newModel(models.ScopedOptions{})
+	m.fetching = false
+	m.focus = focusProjects
+	m.secrets = []secretRow{newSecretRow("A", "1", "masked")}
+
+	m.cyclePane(1)
+	assert.Equal(t, focusConfigs, m.focus)
+	m.cyclePane(1)
+	assert.Equal(t, focusSecrets, m.focus)
+	m.cyclePane(1)
+	assert.Equal(t, focusEditorName, m.focus)
+	m.cyclePane(1)
+	assert.Equal(t, focusEditorValue, m.focus)
+	m.cyclePane(1)
+	assert.Equal(t, focusFilter, m.focus)
+	m.cyclePane(1)
+	assert.Equal(t, focusProjects, m.focus)
+
+	m.cyclePane(-1)
+	assert.Equal(t, focusFilter, m.focus)
+}
+
+func configNames(rows []configRow) []string {
+	names := make([]string, len(rows))
+	for i, r := range rows {
+		names[i] = r.name
+	}
+	return names
 }

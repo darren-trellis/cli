@@ -30,7 +30,7 @@ func (e errMsg) Error() string { return e.err.Error() }
 
 type loadedMsg struct {
 	projects           []string
-	configs            []string
+	configs            []configRow
 	secrets            []secretRow
 	selectedProjectIdx int
 	selectedConfigIdx  int
@@ -39,7 +39,7 @@ type loadedMsg struct {
 }
 
 type configsLoadedMsg struct {
-	configs []string
+	configs []configRow
 }
 
 type secretsLoadedMsg struct {
@@ -94,14 +94,8 @@ func loadCmd(opts models.ScopedOptions) tea.Cmd {
 			}
 		}
 
-		configs := make([]string, len(configInfos))
-		selectedConfigIdx := 0
-		for i, c := range configInfos {
-			configs[i] = c.Name
-			if c.Name == opts.EnclaveConfig.Value {
-				selectedConfigIdx = i
-			}
-		}
+		configs := buildConfigTree(configInfos)
+		selectedConfigIdx := indexOfConfig(configs, opts.EnclaveConfig.Value)
 
 		return loadedMsg{
 			projects:           projects,
@@ -121,11 +115,7 @@ func selectProjectCmd(opts models.ScopedOptions, project string) tea.Cmd {
 		if err.Unwrap() != nil {
 			return errMsg{err.Unwrap()}
 		}
-		configs := make([]string, len(configInfos))
-		for i, c := range configInfos {
-			configs[i] = c.Name
-		}
-		return configsLoadedMsg{configs: configs}
+		return configsLoadedMsg{configs: buildConfigTree(configInfos)}
 	}
 }
 

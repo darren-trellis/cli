@@ -72,7 +72,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.activeProject = ""
 		m.activeConfig = ""
 		m.loadEditorFromSelection()
-		m.focus = focusConfigs
+		m.setFocus(focusConfigs)
 		return m, nil
 
 	case secretsLoadedMsg:
@@ -84,7 +84,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.activeConfig = msg.activeConfig
 		m.pendingChanges = nil
 		m.loadEditorFromSelection()
-		m.focus = focusSecrets
+		m.setFocus(focusSecrets)
 		return m, nil
 
 	case tea.MouseMsg:
@@ -127,7 +127,7 @@ func (m Model) handleIntroKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter", "esc", "q":
 		configuration.TUIMarkIntroSeen()
-		m.focus = focusSecrets
+		m.setFocus(focusSecrets)
 	case "ctrl+c":
 		return m, tea.Quit
 	}
@@ -137,7 +137,7 @@ func (m Model) handleIntroKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter", "esc", "q":
-		m.focus = focusSecrets
+		m.setFocus(focusSecrets)
 	case "ctrl+c":
 		return m, tea.Quit
 	case "j", "down":
@@ -152,16 +152,16 @@ func (m Model) handleSaveKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		if len(m.pendingChanges) == 0 {
-			m.focus = focusSecrets
+			m.setFocus(focusSecrets)
 			return m, nil
 		}
 		m.fetching = true
 		m.statusMsg = ""
 		m.errMsg = ""
-		m.focus = focusSecrets
+		m.setFocus(focusSecrets)
 		return m, tea.Batch(m.spinner.Tick, saveSecretsCmd(m.opts, m.currentProject(), m.currentConfig(), m.pendingChanges))
 	case "esc", "q":
-		m.focus = focusSecrets
+		m.setFocus(focusSecrets)
 		m.pendingChanges = nil
 	case "ctrl+c":
 		return m, tea.Quit
@@ -171,11 +171,19 @@ func (m Model) handleSaveKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
+	case "tab":
+		m.filter = m.filterInput.Value()
+		m.cyclePane(1)
+		return m, nil
+	case "shift+tab":
+		m.filter = m.filterInput.Value()
+		m.cyclePane(-1)
+		return m, nil
 	case "enter", "esc":
 		m.filter = m.filterInput.Value()
 		m.secretIdx = 0
 		m.loadEditorFromSelection()
-		m.focus = focusSecrets
+		m.setFocus(focusSecrets)
 		return m, nil
 	case "ctrl+c":
 		return m, tea.Quit
@@ -193,17 +201,15 @@ func (m Model) handleEditorKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.applyEditorToSelection()
-		m.focus = focusSecrets
+		m.setFocus(focusSecrets)
 		return m, nil
 	case "tab":
 		m.applyEditorToSelection()
-		if m.focus == focusEditorName {
-			m.focusValueEditor()
-		} else {
-			m.focus = focusEditorName
-			m.nameInput.Focus()
-			m.valueInput.Blur()
-		}
+		m.cyclePane(1)
+		return m, nil
+	case "shift+tab":
+		m.applyEditorToSelection()
+		m.cyclePane(-1)
 		return m, nil
 	case "ctrl+c":
 		return m, tea.Quit
@@ -236,32 +242,29 @@ func (m *Model) focusValueEditor() {
 	m.focus = focusEditorValue
 	m.nameInput.Blur()
 	m.valueInput.Focus()
-	idx, ok := m.selectedSecretIndex()
-	if ok && m.secrets[idx].originalVisibility == "restricted" && !m.secrets[idx].isTouched {
-		m.secrets[idx].isTouched = true
-		m.valueInput.SetValue("")
-		m.secrets[idx].value = ""
-	}
 }
 
 func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c", "q":
 		return m, tea.Quit
+	case "tab":
+		m.cyclePane(1)
+		return m, nil
+	case "shift+tab":
+		m.cyclePane(-1)
+		return m, nil
 	case "1":
-		m.focus = focusConfigs
+		m.setFocus(focusConfigs)
 		return m, nil
 	case "2":
-		m.focus = focusProjects
+		m.setFocus(focusProjects)
 		return m, nil
 	case "3":
-		m.focus = focusSecrets
+		m.setFocus(focusSecrets)
 		return m, nil
 	case "/":
-		m.focus = focusFilter
-		m.filterInput.SetValue(m.filter)
-		m.filterInput.CursorEnd()
-		m.filterInput.Focus()
+		m.setFocus(focusFilter)
 		return m, nil
 	case "?":
 		m.focus = focusHelp
@@ -278,8 +281,7 @@ func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.activateSelection()
 	case "e":
 		if m.focus == focusSecrets || m.focus == focusProjects || m.focus == focusConfigs {
-			m.focus = focusSecrets
-			m.enterEditor(false)
+			m.setFocus(focusEditorName)
 		}
 		return m, nil
 	case "a":
@@ -342,17 +344,11 @@ func (m Model) activateSelection() (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) enterEditor(focusValue bool) {
-	if _, ok := m.selectedSecretIndex(); !ok {
-		return
-	}
-	m.loadEditorFromSelection()
 	if focusValue {
-		m.focusValueEditor()
+		m.setFocus(focusEditorValue)
 		return
 	}
-	m.focus = focusEditorName
-	m.nameInput.Focus()
-	m.valueInput.Blur()
+	m.setFocus(focusEditorName)
 }
 
 func (m Model) addSecret() (tea.Model, tea.Cmd) {
@@ -363,7 +359,7 @@ func (m Model) addSecret() (tea.Model, tea.Cmd) {
 	idxs := m.filteredIndexes()
 	m.secretIdx = len(idxs) - 1
 	m.loadEditorFromSelection()
-	m.enterEditor(false)
+	m.setFocus(focusEditorName)
 	return m, nil
 }
 
@@ -437,21 +433,30 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 
 	switch {
 	case layout.projects.contains(msg.X, msg.Y):
-		m.focus = focusProjects
+		m.setFocus(focusProjects)
 		rel := msg.Y - layout.projects.y - 2
 		if rel >= 0 && rel < len(m.projects) {
 			m.projectIdx = rel
 			return m.activateSelection()
 		}
 	case layout.configs.contains(msg.X, msg.Y):
-		m.focus = focusConfigs
+		m.setFocus(focusConfigs)
 		rel := msg.Y - layout.configs.y - 2
-		if rel >= 0 && rel < len(m.configs) {
-			m.configIdx = rel
-			return m.activateSelection()
+		if rel >= 0 {
+			// account for scroll offset in renderLinesPanel
+			visible := max(1, layout.configs.h-3)
+			start := 0
+			if m.configIdx >= visible {
+				start = m.configIdx - visible + 1
+			}
+			idx := start + rel
+			if idx >= 0 && idx < len(m.configs) {
+				m.configIdx = idx
+				return m.activateSelection()
+			}
 		}
 	case layout.secrets.contains(msg.X, msg.Y):
-		m.focus = focusSecrets
+		m.setFocus(focusSecrets)
 		rel := msg.Y - layout.secrets.y - 2
 		idxs := m.filteredIndexes()
 		if rel >= 0 && rel < len(idxs) {
@@ -461,9 +466,7 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	case layout.editor.contains(msg.X, msg.Y):
 		m.enterEditor(msg.Y > layout.editor.y+3)
 	case layout.filter.contains(msg.X, msg.Y):
-		m.focus = focusFilter
-		m.filterInput.SetValue(m.filter)
-		m.filterInput.Focus()
+		m.setFocus(focusFilter)
 	}
 	return m, nil
 }
@@ -509,6 +512,7 @@ func (m Model) editorInnerWidth() int {
 }
 
 const helpText = `Global Keybinds:
+    Tab / Shift+Tab  Cycle panes
     1 Focus Configs
     2 Focus Projects
     3 Focus Secrets
@@ -519,6 +523,8 @@ const helpText = `Global Keybinds:
 Configs / Projects:
     j / k   Move
     Enter   Select
+    Configs are shown as an environment tree
+    (root config, then branches)
 
 Secrets List:
     j / k   Move
@@ -530,7 +536,7 @@ Secrets List:
     s       Save prompt
 
 Editor:
-    Tab     Toggle name / value
+    Tab     Next pane (name → value → …)
     Esc     Return to secrets list
 
 Save Prompt:
