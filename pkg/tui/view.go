@@ -129,7 +129,7 @@ func (m Model) renderProjectTree(width, height int) string {
 }
 
 func (m Model) renderLinesPanel(title string, lines []string, selected int, active bool, width, height int) string {
-	innerW := max(1, width-4)
+	innerW := max(1, width-2)
 	innerH := max(1, height-2)
 
 	visible := innerH
@@ -155,7 +155,7 @@ func (m Model) renderLinesPanel(title string, lines []string, selected int, acti
 		body = append(body, "")
 	}
 
-	return renderTitledPanel(title, strings.Join(body[:innerH], "\n"), width, height, active)
+	return renderTitledListPanel(title, strings.Join(body[:innerH], "\n"), width, height, active)
 }
 
 func (m Model) renderEditor(width, height int) string {
@@ -220,7 +220,18 @@ func renderTitledPanel(title, content string, width, height int, active bool) st
 	if active {
 		style = activePanelStyle
 	}
+	return renderTitledPanelStyle(title, content, width, height, active, style)
+}
 
+func renderTitledListPanel(title, content string, width, height int, active bool) string {
+	style := listPanelStyle
+	if active {
+		style = activeListPanelStyle
+	}
+	return renderTitledPanelStyle(title, content, width, height, active, style)
+}
+
+func renderTitledPanelStyle(title, content string, width, height int, active bool, style lipgloss.Style) string {
 	rendered := style.Width(width - 2).Height(height - 2).Render(content)
 	lines := strings.Split(rendered, "\n")
 	if len(lines) == 0 {

@@ -23,10 +23,12 @@ var (
 	background lipgloss.Color
 	textColor  lipgloss.Color
 
-	panelStyle       lipgloss.Style
-	activePanelStyle lipgloss.Style
-	titleStyle       lipgloss.Style
-	activeTitleStyle lipgloss.Style
+	panelStyle           lipgloss.Style
+	activePanelStyle     lipgloss.Style
+	listPanelStyle       lipgloss.Style
+	activeListPanelStyle lipgloss.Style
+	titleStyle           lipgloss.Style
+	activeTitleStyle     lipgloss.Style
 	selectedStyle    lipgloss.Style
 	activeEnvStyle   lipgloss.Style
 	dimStyle         lipgloss.Style
@@ -58,6 +60,12 @@ func rebuildStyles(theme Theme) {
 		Padding(0, 1)
 
 	activePanelStyle = panelStyle.BorderForeground(theme.Accent)
+
+	listPanelStyle = lipgloss.NewStyle().
+		Border(roundedBorder).
+		BorderForeground(borderColor)
+
+	activeListPanelStyle = listPanelStyle.BorderForeground(theme.Accent)
 
 	titleStyle = lipgloss.NewStyle().Foreground(theme.Title).Bold(true)
 	activeTitleStyle = titleStyle.Foreground(theme.Accent)
@@ -94,6 +102,8 @@ func rebuildStyles(theme Theme) {
 		appStyle = appStyle.Background(bg)
 		panelStyle = panelStyle.Background(bg).BorderBackground(bg)
 		activePanelStyle = activePanelStyle.Background(bg).BorderBackground(bg)
+		listPanelStyle = listPanelStyle.Background(bg).BorderBackground(bg)
+		activeListPanelStyle = activeListPanelStyle.Background(bg).BorderBackground(bg)
 		modalStyle = modalStyle.Background(bg).BorderBackground(bg)
 	}
 }
