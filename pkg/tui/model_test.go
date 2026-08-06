@@ -147,6 +147,30 @@ func TestLoadedMsgSetsState(t *testing.T) {
 	assert.Equal(t, "X", mod.nameInput.Value())
 }
 
+func TestProjectSelectedMsgLoadsSecrets(t *testing.T) {
+	m := newModel(models.ScopedOptions{})
+	m.fetching = true
+	m.focus = focusProjects
+
+	next, _ := m.Update(projectSelectedMsg{
+		configs: buildConfigTree([]models.ConfigInfo{
+			{Name: "dev", Environment: "dev", Root: true},
+			{Name: "dev_personal", Environment: "dev", Root: false},
+		}),
+		configIdx: 1,
+		secrets:   []secretRow{newSecretRow("FROM_OTHER", "1", "masked")},
+		project:   "backend-ts",
+		config:    "dev_personal",
+	})
+	mod := next.(Model)
+	assert.False(t, mod.fetching)
+	assert.Equal(t, "backend-ts", mod.activeProject)
+	assert.Equal(t, "dev_personal", mod.activeConfig)
+	assert.Equal(t, 1, mod.configIdx)
+	assert.Equal(t, focusSecrets, mod.focus)
+	assert.Equal(t, "FROM_OTHER", mod.nameInput.Value())
+}
+
 func TestBuildConfigTree(t *testing.T) {
 	rows := buildConfigTree([]models.ConfigInfo{
 		{Name: "dev_feature", Environment: "dev", Root: false},

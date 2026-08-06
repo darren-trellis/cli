@@ -62,17 +62,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loadEditorFromSelection()
 		return m, nil
 
-	case configsLoadedMsg:
+	case projectSelectedMsg:
 		m.fetching = false
 		m.errMsg = ""
 		m.configs = msg.configs
-		m.configIdx = 0
-		m.secrets = nil
+		m.configIdx = msg.configIdx
+		m.secrets = msg.secrets
 		m.secretIdx = 0
-		m.activeProject = ""
-		m.activeConfig = ""
+		m.activeProject = msg.project
+		m.activeConfig = msg.config
+		m.pendingChanges = nil
 		m.loadEditorFromSelection()
-		m.setFocus(focusConfigs)
+		if msg.config != "" {
+			m.setFocus(focusSecrets)
+		} else {
+			m.setFocus(focusConfigs)
+		}
 		return m, nil
 
 	case secretsLoadedMsg:
@@ -328,7 +333,7 @@ func (m Model) activateSelection() (tea.Model, tea.Cmd) {
 		}
 		m.fetching = true
 		m.errMsg = ""
-		return m, tea.Batch(m.spinner.Tick, selectProjectCmd(m.opts, m.currentProject()))
+		return m, tea.Batch(m.spinner.Tick, selectProjectCmd(m.opts, m.currentProject(), m.activeConfig))
 	case focusConfigs:
 		if m.currentProject() == "" || m.currentConfig() == "" {
 			return m, nil
@@ -522,7 +527,7 @@ const helpText = `Global Keybinds:
 
 Configs / Projects:
     j / k   Move
-    Enter   Select
+    Enter   Select (project also loads a config)
     Configs are shown as an environment tree
     (root config, then branches)
 

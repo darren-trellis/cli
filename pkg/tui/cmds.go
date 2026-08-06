@@ -38,8 +38,12 @@ type loadedMsg struct {
 	activeConfig       string
 }
 
-type configsLoadedMsg struct {
-	configs []configRow
+type projectSelectedMsg struct {
+	configs   []configRow
+	configIdx int
+	secrets   []secretRow
+	project   string
+	config    string
 }
 
 type secretsLoadedMsg struct {
@@ -109,13 +113,33 @@ func loadCmd(opts models.ScopedOptions) tea.Cmd {
 	}
 }
 
-func selectProjectCmd(opts models.ScopedOptions, project string) tea.Cmd {
+func selectProjectCmd(opts models.ScopedOptions, project string, preferredConfig string) tea.Cmd {
 	return func() tea.Msg {
 		configInfos, err := controllers.GetConfigs(withProject(opts, project))
 		if err.Unwrap() != nil {
 			return errMsg{err.Unwrap()}
 		}
-		return configsLoadedMsg{configs: buildConfigTree(configInfos)}
+
+		configs := buildConfigTree(configInfos)
+		if len(configs) == 0 {
+			return projectSelectedMsg{configs: configs, project: project}
+		}
+
+		configIdx := indexOfConfig(configs, preferredConfig)
+		configName := configs[configIdx].name
+
+		computed, secretsErr := controllers.GetSecrets(withProjectConfig(opts, project, configName))
+		if secretsErr.Unwrap() != nil {
+			return errMsg{secretsErr.Unwrap()}
+		}
+
+		return projectSelectedMsg{
+			configs:   configs,
+			configIdx: configIdx,
+			secrets:   secretsFromComputed(computed),
+			project:   project,
+			config:    configName,
+		}
 	}
 }
 
