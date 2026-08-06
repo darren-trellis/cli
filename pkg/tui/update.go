@@ -52,32 +52,47 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.fetching = false
 		m.errMsg = ""
 		m.projects = msg.projects
-		m.projectIdx = msg.selectedProjectIdx
-		m.configs = msg.configs
-		m.configIdx = msg.selectedConfigIdx
+		m.projectConfigs[msg.activeProject] = msg.configs
+		m.expanded[msg.activeProject] = true
 		m.secrets = msg.secrets
 		m.secretIdx = 0
 		m.activeProject = msg.activeProject
 		m.activeConfig = msg.activeConfig
+		m.rebuildTree()
+		m.treeIdx = findTreeIndex(m.tree, treeConfig, msg.activeProject, msg.activeConfig)
 		m.loadEditorFromSelection()
 		return m, nil
 
 	case projectSelectedMsg:
 		m.fetching = false
 		m.errMsg = ""
-		m.configs = msg.configs
-		m.configIdx = msg.configIdx
+		m.projectConfigs[msg.project] = msg.configs
+		m.expanded[msg.project] = true
 		m.secrets = msg.secrets
 		m.secretIdx = 0
 		m.activeProject = msg.project
 		m.activeConfig = msg.config
 		m.pendingChanges = nil
-		m.loadEditorFromSelection()
+		m.rebuildTree()
 		if msg.config != "" {
+			m.treeIdx = findTreeIndex(m.tree, treeConfig, msg.project, msg.config)
 			m.setFocus(focusSecrets)
 		} else {
-			m.setFocus(focusConfigs)
+			m.treeIdx = findTreeIndex(m.tree, treeProject, msg.project, "")
+			m.setFocus(focusProjects)
 		}
+		m.loadEditorFromSelection()
+		return m, nil
+
+	case configsLoadedMsg:
+		m.fetching = false
+		m.errMsg = ""
+		m.projectConfigs[msg.project] = msg.configs
+		if msg.expand {
+			m.expanded[msg.project] = true
+		}
+		m.rebuildTree()
+		m.treeIdx = findTreeIndex(m.tree, treeProject, msg.project, "")
 		return m, nil
 
 	case secretsLoadedMsg:
@@ -87,7 +102,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.secretIdx = 0
 		m.activeProject = msg.activeProject
 		m.activeConfig = msg.activeConfig
+		if _, ok := m.projectConfigs[msg.activeProject]; ok {
+			m.expanded[msg.activeProject] = true
+		}
 		m.pendingChanges = nil
+		m.rebuildTree()
+		m.treeIdx = findTreeIndex(m.tree, treeConfig, msg.activeProject, msg.activeConfig)
 		m.loadEditorFromSelection()
 		m.setFocus(focusSecrets)
 		return m, nil
@@ -164,7 +184,7 @@ func (m Model) handleSaveKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.statusMsg = ""
 		m.errMsg = ""
 		m.setFocus(focusSecrets)
-		return m, tea.Batch(m.spinner.Tick, saveSecretsCmd(m.opts, m.currentProject(), m.currentConfig(), m.pendingChanges))
+		return m, tea.Batch(m.spinner.Tick, saveSecretsCmd(m.opts, m.activeProject, m.activeConfig, m.pendingChanges))
 	case "esc", "q":
 		m.setFocus(focusSecrets)
 		m.pendingChanges = nil
@@ -231,7 +251,6 @@ func (m Model) handleEditorKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	} else {
 		idx, ok := m.selectedSecretIndex()
 		if ok && m.secrets[idx].originalVisibility == "restricted" && !m.secrets[idx].isTouched {
-			// First keystroke clears restricted placeholder
 			if msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace || msg.Type == tea.KeyBackspace || msg.Type == tea.KeyDelete {
 				m.secrets[idx].isTouched = true
 				m.valueInput.SetValue("")
@@ -260,12 +279,9 @@ func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cyclePane(-1)
 		return m, nil
 	case "1":
-		m.setFocus(focusConfigs)
-		return m, nil
-	case "2":
 		m.setFocus(focusProjects)
 		return m, nil
-	case "3":
+	case "2":
 		m.setFocus(focusSecrets)
 		return m, nil
 	case "/":
@@ -282,10 +298,15 @@ func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "k", "up":
 		m.moveList(-1)
 		return m, nil
+	case " ":
+		if m.focus == focusProjects {
+			return m.toggleProjectFold()
+		}
+		return m, nil
 	case "enter":
 		return m.activateSelection()
 	case "e":
-		if m.focus == focusSecrets || m.focus == focusProjects || m.focus == focusConfigs {
+		if m.focus == focusSecrets || m.focus == focusProjects {
 			m.setFocus(focusEditorName)
 		}
 		return m, nil
@@ -306,15 +327,10 @@ func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *Model) moveList(delta int) {
 	switch m.focus {
 	case focusProjects:
-		if len(m.projects) == 0 {
+		if len(m.tree) == 0 {
 			return
 		}
-		m.projectIdx = clamp(m.projectIdx+delta, 0, len(m.projects)-1)
-	case focusConfigs:
-		if len(m.configs) == 0 {
-			return
-		}
-		m.configIdx = clamp(m.configIdx+delta, 0, len(m.configs)-1)
+		m.treeIdx = clamp(m.treeIdx+delta, 0, len(m.tree)-1)
 	case focusSecrets:
 		idxs := m.filteredIndexes()
 		if len(idxs) == 0 {
@@ -325,22 +341,55 @@ func (m *Model) moveList(delta int) {
 	}
 }
 
+func (m Model) toggleProjectFold() (tea.Model, tea.Cmd) {
+	row, ok := m.currentTreeRow()
+	if !ok {
+		return m, nil
+	}
+
+	project := row.project
+
+	if m.expanded[project] {
+		m.expanded[project] = false
+		m.rebuildTree()
+		m.treeIdx = findTreeIndex(m.tree, treeProject, project, "")
+		return m, nil
+	}
+
+	if _, cached := m.projectConfigs[project]; cached {
+		m.expanded[project] = true
+		m.rebuildTree()
+		m.treeIdx = findTreeIndex(m.tree, treeProject, project, "")
+		return m, nil
+	}
+
+	m.fetching = true
+	m.errMsg = ""
+	m.treeIdx = findTreeIndex(m.tree, treeProject, project, "")
+	return m, tea.Batch(m.spinner.Tick, fetchProjectConfigsCmd(m.opts, project))
+}
+
 func (m Model) activateSelection() (tea.Model, tea.Cmd) {
 	switch m.focus {
 	case focusProjects:
-		if m.currentProject() == "" {
+		row, ok := m.currentTreeRow()
+		if !ok {
+			return m, nil
+		}
+		if row.kind == treeConfig {
+			if row.project == "" || row.config == "" {
+				return m, nil
+			}
+			m.fetching = true
+			m.errMsg = ""
+			return m, tea.Batch(m.spinner.Tick, selectConfigCmd(m.opts, row.project, row.config))
+		}
+		if row.project == "" {
 			return m, nil
 		}
 		m.fetching = true
 		m.errMsg = ""
-		return m, tea.Batch(m.spinner.Tick, selectProjectCmd(m.opts, m.currentProject(), m.activeConfig))
-	case focusConfigs:
-		if m.currentProject() == "" || m.currentConfig() == "" {
-			return m, nil
-		}
-		m.fetching = true
-		m.errMsg = ""
-		return m, tea.Batch(m.spinner.Tick, selectConfigCmd(m.opts, m.currentProject(), m.currentConfig()))
+		return m, tea.Batch(m.spinner.Tick, selectProjectCmd(m.opts, row.project, m.activeConfig))
 	case focusSecrets:
 		m.enterEditor(false)
 		return m, nil
@@ -440,22 +489,15 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	case layout.projects.contains(msg.X, msg.Y):
 		m.setFocus(focusProjects)
 		rel := msg.Y - layout.projects.y - 1
-		if rel >= 0 && rel < len(m.projects) {
-			m.projectIdx = rel
-			return m.activateSelection()
-		}
-	case layout.configs.contains(msg.X, msg.Y):
-		m.setFocus(focusConfigs)
-		rel := msg.Y - layout.configs.y - 1
 		if rel >= 0 {
-			visible := max(1, layout.configs.h-2)
+			visible := max(1, layout.projects.h-2)
 			start := 0
-			if m.configIdx >= visible {
-				start = m.configIdx - visible + 1
+			if m.treeIdx >= visible {
+				start = m.treeIdx - visible + 1
 			}
 			idx := start + rel
-			if idx >= 0 && idx < len(m.configs) {
-				m.configIdx = idx
+			if idx >= 0 && idx < len(m.tree) {
+				m.treeIdx = idx
 				return m.activateSelection()
 			}
 		}
@@ -463,8 +505,14 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		m.setFocus(focusSecrets)
 		rel := msg.Y - layout.secrets.y - 1
 		idxs := m.filteredIndexes()
-		if rel >= 0 && rel < len(idxs) {
-			m.secretIdx = rel
+		visible := max(1, layout.secrets.h-2)
+		start := 0
+		if m.secretIdx >= visible {
+			start = m.secretIdx - visible + 1
+		}
+		idx := start + rel
+		if idx >= 0 && idx < len(idxs) {
+			m.secretIdx = idx
 			m.loadEditorFromSelection()
 		}
 	case layout.editor.contains(msg.X, msg.Y):
@@ -479,8 +527,6 @@ func (m *Model) focusPanelAt(x, y int, layout layoutRegions) {
 	switch {
 	case layout.projects.contains(x, y):
 		m.focus = focusProjects
-	case layout.configs.contains(x, y):
-		m.focus = focusConfigs
 	case layout.secrets.contains(x, y):
 		m.focus = focusSecrets
 	}
@@ -517,9 +563,8 @@ func (m Model) editorInnerWidth() int {
 
 const helpText = `Global Keybinds:
     Tab / Shift+Tab  Cycle panes
-    1 Focus Configs
-    2 Focus Projects
-    3 Focus Secrets
+    1 Focus Projects
+    2 Focus Secrets
     / Focus Filter
     ? Help
     q Exit
@@ -531,11 +576,12 @@ Themes:
     tokyo-night, gruvbox, dracula, ...)
     Choice is saved in your Doppler config
 
-Configs / Projects:
+Projects (with configs):
     j / k   Move
-    Enter   Select (project also loads a config)
-    Configs are shown as an environment tree
-    (root config, then branches)
+    Space   Fold / unfold project
+    Enter   Select project or config
+    Folded projects still show the active
+    config when it belongs to that project
 
 Secrets List:
     j / k   Move

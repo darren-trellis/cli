@@ -33,7 +33,6 @@ func (r rect) contains(x, y int) bool {
 
 type layoutRegions struct {
 	projects rect
-	configs  rect
 	secrets  rect
 	editor   rect
 	filter   rect
@@ -55,12 +54,9 @@ func (m Model) computeLayout() layoutRegions {
 		editorH = max(6, h-secretsH-statusH-filterH)
 	}
 	topH := secretsH + editorH
-	projectsH := topH / 2
-	configsH := topH - projectsH
 
 	return layoutRegions{
-		projects: rect{0, 0, leftW, projectsH},
-		configs:  rect{0, projectsH, leftW, configsH},
+		projects: rect{0, 0, leftW, topH},
 		secrets:  rect{leftW, 0, rightW, secretsH},
 		editor:   rect{leftW, secretsH, rightW, editorH},
 		status:   rect{0, topH, w, statusH},
@@ -75,16 +71,7 @@ func (m Model) View() string {
 
 	layout := m.computeLayout()
 
-	left := lipgloss.JoinVertical(lipgloss.Left,
-		m.renderListPanel(fmt.Sprintf("Projects (%d)", len(m.projects)), m.projects, m.projectIdx, m.focus == focusProjects, layout.projects.w, layout.projects.h, func(i int, item string) string {
-			prefix := "  "
-			if item == m.activeProject {
-				prefix = "* "
-			}
-			return prefix + item
-		}),
-		m.renderConfigTree(layout.configs.w, layout.configs.h),
-	)
+	left := m.renderProjectTree(layout.projects.w, layout.projects.h)
 
 	secretsTitle := fmt.Sprintf("Secrets (%d)", len(m.filteredIndexes()))
 	if m.activeProject != "" && m.activeConfig != "" {
@@ -132,32 +119,13 @@ func (m Model) View() string {
 	return appStyle.Width(m.width).Height(m.height).Render(base)
 }
 
-func (m Model) renderConfigTree(width, height int) string {
-	lines := make([]string, len(m.configs))
-	for i, row := range m.configs {
-		prefix := "  "
-		if row.name == m.activeConfig && m.currentProject() == m.activeProject {
-			prefix = "* "
-		}
-		branch := ""
-		if row.depth > 0 {
-			if row.lastSibling {
-				branch = "└─ "
-			} else {
-				branch = "├─ "
-			}
-		}
-		lines[i] = prefix + branch + row.name
+func (m Model) renderProjectTree(width, height int) string {
+	lines := make([]string, len(m.tree))
+	for i, row := range m.tree {
+		lines[i] = formatTreeRow(row, m.activeProject, m.activeConfig)
 	}
-	return m.renderLinesPanel(fmt.Sprintf("Configs (%d)", len(m.configs)), lines, m.configIdx, m.focus == focusConfigs, width, height)
-}
-
-func (m Model) renderListPanel(title string, items []string, selected int, active bool, width, height int, format func(int, string) string) string {
-	lines := make([]string, len(items))
-	for i, item := range items {
-		lines[i] = format(i, item)
-	}
-	return m.renderLinesPanel(title, lines, selected, active, width, height)
+	title := fmt.Sprintf("Projects (%d)", len(m.projects))
+	return m.renderLinesPanel(title, lines, m.treeIdx, m.focus == focusProjects, width, height)
 }
 
 func (m Model) renderLinesPanel(title string, lines []string, selected int, active bool, width, height int) string {

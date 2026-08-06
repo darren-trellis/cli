@@ -21,6 +21,7 @@ import (
 	"github.com/DopplerHQ/cli/pkg/models"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNormalizeSecretName(t *testing.T) {
@@ -86,12 +87,9 @@ func TestNavKeyFocusSwitch(t *testing.T) {
 	m.focus = focusSecrets
 
 	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}})
-	assert.Equal(t, focusConfigs, next.(Model).focus)
-
-	next, _ = next.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
 	assert.Equal(t, focusProjects, next.(Model).focus)
 
-	next, _ = next.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'3'}})
+	next, _ = next.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
 	assert.Equal(t, focusSecrets, next.(Model).focus)
 }
 
@@ -131,20 +129,21 @@ func TestEnterEditorAndEsc(t *testing.T) {
 func TestLoadedMsgSetsState(t *testing.T) {
 	m := newModel(models.ScopedOptions{})
 	next, _ := m.Update(loadedMsg{
-		projects:           []string{"p1", "p2"},
-		configs:            buildConfigTree([]models.ConfigInfo{{Name: "dev", Environment: "dev", Root: true}}),
-		secrets:            []secretRow{newSecretRow("X", "1", "masked")},
-		selectedProjectIdx: 1,
-		selectedConfigIdx:  0,
-		activeProject:      "p2",
-		activeConfig:       "dev",
+		projects:      []string{"p1", "p2"},
+		configs:       buildConfigTree([]models.ConfigInfo{{Name: "dev", Environment: "dev", Root: true}}),
+		secrets:       []secretRow{newSecretRow("X", "1", "masked")},
+		activeProject: "p2",
+		activeConfig:  "dev",
 	})
 	mod := next.(Model)
 	assert.False(t, mod.fetching)
 	assert.Equal(t, []string{"p1", "p2"}, mod.projects)
-	assert.Equal(t, 1, mod.projectIdx)
 	assert.Equal(t, "p2", mod.activeProject)
+	assert.True(t, mod.expanded["p2"])
 	assert.Equal(t, "X", mod.nameInput.Value())
+	require.NotEmpty(t, mod.tree)
+	assert.Equal(t, treeConfig, mod.tree[mod.treeIdx].kind)
+	assert.Equal(t, "dev", mod.tree[mod.treeIdx].config)
 }
 
 func TestProjectSelectedMsgLoadsSecrets(t *testing.T) {
@@ -157,16 +156,15 @@ func TestProjectSelectedMsgLoadsSecrets(t *testing.T) {
 			{Name: "dev", Environment: "dev", Root: true},
 			{Name: "dev_personal", Environment: "dev", Root: false},
 		}),
-		configIdx: 1,
-		secrets:   []secretRow{newSecretRow("FROM_OTHER", "1", "masked")},
-		project:   "backend-ts",
-		config:    "dev_personal",
+		secrets: []secretRow{newSecretRow("FROM_OTHER", "1", "masked")},
+		project: "backend-ts",
+		config:  "dev_personal",
 	})
 	mod := next.(Model)
 	assert.False(t, mod.fetching)
 	assert.Equal(t, "backend-ts", mod.activeProject)
 	assert.Equal(t, "dev_personal", mod.activeConfig)
-	assert.Equal(t, 1, mod.configIdx)
+	assert.True(t, mod.expanded["backend-ts"])
 	assert.Equal(t, focusSecrets, mod.focus)
 	assert.Equal(t, "FROM_OTHER", mod.nameInput.Value())
 }
@@ -189,14 +187,67 @@ func TestBuildConfigTree(t *testing.T) {
 	assert.Equal(t, 0, rows[4].depth) // no root for stg
 }
 
+func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
+	configs := buildConfigTree([]models.ConfigInfo{
+		{Name: "dev", Environment: "dev", Root: true},
+		{Name: "dev_personal", Environment: "dev", Root: false},
+		{Name: "prd", Environment: "prd", Root: true},
+	})
+	projectConfigs := map[string][]configRow{
+		"api": configs,
+	}
+	expanded := map[string]bool{"api": true}
+
+	tree := buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, "api", "dev")
+	assert.Equal(t, []treeKind{treeProject, treeConfig, treeConfig, treeConfig, treeProject}, treeKinds(tree))
+	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd", "web"}, treeLabels(tree))
+
+	expanded["api"] = false
+	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, "api", "dev")
+	require.Len(t, tree, 3)
+	assert.True(t, tree[0].folded)
+	assert.Equal(t, treeConfig, tree[1].kind)
+	assert.Equal(t, "dev", tree[1].config)
+	assert.True(t, tree[1].pinned)
+	assert.Equal(t, "web", tree[2].project)
+}
+
+func TestToggleProjectFold(t *testing.T) {
+	m := newModel(models.ScopedOptions{})
+	m.fetching = false
+	m.focus = focusProjects
+	m.projects = []string{"api", "web"}
+	m.projectConfigs["api"] = buildConfigTree([]models.ConfigInfo{
+		{Name: "dev", Environment: "dev", Root: true},
+	})
+	m.expanded["api"] = true
+	m.activeProject = "api"
+	m.activeConfig = "dev"
+	m.rebuildTree()
+	m.treeIdx = 0
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	mod := next.(Model)
+	assert.Nil(t, cmd)
+	assert.False(t, mod.expanded["api"])
+	require.GreaterOrEqual(t, len(mod.tree), 2)
+	assert.True(t, mod.tree[0].folded)
+	assert.True(t, mod.tree[1].pinned)
+	assert.Equal(t, "dev", mod.tree[1].config)
+
+	next, cmd = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	mod = next.(Model)
+	assert.Nil(t, cmd)
+	assert.True(t, mod.expanded["api"])
+	assert.False(t, mod.tree[0].folded)
+}
+
 func TestCyclePane(t *testing.T) {
 	m := newModel(models.ScopedOptions{})
 	m.fetching = false
 	m.focus = focusProjects
 	m.secrets = []secretRow{newSecretRow("A", "1", "masked")}
 
-	m.cyclePane(1)
-	assert.Equal(t, focusConfigs, m.focus)
 	m.cyclePane(1)
 	assert.Equal(t, focusSecrets, m.focus)
 	m.cyclePane(1)
@@ -218,4 +269,24 @@ func configNames(rows []configRow) []string {
 		names[i] = r.name
 	}
 	return names
+}
+
+func treeKinds(rows []treeRow) []treeKind {
+	out := make([]treeKind, len(rows))
+	for i, r := range rows {
+		out[i] = r.kind
+	}
+	return out
+}
+
+func treeLabels(rows []treeRow) []string {
+	out := make([]string, len(rows))
+	for i, r := range rows {
+		if r.kind == treeProject {
+			out[i] = r.project
+		} else {
+			out[i] = r.config
+		}
+	}
+	return out
 }

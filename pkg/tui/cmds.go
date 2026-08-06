@@ -29,21 +29,24 @@ type errMsg struct{ err error }
 func (e errMsg) Error() string { return e.err.Error() }
 
 type loadedMsg struct {
-	projects           []string
-	configs            []configRow
-	secrets            []secretRow
-	selectedProjectIdx int
-	selectedConfigIdx  int
-	activeProject      string
-	activeConfig       string
+	projects      []string
+	configs       []configRow
+	secrets       []secretRow
+	activeProject string
+	activeConfig  string
 }
 
 type projectSelectedMsg struct {
-	configs   []configRow
-	configIdx int
-	secrets   []secretRow
-	project   string
-	config    string
+	configs []configRow
+	secrets []secretRow
+	project string
+	config  string
+}
+
+type configsLoadedMsg struct {
+	project string
+	configs []configRow
+	expand  bool
 }
 
 type secretsLoadedMsg struct {
@@ -90,25 +93,14 @@ func loadCmd(opts models.ScopedOptions) tea.Cmd {
 		}
 
 		projects := make([]string, len(projectIDs))
-		selectedProjectIdx := 0
-		for i, id := range projectIDs {
-			projects[i] = id
-			if id == opts.EnclaveProject.Value {
-				selectedProjectIdx = i
-			}
-		}
-
-		configs := buildConfigTree(configInfos)
-		selectedConfigIdx := indexOfConfig(configs, opts.EnclaveConfig.Value)
+		copy(projects, projectIDs)
 
 		return loadedMsg{
-			projects:           projects,
-			configs:            configs,
-			secrets:            secretsFromComputed(computed),
-			selectedProjectIdx: selectedProjectIdx,
-			selectedConfigIdx:  selectedConfigIdx,
-			activeProject:      opts.EnclaveProject.Value,
-			activeConfig:       opts.EnclaveConfig.Value,
+			projects:      projects,
+			configs:       buildConfigTree(configInfos),
+			secrets:       secretsFromComputed(computed),
+			activeProject: opts.EnclaveProject.Value,
+			activeConfig:  opts.EnclaveConfig.Value,
 		}
 	}
 }
@@ -134,11 +126,24 @@ func selectProjectCmd(opts models.ScopedOptions, project string, preferredConfig
 		}
 
 		return projectSelectedMsg{
-			configs:   configs,
-			configIdx: configIdx,
-			secrets:   secretsFromComputed(computed),
-			project:   project,
-			config:    configName,
+			configs: configs,
+			secrets: secretsFromComputed(computed),
+			project: project,
+			config:  configName,
+		}
+	}
+}
+
+func fetchProjectConfigsCmd(opts models.ScopedOptions, project string) tea.Cmd {
+	return func() tea.Msg {
+		configInfos, err := controllers.GetConfigs(withProject(opts, project))
+		if err.Unwrap() != nil {
+			return errMsg{err.Unwrap()}
+		}
+		return configsLoadedMsg{
+			project: project,
+			configs: buildConfigTree(configInfos),
+			expand:  true,
 		}
 	}
 }

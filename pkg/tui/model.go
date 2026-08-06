@@ -29,7 +29,6 @@ type focusArea int
 
 const (
 	focusProjects focusArea = iota
-	focusConfigs
 	focusSecrets
 	focusEditorName
 	focusEditorValue
@@ -47,10 +46,11 @@ type Model struct {
 
 	focus focusArea
 
-	projects   []string
-	projectIdx int
-	configs    []configRow
-	configIdx  int
+	projects       []string
+	projectConfigs map[string][]configRow
+	expanded       map[string]bool
+	tree           []treeRow
+	treeIdx        int
 
 	secrets   []secretRow
 	secretIdx int // index into filteredIndexes()
@@ -95,13 +95,15 @@ func newModel(opts models.ScopedOptions) Model {
 	sp.Spinner = spinner.Dot
 
 	m := Model{
-		opts:        opts,
-		focus:       focusSecrets,
-		filterInput: fi,
-		nameInput:   ni,
-		valueInput:  vi,
-		spinner:     sp,
-		fetching:    true,
+		opts:           opts,
+		focus:          focusSecrets,
+		filterInput:    fi,
+		nameInput:      ni,
+		valueInput:     vi,
+		spinner:        sp,
+		fetching:       true,
+		projectConfigs: map[string][]configRow{},
+		expanded:       map[string]bool{},
 	}
 
 	if configuration.TUIShouldShowIntro() {
@@ -173,18 +175,38 @@ func (m *Model) applyEditorToSelection() {
 	s.value = val
 }
 
-func (m Model) currentProject() string {
-	if len(m.projects) == 0 || m.projectIdx < 0 || m.projectIdx >= len(m.projects) {
-		return ""
+func (m Model) currentTreeRow() (treeRow, bool) {
+	if len(m.tree) == 0 || m.treeIdx < 0 || m.treeIdx >= len(m.tree) {
+		return treeRow{}, false
 	}
-	return m.projects[m.projectIdx]
+	return m.tree[m.treeIdx], true
 }
 
-func (m Model) currentConfig() string {
-	if len(m.configs) == 0 || m.configIdx < 0 || m.configIdx >= len(m.configs) {
-		return ""
+func (m *Model) rebuildTree() {
+	var kind treeKind
+	var project, config string
+	if row, ok := m.currentTreeRow(); ok {
+		kind = row.kind
+		project = row.project
+		config = row.config
+	} else if m.activeProject != "" {
+		kind = treeConfig
+		project = m.activeProject
+		config = m.activeConfig
 	}
-	return m.configs[m.configIdx].name
+
+	if m.projectConfigs == nil {
+		m.projectConfigs = map[string][]configRow{}
+	}
+	if m.expanded == nil {
+		m.expanded = map[string]bool{}
+	}
+
+	m.tree = buildProjectTree(m.projects, m.projectConfigs, m.expanded, m.activeProject, m.activeConfig)
+	m.treeIdx = findTreeIndex(m.tree, kind, project, config)
+	if m.treeIdx >= len(m.tree) {
+		m.treeIdx = max(0, len(m.tree)-1)
+	}
 }
 
 func (m Model) inModal() bool {
@@ -197,7 +219,6 @@ func (m Model) inEditor() bool {
 
 var paneOrder = []focusArea{
 	focusProjects,
-	focusConfigs,
 	focusSecrets,
 	focusEditorName,
 	focusEditorValue,
