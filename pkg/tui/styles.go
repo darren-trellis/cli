@@ -83,9 +83,10 @@ func rebuildStyles(theme Theme) {
 
 	appStyle = lipgloss.NewStyle().Foreground(theme.Text)
 	if theme.Background != "" {
-		appStyle = appStyle.Background(theme.Background)
-		panelStyle = panelStyle.Background(theme.Background)
-		activePanelStyle = activePanelStyle.Background(theme.Background)
-		modalStyle = modalStyle.Background(theme.Background)
+		bg := theme.Background
+		appStyle = appStyle.Background(bg)
+		panelStyle = panelStyle.Background(bg).BorderBackground(bg)
+		activePanelStyle = activePanelStyle.Background(bg).BorderBackground(bg)
+		modalStyle = modalStyle.Background(bg).BorderBackground(bg)
 	}
 }

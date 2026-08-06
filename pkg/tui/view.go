@@ -238,6 +238,10 @@ func titledTopBorder(title string, width int, active bool) string {
 		tStyle = activeTitleStyle
 	}
 	borderStyle := lipgloss.NewStyle().Foreground(fg)
+	if background != "" {
+		borderStyle = borderStyle.Background(background)
+		tStyle = tStyle.Background(background)
+	}
 
 	label := " " + strings.TrimSpace(title) + " "
 	inner := max(0, width-2)
@@ -292,10 +296,14 @@ func (m Model) renderSaveModal() string {
 }
 
 func (m Model) renderOverlay(base, modal string) string {
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal,
+	opts := []lipgloss.WhitespaceOption{
 		lipgloss.WithWhitespaceChars(" "),
 		lipgloss.WithWhitespaceForeground(dim),
-	)
+	}
+	if background != "" {
+		opts = append(opts, lipgloss.WithWhitespaceBackground(background))
+	}
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal, opts...)
 }
 
 func truncate(s string, width int) string {
