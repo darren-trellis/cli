@@ -201,6 +201,15 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 	tree := buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, "api", "dev")
 	assert.Equal(t, []treeKind{treeProject, treeConfig, treeConfig, treeConfig, treeProject}, treeKinds(tree))
 	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd", "web"}, treeLabels(tree))
+	assert.Equal(t, 1, tree[1].depth)
+	assert.False(t, tree[1].lastSibling)
+	assert.Equal(t, 2, tree[2].depth)
+	assert.True(t, tree[2].parentContinues)
+	assert.True(t, tree[3].lastSibling)
+	assert.Equal(t, "* ▾ api", formatTreeRow(tree[0], "api", "dev"))
+	assert.Equal(t, "  ├─ *dev", formatTreeRow(tree[1], "api", "dev"))
+	assert.Equal(t, "  │  └─ dev_personal", formatTreeRow(tree[2], "api", "dev"))
+	assert.Equal(t, "  └─ prd", formatTreeRow(tree[3], "api", "dev"))
 
 	expanded["api"] = false
 	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, "api", "dev")
@@ -209,6 +218,7 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 	assert.Equal(t, treeConfig, tree[1].kind)
 	assert.Equal(t, "dev", tree[1].config)
 	assert.True(t, tree[1].pinned)
+	assert.Equal(t, "  └─ *dev", formatTreeRow(tree[1], "api", "dev"))
 	assert.Equal(t, "web", tree[2].project)
 }
 

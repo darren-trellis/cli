@@ -23,13 +23,14 @@ const (
 )
 
 type treeRow struct {
-	kind        treeKind
-	project     string
-	config      string
-	configDepth int
-	lastSibling bool
-	folded      bool
-	pinned      bool
+	kind            treeKind
+	project         string
+	config          string
+	depth           int  // 1 = child of project, 2 = grandchild
+	lastSibling     bool
+	parentContinues bool // for depth 2: draw │ under non-final parent
+	folded          bool
+	pinned          bool
 }
 
 func buildProjectTree(
@@ -49,15 +50,7 @@ func buildProjectTree(
 
 		configs := projectConfigs[project]
 		if isExpanded {
-			for _, c := range configs {
-				tree = append(tree, treeRow{
-					kind:        treeConfig,
-					project:     project,
-					config:      c.name,
-					configDepth: c.depth,
-					lastSibling: c.lastSibling,
-				})
-			}
+			tree = append(tree, configTreeRows(project, configs)...)
 			continue
 		}
 
@@ -66,7 +59,7 @@ func buildProjectTree(
 				kind:        treeConfig,
 				project:     project,
 				config:      activeConfig,
-				configDepth: 0,
+				depth:       1,
 				lastSibling: true,
 				pinned:      true,
 			})
@@ -75,15 +68,42 @@ func buildProjectTree(
 	return tree
 }
 
-func findTreeIndex(tree []treeRow, kind treeKind, project, config string) int {
-	if project == "" {
-		if len(tree) == 0 {
-			return 0
+func configTreeRows(project string, configs []configRow) []treeRow {
+	lastTop := -1
+	for i, c := range configs {
+		if c.depth == 0 {
+			lastTop = i
 		}
-		return 0
 	}
 
-	if kind == treeConfig && config != "" {
+	rows := make([]treeRow, 0, len(configs))
+	parentIsLast := true
+	for i, c := range configs {
+		if c.depth == 0 {
+			parentIsLast = i == lastTop
+			rows = append(rows, treeRow{
+				kind:        treeConfig,
+				project:     project,
+				config:      c.name,
+				depth:       1,
+				lastSibling: parentIsLast,
+			})
+			continue
+		}
+		rows = append(rows, treeRow{
+			kind:            treeConfig,
+			project:         project,
+			config:          c.name,
+			depth:           2,
+			lastSibling:     c.lastSibling,
+			parentContinues: !parentIsLast,
+		})
+	}
+	return rows
+}
+
+func findTreeIndex(tree []treeRow, kind treeKind, project, config string) int {
+	if kind == treeConfig && project != "" && config != "" {
 		for i, row := range tree {
 			if row.kind == treeConfig && row.project == project && row.config == config {
 				return i
@@ -115,18 +135,25 @@ func formatTreeRow(row treeRow, activeProject, activeConfig string) string {
 		return marker + icon + row.project
 	}
 
-	indent := "  "
-	prefix := "  "
-	if row.project == activeProject && row.config == activeConfig {
-		prefix = "* "
+	active := row.project == activeProject && row.config == activeConfig
+	name := row.config
+	if active {
+		name = "*" + row.config
 	}
-	branch := ""
-	if row.configDepth > 0 {
-		if row.lastSibling {
-			branch = "└─ "
-		} else {
-			branch = "├─ "
+
+	branch := "├─ "
+	if row.lastSibling {
+		branch = "└─ "
+	}
+
+	switch row.depth {
+	case 2:
+		guide := "│  "
+		if !row.parentContinues {
+			guide = "   "
 		}
+		return "  " + guide + branch + name
+	default:
+		return "  " + branch + name
 	}
-	return indent + prefix + branch + row.config
 }
