@@ -94,7 +94,11 @@ func (m Model) View() string {
 		secretLines[i] = line
 	}
 
-	secretsPanel := m.renderLinesPanel(secretsTitle, secretLines, m.secretIdx, m.focus == focusSecrets, layout.secrets.w, layout.secrets.h)
+	secretHits := map[int]struct{}(nil)
+	if m.searchPane == focusSecrets {
+		secretHits = m.searchMatchSet()
+	}
+	secretsPanel := m.renderLinesPanel(secretsTitle, secretLines, m.secretIdx, m.focus == focusSecrets, layout.secrets.w, layout.secrets.h, secretHits)
 	editorPanel := m.renderEditor(layout.editor.w, layout.editor.h)
 	right := lipgloss.JoinVertical(lipgloss.Left, secretsPanel, editorPanel)
 
@@ -121,10 +125,14 @@ func (m Model) renderProjectTree(width, height int) string {
 		lines[i] = formatTreeRow(row, m.activeProject, m.activeConfig)
 	}
 	title := fmt.Sprintf("Projects (%d)", len(m.projects))
-	return m.renderLinesPanel(title, lines, m.treeIdx, m.focus == focusProjects, width, height)
+	hits := map[int]struct{}(nil)
+	if m.searchPane == focusProjects {
+		hits = m.searchMatchSet()
+	}
+	return m.renderLinesPanel(title, lines, m.treeIdx, m.focus == focusProjects, width, height, hits)
 }
 
-func (m Model) renderLinesPanel(title string, lines []string, selected int, active bool, width, height int) string {
+func (m Model) renderLinesPanel(title string, lines []string, selected int, active bool, width, height int, hits map[int]struct{}) string {
 	innerW := max(1, width-2)
 	innerH := max(1, height-2)
 
@@ -144,6 +152,9 @@ func (m Model) renderLinesPanel(title string, lines []string, selected int, acti
 		if active && i == selected {
 			plain := truncate(ansi.Strip(lines[i]), innerW)
 			line = selectedStyle.Width(innerW).MaxWidth(innerW).Render(plain)
+		} else if _, ok := hits[i]; ok {
+			plain := truncate(ansi.Strip(lines[i]), innerW)
+			line = searchHitStyle.Width(innerW).MaxWidth(innerW).Render(plain)
 		}
 		body = append(body, line)
 	}
@@ -190,6 +201,8 @@ func (m Model) renderStatus(width int) string {
 	var left string
 	if m.fetching {
 		left = m.spinner.View() + " Loading…"
+	} else if m.focus == focusSearch {
+		left = helpStyle.Render("search · enter apply · esc clear")
 	} else if m.focus == focusFilter {
 		left = helpStyle.Render("filter · enter/esc apply")
 	} else if m.errMsg != "" {
@@ -197,16 +210,25 @@ func (m Model) renderStatus(width int) string {
 	} else if m.statusMsg != "" {
 		left = statusStyle.Render(m.statusMsg)
 	} else {
-		left = helpStyle.Render("tab cycle · / filter · ? help · q quit")
+		left = helpStyle.Render("tab cycle · / search · f filter · ? help · q quit")
 	}
 
 	var right string
-	if m.focus == focusFilter {
-		rightW := max(12, min(40, width/2))
+	rightW := max(12, min(40, width/2))
+	switch {
+	case m.focus == focusSearch:
+		m.searchInput.Width = max(8, rightW-2)
+		right = m.searchInput.View()
+	case m.focus == focusFilter:
 		m.filterInput.Width = max(8, rightW-2)
 		right = m.filterInput.View()
-	} else if m.filter != "" {
-		right = activeEnvStyle.Render("/ " + m.filter)
+	case m.searchQuery != "":
+		right = searchHitStyle.Render(m.searchStatusLabel())
+		if m.filter != "" {
+			right = helpStyle.Render("f "+m.filter) + "  " + right
+		}
+	case m.filter != "":
+		right = activeEnvStyle.Render("f " + m.filter)
 	}
 
 	if right == "" {
@@ -214,13 +236,13 @@ func (m Model) renderStatus(width int) string {
 	}
 
 	leftW := lipgloss.Width(left)
-	rightW := lipgloss.Width(right)
-	gap := width - leftW - rightW
+	rw := lipgloss.Width(right)
+	gap := width - leftW - rw
 	if gap < 1 {
-		maxLeft := max(0, width-rightW-1)
+		maxLeft := max(0, width-rw-1)
 		left = lipgloss.NewStyle().MaxWidth(maxLeft).Render(left)
 		leftW = lipgloss.Width(left)
-		gap = max(1, width-leftW-rightW)
+		gap = max(1, width-leftW-rw)
 	}
 	return left + strings.Repeat(" ", gap) + right
 }

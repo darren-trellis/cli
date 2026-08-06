@@ -30,6 +30,7 @@ var (
 	titleStyle           lipgloss.Style
 	activeTitleStyle     lipgloss.Style
 	selectedStyle    lipgloss.Style
+	searchHitStyle   lipgloss.Style
 	activeEnvStyle   lipgloss.Style
 	dimStyle         lipgloss.Style
 	dirtyStyle       lipgloss.Style
@@ -82,6 +83,7 @@ func rebuildStyles(theme Theme) {
 		activeEnv = theme.Accent
 	}
 	activeEnvStyle = lipgloss.NewStyle().Foreground(activeEnv).Bold(true)
+	searchHitStyle = lipgloss.NewStyle().Foreground(theme.Accent).Underline(true)
 
 	dimStyle = lipgloss.NewStyle().Foreground(theme.Dim)
 	dirtyStyle = lipgloss.NewStyle().Foreground(theme.Dirty)

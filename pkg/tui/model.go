@@ -16,6 +16,8 @@ limitations under the License.
 package tui
 
 import (
+	"regexp"
+
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -33,6 +35,7 @@ const (
 	focusEditorName
 	focusEditorValue
 	focusFilter
+	focusSearch
 	focusIntro
 	focusHelp
 	focusSave
@@ -59,6 +62,13 @@ type Model struct {
 	filter      string
 	filterInput textinput.Model
 
+	searchQuery    string
+	searchInput    textinput.Model
+	searchRe       *regexp.Regexp
+	searchPane     focusArea
+	searchMatches  []int
+	searchMatchIdx int
+
 	nameInput  textinput.Model
 	valueInput textarea.Model
 
@@ -79,7 +89,12 @@ func newModel(opts models.ScopedOptions) Model {
 	fi := textinput.New()
 	fi.Placeholder = "Filter secrets…"
 	fi.CharLimit = 128
-	fi.Prompt = "/ "
+	fi.Prompt = "f "
+
+	si := textinput.New()
+	si.Placeholder = "Search regex…"
+	si.CharLimit = 256
+	si.Prompt = "/ "
 
 	ni := textinput.New()
 	ni.Placeholder = "SECRET_NAME"
@@ -99,6 +114,8 @@ func newModel(opts models.ScopedOptions) Model {
 		opts:           opts,
 		focus:          focusSecrets,
 		filterInput:    fi,
+		searchInput:    si,
+		searchPane:     focusSecrets,
 		nameInput:      ni,
 		valueInput:     vi,
 		spinner:        sp,
@@ -212,6 +229,9 @@ func (m *Model) rebuildTree() {
 	if m.treeIdx >= len(m.tree) {
 		m.treeIdx = max(0, len(m.tree)-1)
 	}
+	if m.searchPane == focusProjects && m.searchRe != nil {
+		m.refreshSearchMatches()
+	}
 }
 
 func (m Model) inModal() bool {
@@ -233,6 +253,7 @@ func (m *Model) setFocus(f focusArea) {
 	m.nameInput.Blur()
 	m.valueInput.Blur()
 	m.filterInput.Blur()
+	m.searchInput.Blur()
 
 	m.focus = f
 	switch f {
@@ -254,6 +275,10 @@ func (m *Model) setFocus(f focusArea) {
 		m.filterInput.SetValue(m.filter)
 		m.filterInput.CursorEnd()
 		m.filterInput.Focus()
+	case focusSearch:
+		m.searchInput.SetValue(m.searchQuery)
+		m.searchInput.CursorEnd()
+		m.searchInput.Focus()
 	}
 }
 

@@ -30,6 +30,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.valueInput.SetWidth(max(20, m.editorInnerWidth()))
 		m.nameInput.Width = max(10, m.editorInnerWidth()-7)
 		m.filterInput.Width = max(10, m.width-6)
+		m.searchInput.Width = max(10, m.width-6)
 		m.helpViewport.Width = min(60, m.width-8)
 		m.helpViewport.Height = min(24, m.height-8)
 		return m, nil
@@ -141,6 +142,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleSaveKey(msg)
 	case focusFilter:
 		return m.handleFilterKey(msg)
+	case focusSearch:
+		return m.handleSearchKey(msg)
 	case focusEditorName, focusEditorValue:
 		return m.handleEditorKey(msg)
 	default:
@@ -215,6 +218,37 @@ func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.filter = m.filterInput.Value()
 	m.clampSecretIdx()
 	m.loadEditorFromSelection()
+	if m.searchPane == focusSecrets && m.searchRe != nil {
+		m.refreshSearchMatches()
+	}
+	return m, cmd
+}
+
+func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.clearSearch()
+		m.setFocus(m.searchPane)
+		return m, nil
+	case "enter":
+		query := m.searchInput.Value()
+		if err := m.compileSearch(query); err != nil {
+			m.errMsg = "Invalid regex"
+			m.statusMsg = ""
+			return m, nil
+		}
+		m.errMsg = ""
+		m.setFocus(m.searchPane)
+		return m, nil
+	case "tab", "shift+tab":
+		m.setFocus(m.searchPane)
+		return m, nil
+	case "ctrl+c":
+		return m, tea.Quit
+	}
+
+	var cmd tea.Cmd
+	m.searchInput, cmd = m.searchInput.Update(msg)
 	return m, cmd
 }
 
@@ -281,6 +315,9 @@ func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.setFocus(focusSecrets)
 		return m, nil
 	case "/":
+		m.beginSearch()
+		return m, nil
+	case "f":
 		m.setFocus(focusFilter)
 		return m, nil
 	case "?":
@@ -299,6 +336,17 @@ func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "pgup":
 		m.moveList(-m.pageSize())
+		return m, nil
+	case "n":
+		m.stepSearchMatch(1)
+		return m, nil
+	case "N":
+		m.stepSearchMatch(-1)
+		return m, nil
+	case "esc":
+		if m.searchRe != nil || m.searchQuery != "" {
+			m.clearSearch()
+		}
 		return m, nil
 	case " ":
 		if m.focus == focusProjects {
@@ -556,7 +604,7 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	case layout.editor.contains(msg.X, msg.Y):
 		m.enterEditor(msg.Y > layout.editor.y+2)
 	case layout.status.contains(msg.X, msg.Y):
-		m.setFocus(focusFilter)
+		m.beginSearch()
 	}
 	return m, nil
 }
@@ -603,7 +651,10 @@ const helpText = `Global Keybinds:
     Tab / Shift+Tab  Cycle panes
     1 Focus Projects
     2 Focus Secrets
-    / Filter secrets (status bar)
+    / Search current pane (regex)
+    f Filter secrets (status bar)
+    n / N Next / previous match
+    Esc   Clear search
     ? Help
     q Exit
 
@@ -632,8 +683,14 @@ Secrets List:
     y       Copy value to clipboard
     s       Save prompt
 
+Search:
+    /       Edit regex in status bar
+    Enter   Jump to first match
+    Esc     Clear search
+    n / N   Next / previous match
+
 Filter:
-    /       Edit filter in status bar
+    f       Edit filter in status bar
     Enter / Esc / Tab  Apply and return
     Active filter shows on the right
     of the status bar
@@ -649,5 +706,5 @@ Save Prompt:
 Mouse:
     Click lists to focus/select
     Click editor to edit
-    Click status bar to filter
+    Click status bar to search
     Scroll wheel to navigate`
