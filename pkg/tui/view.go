@@ -177,7 +177,7 @@ func (m Model) renderLinesPanel(title string, lines []string, selected int, acti
 	var body []string
 	for i := start; i < end; i++ {
 		line := truncatePreserve(lines[i], innerW)
-		if i == selected {
+		if active && i == selected {
 			plain := truncate(ansi.Strip(lines[i]), innerW)
 			line = selectedStyle.Width(innerW).MaxWidth(innerW).Render(plain)
 		}
