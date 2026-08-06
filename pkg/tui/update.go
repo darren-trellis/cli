@@ -300,7 +300,7 @@ func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case " ":
 		if m.focus == focusProjects {
-			return m.toggleProjectFold()
+			return m.toggleFold()
 		}
 		return m, nil
 	case "enter":
@@ -341,13 +341,36 @@ func (m *Model) moveList(delta int) {
 	}
 }
 
-func (m Model) toggleProjectFold() (tea.Model, tea.Cmd) {
+func (m Model) toggleFold() (tea.Model, tea.Cmd) {
 	row, ok := m.currentTreeRow()
 	if !ok {
 		return m, nil
 	}
 
-	project := row.project
+	if row.kind == treeConfig && row.foldRoot != "" {
+		if row.hasChildren || row.depth == 2 {
+			return m.toggleEnvFold(row.project, row.foldRoot)
+		}
+	}
+
+	return m.toggleProjectFold(row.project)
+}
+
+func (m Model) toggleEnvFold(project, rootConfig string) (tea.Model, tea.Cmd) {
+	if m.expandedEnvs == nil {
+		m.expandedEnvs = map[string]bool{}
+	}
+	key := envKey(project, rootConfig)
+	m.expandedEnvs[key] = !isEnvExpanded(m.expandedEnvs, project, rootConfig)
+	m.rebuildTree()
+	m.treeIdx = findTreeIndex(m.tree, treeConfig, project, rootConfig)
+	return m, nil
+}
+
+func (m Model) toggleProjectFold(project string) (tea.Model, tea.Cmd) {
+	if project == "" {
+		return m, nil
+	}
 
 	if m.expanded[project] {
 		m.expanded[project] = false
@@ -578,10 +601,10 @@ Themes:
 
 Projects (with configs):
     j / k   Move
-    Space   Fold / unfold project
+    Space   Fold / unfold project or env
     Enter   Select project or config
-    Folded projects still show the active
-    config when it belongs to that project
+    Folded nodes still show the active
+    config when it belongs under them
 
 Secrets List:
     j / k   Move

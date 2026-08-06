@@ -199,22 +199,30 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 	}
 	expanded := map[string]bool{"api": true}
 
-	tree := buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, "api", "dev")
+	tree := buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, nil, "api", "dev")
 	assert.Equal(t, []treeKind{treeProject, treeConfig, treeConfig, treeConfig, treeProject}, treeKinds(tree))
 	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd", "web"}, treeLabels(tree))
 	assert.Equal(t, 1, tree[1].depth)
 	assert.False(t, tree[1].lastSibling)
+	assert.True(t, tree[1].hasChildren)
 	assert.Equal(t, 2, tree[2].depth)
 	assert.True(t, tree[2].parentContinues)
 	assert.True(t, tree[3].lastSibling)
-	assert.Equal(t, "* ▾ api", ansi.Strip(formatTreeRow(tree[0], "api", "dev")))
-	assert.Equal(t, "  ├─ *dev", ansi.Strip(formatTreeRow(tree[1], "api", "dev")))
+	assert.Equal(t, "▾ api", ansi.Strip(formatTreeRow(tree[0], "api", "dev")))
+	assert.Equal(t, "  ├─ ▾ *dev", ansi.Strip(formatTreeRow(tree[1], "api", "dev")))
 	assert.Equal(t, "  │  └─ dev_personal", ansi.Strip(formatTreeRow(tree[2], "api", "dev")))
 	assert.Equal(t, "  └─ prd", ansi.Strip(formatTreeRow(tree[3], "api", "dev")))
-	assert.Contains(t, formatTreeRow(tree[1], "api", "dev"), "dev")
+
+	expandedEnvs := map[string]bool{envKey("api", "dev"): false}
+	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, expandedEnvs, "api", "dev_personal")
+	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd", "web"}, treeLabels(tree))
+	assert.True(t, tree[1].folded)
+	assert.True(t, tree[2].pinned)
+	assert.Equal(t, "  ├─ ▸ dev", ansi.Strip(formatTreeRow(tree[1], "api", "dev_personal")))
+	assert.Equal(t, "  │  └─ *dev_personal", ansi.Strip(formatTreeRow(tree[2], "api", "dev_personal")))
 
 	expanded["api"] = false
-	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, "api", "dev")
+	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, nil, "api", "dev")
 	require.Len(t, tree, 3)
 	assert.True(t, tree[0].folded)
 	assert.Equal(t, treeConfig, tree[1].kind)
@@ -252,6 +260,36 @@ func TestToggleProjectFold(t *testing.T) {
 	assert.Nil(t, cmd)
 	assert.True(t, mod.expanded["api"])
 	assert.False(t, mod.tree[0].folded)
+}
+
+func TestToggleEnvFold(t *testing.T) {
+	m := newModel(models.ScopedOptions{})
+	m.fetching = false
+	m.focus = focusProjects
+	m.projects = []string{"api"}
+	m.projectConfigs["api"] = buildConfigTree([]models.ConfigInfo{
+		{Name: "dev", Environment: "dev", Root: true},
+		{Name: "dev_personal", Environment: "dev", Root: false},
+		{Name: "prd", Environment: "prd", Root: true},
+	})
+	m.expanded["api"] = true
+	m.activeProject = "api"
+	m.activeConfig = "prd"
+	m.rebuildTree()
+	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	mod := next.(Model)
+	assert.Nil(t, cmd)
+	assert.False(t, isEnvExpanded(mod.expandedEnvs, "api", "dev"))
+	assert.Equal(t, []string{"api", "dev", "prd"}, treeLabels(mod.tree))
+	assert.True(t, mod.tree[mod.treeIdx].folded)
+
+	next, cmd = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	mod = next.(Model)
+	assert.Nil(t, cmd)
+	assert.True(t, isEnvExpanded(mod.expandedEnvs, "api", "dev"))
+	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd"}, treeLabels(mod.tree))
 }
 
 func TestCyclePane(t *testing.T) {

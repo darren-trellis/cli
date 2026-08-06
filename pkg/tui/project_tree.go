@@ -26,17 +26,35 @@ type treeRow struct {
 	kind            treeKind
 	project         string
 	config          string
-	depth           int  // 1 = child of project, 2 = grandchild
+	depth           int // 1 = child of project, 2 = grandchild
 	lastSibling     bool
 	parentContinues bool // for depth 2: draw │ under non-final parent
 	folded          bool
 	pinned          bool
+	hasChildren     bool
+	foldRoot        string // root config name for env fold target
+}
+
+func envKey(project, rootConfig string) string {
+	return project + "\x00" + rootConfig
+}
+
+func isEnvExpanded(expandedEnvs map[string]bool, project, rootConfig string) bool {
+	if expandedEnvs == nil {
+		return true
+	}
+	expanded, ok := expandedEnvs[envKey(project, rootConfig)]
+	if !ok {
+		return true
+	}
+	return expanded
 }
 
 func buildProjectTree(
 	projects []string,
 	projectConfigs map[string][]configRow,
 	expanded map[string]bool,
+	expandedEnvs map[string]bool,
 	activeProject, activeConfig string,
 ) []treeRow {
 	tree := make([]treeRow, 0, len(projects)*2)
@@ -50,7 +68,7 @@ func buildProjectTree(
 
 		configs := projectConfigs[project]
 		if isExpanded {
-			tree = append(tree, configTreeRows(project, configs)...)
+			tree = append(tree, configTreeRows(project, configs, expandedEnvs, activeProject, activeConfig)...)
 			continue
 		}
 
@@ -68,36 +86,89 @@ func buildProjectTree(
 	return tree
 }
 
-func configTreeRows(project string, configs []configRow) []treeRow {
-	lastTop := -1
-	for i, c := range configs {
-		if c.depth == 0 {
-			lastTop = i
-		}
-	}
+type envGroup struct {
+	root configRow
+	kids []configRow
+}
 
-	rows := make([]treeRow, 0, len(configs))
-	parentIsLast := true
-	for i, c := range configs {
+func groupConfigs(configs []configRow) []envGroup {
+	groups := make([]envGroup, 0)
+	for _, c := range configs {
 		if c.depth == 0 {
-			parentIsLast = i == lastTop
-			rows = append(rows, treeRow{
-				kind:        treeConfig,
-				project:     project,
-				config:      c.name,
-				depth:       1,
-				lastSibling: parentIsLast,
-			})
+			groups = append(groups, envGroup{root: c})
 			continue
 		}
+		if len(groups) == 0 {
+			groups = append(groups, envGroup{root: c})
+			continue
+		}
+		groups[len(groups)-1].kids = append(groups[len(groups)-1].kids, c)
+	}
+	return groups
+}
+
+func configTreeRows(
+	project string,
+	configs []configRow,
+	expandedEnvs map[string]bool,
+	activeProject, activeConfig string,
+) []treeRow {
+	groups := groupConfigs(configs)
+	rows := make([]treeRow, 0, len(configs))
+
+	for gi, g := range groups {
+		parentIsLast := gi == len(groups)-1
+		hasChildren := len(g.kids) > 0
+		envExpanded := !hasChildren || isEnvExpanded(expandedEnvs, project, g.root.name)
+
 		rows = append(rows, treeRow{
-			kind:            treeConfig,
-			project:         project,
-			config:          c.name,
-			depth:           2,
-			lastSibling:     c.lastSibling,
-			parentContinues: !parentIsLast,
+			kind:        treeConfig,
+			project:     project,
+			config:      g.root.name,
+			depth:       1,
+			lastSibling: parentIsLast,
+			folded:      hasChildren && !envExpanded,
+			hasChildren: hasChildren,
+			foldRoot:    g.root.name,
 		})
+
+		if !hasChildren {
+			continue
+		}
+
+		if envExpanded {
+			for i, kid := range g.kids {
+				rows = append(rows, treeRow{
+					kind:            treeConfig,
+					project:         project,
+					config:          kid.name,
+					depth:           2,
+					lastSibling:     i == len(g.kids)-1,
+					parentContinues: !parentIsLast,
+					foldRoot:        g.root.name,
+					hasChildren:     false,
+				})
+			}
+			continue
+		}
+
+		if project == activeProject && activeConfig != "" && activeConfig != g.root.name {
+			for _, kid := range g.kids {
+				if kid.name == activeConfig {
+					rows = append(rows, treeRow{
+						kind:            treeConfig,
+						project:         project,
+						config:          kid.name,
+						depth:           2,
+						lastSibling:     true,
+						parentContinues: !parentIsLast,
+						pinned:          true,
+						foldRoot:        g.root.name,
+					})
+					break
+				}
+			}
+		}
 	}
 	return rows
 }
@@ -124,21 +195,24 @@ func findTreeIndex(tree []treeRow, kind treeKind, project, config string) int {
 
 func formatTreeRow(row treeRow, activeProject, activeConfig string) string {
 	if row.kind == treeProject {
-		marker := "  "
-		if row.project == activeProject {
-			marker = "* "
-		}
 		icon := "▾ "
 		if row.folded {
 			icon = "▸ "
 		}
-		return marker + icon + row.project
+		return icon + row.project
 	}
 
 	active := row.project == activeProject && row.config == activeConfig
 	name := row.config
 	if active {
 		name = activeEnvStyle.Render("*" + row.config)
+	}
+	if row.hasChildren {
+		icon := "▾ "
+		if row.folded {
+			icon = "▸ "
+		}
+		name = icon + name
 	}
 
 	branch := "├─ "

@@ -49,6 +49,7 @@ type Model struct {
 	projects       []string
 	projectConfigs map[string][]configRow
 	expanded       map[string]bool
+	expandedEnvs   map[string]bool
 	tree           []treeRow
 	treeIdx        int
 
@@ -104,6 +105,7 @@ func newModel(opts models.ScopedOptions) Model {
 		fetching:       true,
 		projectConfigs: map[string][]configRow{},
 		expanded:       map[string]bool{},
+		expandedEnvs:   map[string]bool{},
 	}
 
 	if configuration.TUIShouldShowIntro() {
@@ -201,8 +203,11 @@ func (m *Model) rebuildTree() {
 	if m.expanded == nil {
 		m.expanded = map[string]bool{}
 	}
+	if m.expandedEnvs == nil {
+		m.expandedEnvs = map[string]bool{}
+	}
 
-	m.tree = buildProjectTree(m.projects, m.projectConfigs, m.expanded, m.activeProject, m.activeConfig)
+	m.tree = buildProjectTree(m.projects, m.projectConfigs, m.expanded, m.expandedEnvs, m.activeProject, m.activeConfig)
 	m.treeIdx = findTreeIndex(m.tree, kind, project, config)
 	if m.treeIdx >= len(m.tree) {
 		m.treeIdx = max(0, len(m.tree)-1)
