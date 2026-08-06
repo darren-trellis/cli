@@ -63,12 +63,26 @@ border = "#333333"
 window_focus_border = "#ffcc00"
 dim = "#666666"
 [levels]
+info = "#00ff00"
 warn = "#f0c000"
 error = { fg = "#ff0000", bg = "#200000" }
 `))
 	require.NoError(t, err)
 	assert.Equal(t, "example", theme.Name)
 	assert.Equal(t, lipgloss.Color("#ffcc00"), theme.Accent)
+	assert.Equal(t, lipgloss.Color("#00ff00"), theme.ActiveEnv)
 	assert.Equal(t, lipgloss.Color("#ff0000"), theme.Error)
 	assert.Equal(t, lipgloss.Color("#f0c000"), theme.Dirty)
+
+	theme, err = parseTeleminatorTheme([]byte(`
+name = "override"
+[colors]
+foreground = "#eeeeee"
+window_focus_border = "#ffcc00"
+active_env = "#abcdef"
+[levels]
+info = "#00ff00"
+`))
+	require.NoError(t, err)
+	assert.Equal(t, lipgloss.Color("#abcdef"), theme.ActiveEnv)
 }

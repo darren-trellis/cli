@@ -20,6 +20,7 @@ import (
 
 	"github.com/DopplerHQ/cli/pkg/models"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -206,10 +207,11 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 	assert.Equal(t, 2, tree[2].depth)
 	assert.True(t, tree[2].parentContinues)
 	assert.True(t, tree[3].lastSibling)
-	assert.Equal(t, "* ▾ api", formatTreeRow(tree[0], "api", "dev"))
-	assert.Equal(t, "  ├─ *dev", formatTreeRow(tree[1], "api", "dev"))
-	assert.Equal(t, "  │  └─ dev_personal", formatTreeRow(tree[2], "api", "dev"))
-	assert.Equal(t, "  └─ prd", formatTreeRow(tree[3], "api", "dev"))
+	assert.Equal(t, "* ▾ api", ansi.Strip(formatTreeRow(tree[0], "api", "dev")))
+	assert.Equal(t, "  ├─ *dev", ansi.Strip(formatTreeRow(tree[1], "api", "dev")))
+	assert.Equal(t, "  │  └─ dev_personal", ansi.Strip(formatTreeRow(tree[2], "api", "dev")))
+	assert.Equal(t, "  └─ prd", ansi.Strip(formatTreeRow(tree[3], "api", "dev")))
+	assert.Contains(t, formatTreeRow(tree[1], "api", "dev"), "dev")
 
 	expanded["api"] = false
 	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, "api", "dev")
@@ -218,7 +220,7 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 	assert.Equal(t, treeConfig, tree[1].kind)
 	assert.Equal(t, "dev", tree[1].config)
 	assert.True(t, tree[1].pinned)
-	assert.Equal(t, "  └─ *dev", formatTreeRow(tree[1], "api", "dev"))
+	assert.Equal(t, "  └─ *dev", ansi.Strip(formatTreeRow(tree[1], "api", "dev")))
 	assert.Equal(t, "web", tree[2].project)
 }
 

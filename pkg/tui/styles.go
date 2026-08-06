@@ -28,6 +28,7 @@ var (
 	titleStyle       lipgloss.Style
 	activeTitleStyle lipgloss.Style
 	selectedStyle    lipgloss.Style
+	activeEnvStyle   lipgloss.Style
 	dimStyle         lipgloss.Style
 	dirtyStyle       lipgloss.Style
 	deleteStyle      lipgloss.Style
@@ -67,6 +68,12 @@ func rebuildStyles(theme Theme) {
 		selectionBg = lipgloss.Color("237")
 	}
 	selectedStyle = selectedStyle.Background(selectionBg)
+
+	activeEnv := theme.ActiveEnv
+	if activeEnv == "" {
+		activeEnv = theme.Accent
+	}
+	activeEnvStyle = lipgloss.NewStyle().Foreground(activeEnv).Bold(true)
 
 	dimStyle = lipgloss.NewStyle().Foreground(theme.Dim)
 	dirtyStyle = lipgloss.NewStyle().Foreground(theme.Dirty)

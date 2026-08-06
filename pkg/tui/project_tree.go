@@ -138,7 +138,7 @@ func formatTreeRow(row treeRow, activeProject, activeConfig string) string {
 	active := row.project == activeProject && row.config == activeConfig
 	name := row.config
 	if active {
-		name = "*" + row.config
+		name = activeEnvStyle.Render("*" + row.config)
 	}
 
 	branch := "├─ "

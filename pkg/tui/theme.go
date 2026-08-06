@@ -35,6 +35,7 @@ type Theme struct {
 	Name        string
 	Background  lipgloss.Color
 	Accent      lipgloss.Color
+	ActiveEnv   lipgloss.Color
 	Border      lipgloss.Color
 	Title       lipgloss.Color
 	Dim         lipgloss.Color
@@ -54,16 +55,18 @@ type themeFile struct {
 }
 
 type themeFileColors struct {
-	Background         string `toml:"background"`
-	Foreground         any    `toml:"foreground"`
-	SelectionBg        string `toml:"selection_bg"`
-	SelectionFg        string `toml:"selection_fg"`
-	Border             any    `toml:"border"`
-	WindowFocusBorder  any    `toml:"window_focus_border"`
-	Dim                any    `toml:"dim"`
+	Background        string `toml:"background"`
+	Foreground        any    `toml:"foreground"`
+	SelectionBg       string `toml:"selection_bg"`
+	SelectionFg       string `toml:"selection_fg"`
+	Border            any    `toml:"border"`
+	WindowFocusBorder any    `toml:"window_focus_border"`
+	ActiveEnv         any    `toml:"active_env"`
+	Dim               any    `toml:"dim"`
 }
 
 type themeFileLevels struct {
+	Info  any `toml:"info"`
 	Warn  any `toml:"warn"`
 	Error any `toml:"error"`
 }
@@ -83,6 +86,7 @@ func registerBuiltinThemes() {
 		Name:        "default",
 		Background:  "",
 		Accent:      lipgloss.Color("5"),
+		ActiveEnv:   lipgloss.Color("2"),
 		Border:      lipgloss.Color("8"),
 		Title:       lipgloss.Color("15"),
 		Dim:         lipgloss.Color("8"),
@@ -96,6 +100,7 @@ func registerBuiltinThemes() {
 	themes["cool"] = Theme{
 		Name:        "cool",
 		Accent:      lipgloss.Color("6"),
+		ActiveEnv:   lipgloss.Color("2"),
 		Border:      lipgloss.Color("8"),
 		Title:       lipgloss.Color("15"),
 		Dim:         lipgloss.Color("8"),
@@ -108,6 +113,7 @@ func registerBuiltinThemes() {
 	themes["warm"] = Theme{
 		Name:        "warm",
 		Accent:      lipgloss.Color("208"),
+		ActiveEnv:   lipgloss.Color("2"),
 		Border:      lipgloss.Color("8"),
 		Title:       lipgloss.Color("15"),
 		Dim:         lipgloss.Color("8"),
@@ -120,6 +126,7 @@ func registerBuiltinThemes() {
 	themes["mono"] = Theme{
 		Name:        "mono",
 		Accent:      lipgloss.Color("15"),
+		ActiveEnv:   lipgloss.Color("7"),
 		Border:      lipgloss.Color("8"),
 		Title:       lipgloss.Color("15"),
 		Dim:         lipgloss.Color("8"),
@@ -167,6 +174,8 @@ func parseTeleminatorTheme(data []byte) (Theme, error) {
 	dim := colorFromAny(file.Colors.Dim, "#6c7086")
 	border := colorFromAny(file.Colors.Border, dim)
 	accent := colorFromAny(file.Colors.WindowFocusBorder, fg)
+	info := colorFromAny(file.Levels.Info, accent)
+	activeEnv := colorFromAny(file.Colors.ActiveEnv, info)
 	warn := colorFromAny(file.Levels.Warn, "#f9e2af")
 	errColor := colorFromAny(file.Levels.Error, "#f38ba8")
 	selBg := strings.TrimSpace(file.Colors.SelectionBg)
@@ -180,6 +189,7 @@ func parseTeleminatorTheme(data []byte) (Theme, error) {
 		Name:        name,
 		Background:  lipgloss.Color(bg),
 		Accent:      lipgloss.Color(accent),
+		ActiveEnv:   lipgloss.Color(activeEnv),
 		Border:      lipgloss.Color(border),
 		Title:       lipgloss.Color(fg),
 		Dim:         lipgloss.Color(dim),
