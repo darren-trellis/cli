@@ -215,12 +215,20 @@ func (m Model) renderStatus(width int) string {
 
 	var right string
 	rightW := max(12, min(40, width/2))
+	inputTextStyle := lipgloss.NewStyle().Foreground(textColor)
+	if background != "" {
+		inputTextStyle = inputTextStyle.Background(background)
+	}
 	switch {
 	case m.focus == focusSearch:
 		m.searchInput.Width = max(8, rightW-2)
+		m.searchInput.TextStyle = inputTextStyle
+		m.searchInput.PromptStyle = helpStyle
 		right = m.searchInput.View()
 	case m.focus == focusFilter:
 		m.filterInput.Width = max(8, rightW-2)
+		m.filterInput.TextStyle = inputTextStyle
+		m.filterInput.PromptStyle = helpStyle
 		right = m.filterInput.View()
 	case m.searchQuery != "":
 		right = searchHitStyle.Render(m.searchStatusLabel())
@@ -231,20 +239,27 @@ func (m Model) renderStatus(width int) string {
 		right = activeEnvStyle.Render("f " + m.filter)
 	}
 
+	var line string
 	if right == "" {
-		return lipgloss.NewStyle().Width(width).MaxWidth(width).Render(left)
+		line = left
+	} else {
+		leftW := lipgloss.Width(left)
+		rw := lipgloss.Width(right)
+		gap := width - leftW - rw
+		if gap < 1 {
+			maxLeft := max(0, width-rw-1)
+			left = lipgloss.NewStyle().MaxWidth(maxLeft).Render(left)
+			leftW = lipgloss.Width(left)
+			gap = max(1, width-leftW-rw)
+		}
+		gapStyle := lipgloss.NewStyle()
+		if background != "" {
+			gapStyle = gapStyle.Background(background)
+		}
+		line = left + gapStyle.Render(strings.Repeat(" ", gap)) + right
 	}
 
-	leftW := lipgloss.Width(left)
-	rw := lipgloss.Width(right)
-	gap := width - leftW - rw
-	if gap < 1 {
-		maxLeft := max(0, width-rw-1)
-		left = lipgloss.NewStyle().MaxWidth(maxLeft).Render(left)
-		leftW = lipgloss.Width(left)
-		gap = max(1, width-leftW-rw)
-	}
-	return left + strings.Repeat(" ", gap) + right
+	return statusBarStyle.Width(width).MaxWidth(width).Render(line)
 }
 
 func renderTitledPanel(title, content string, width, height int, active bool) string {

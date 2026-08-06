@@ -37,6 +37,7 @@ var (
 	deleteStyle      lipgloss.Style
 	errorStyle       lipgloss.Style
 	statusStyle      lipgloss.Style
+	statusBarStyle   lipgloss.Style
 	modalStyle       lipgloss.Style
 	helpStyle        lipgloss.Style
 	appStyle         lipgloss.Style
@@ -91,6 +92,7 @@ func rebuildStyles(theme Theme) {
 	errorStyle = lipgloss.NewStyle().Foreground(theme.Error)
 	statusStyle = lipgloss.NewStyle().Foreground(theme.Text)
 	helpStyle = lipgloss.NewStyle().Foreground(theme.Dim)
+	statusBarStyle = lipgloss.NewStyle()
 
 	modalStyle = lipgloss.NewStyle().
 		Border(roundedBorder).
@@ -107,5 +109,16 @@ func rebuildStyles(theme Theme) {
 		listPanelStyle = listPanelStyle.Background(bg).BorderBackground(bg)
 		activeListPanelStyle = activeListPanelStyle.Background(bg).BorderBackground(bg)
 		modalStyle = modalStyle.Background(bg).BorderBackground(bg)
+		statusBarStyle = statusBarStyle.Background(bg)
+		helpStyle = helpStyle.Background(bg)
+		statusStyle = statusStyle.Background(bg)
+		errorStyle = errorStyle.Background(bg)
+		dimStyle = dimStyle.Background(bg)
+		dirtyStyle = dirtyStyle.Background(bg)
+		deleteStyle = deleteStyle.Background(bg)
+		searchHitStyle = searchHitStyle.Background(bg)
+		activeEnvStyle = activeEnvStyle.Background(bg)
+		titleStyle = titleStyle.Background(bg)
+		activeTitleStyle = activeTitleStyle.Background(bg)
 	}
 }
