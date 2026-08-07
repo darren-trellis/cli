@@ -16,6 +16,7 @@ limitations under the License.
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
@@ -93,7 +94,7 @@ func TestSecretRowUndoAndRestricted(t *testing.T) {
 }
 
 func TestNavKeyFocusSwitch(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, ListScrollbarVertical: true, SidebarScrollbarVertical: true})
 	m.fetching = false
 	m.focus = focusSecrets
 
@@ -105,7 +106,7 @@ func TestNavKeyFocusSwitch(t *testing.T) {
 }
 
 func TestMoveSecretsList(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, ListScrollbarVertical: true, SidebarScrollbarVertical: true})
 	m.fetching = false
 	m.focus = focusSecrets
 	m.secrets = []secretRow{
@@ -123,7 +124,7 @@ func TestMoveSecretsList(t *testing.T) {
 }
 
 func TestPageUpDownSecrets(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, ListScrollbarVertical: true, SidebarScrollbarVertical: true})
 	m.fetching = false
 	m.focus = focusSecrets
 	m.width = 80
@@ -151,7 +152,7 @@ func TestPageUpDownSecrets(t *testing.T) {
 }
 
 func TestSidebarWidthConfig(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, ListScrollbarVertical: true, SidebarScrollbarVertical: true})
 	m.width = 100
 	m.height = 24
 	assert.Equal(t, 20, m.computeLayout().projects.w)
@@ -168,6 +169,7 @@ func TestSidebarWidthConfig(t *testing.T) {
 
 func TestSidebarPositionRight(t *testing.T) {
 	m := newModel(models.ScopedOptions{}, configuration.TUISettings{
+		Sidebar:         true,
 		SidebarPosition: "right",
 		SidebarWidth:    28,
 		Border:          true,
@@ -192,14 +194,42 @@ func TestNameColumnPercent(t *testing.T) {
 }
 
 func TestBorderlessChrome(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: false})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: false, Sidebar: true})
 	assert.Equal(t, 1, m.panelChrome())
 	m.cfg.Border = true
 	assert.Equal(t, 2, m.panelChrome())
 }
 
+func TestSidebarToggle(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{
+		Border: true, Sidebar: true, Autosave: false,
+	})
+	m.fetching = false
+	m.focus = focusProjects
+	m.width = 100
+	m.height = 24
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'B'}})
+	mod := next.(Model)
+	assert.False(t, mod.cfg.Sidebar)
+	assert.Equal(t, focusSecrets, mod.focus)
+	assert.Equal(t, 100, mod.computeLayout().secrets.w)
+	assert.Equal(t, 0, mod.computeLayout().projects.w)
+
+	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'B'}})
+	mod = next.(Model)
+	assert.True(t, mod.cfg.Sidebar)
+}
+
+func TestVerticalScrollbar(t *testing.T) {
+	assert.Equal(t, "", renderVerticalScrollbar(10, 5, 0, 10))
+	bar := renderVerticalScrollbar(10, 100, 0, 10)
+	assert.Equal(t, 10, strings.Count(bar, "\n")+1)
+	assert.Contains(t, bar, "▐")
+}
+
 func TestPageLinesConfig(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{PageLines: 5})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{PageLines: 5, Sidebar: true, Border: true})
 	m.fetching = false
 	m.focus = focusSecrets
 	m.width = 80
@@ -215,7 +245,7 @@ func TestPageLinesConfig(t *testing.T) {
 }
 
 func TestEnterInsertAndEsc(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, ListScrollbarVertical: true, SidebarScrollbarVertical: true})
 	m.fetching = false
 	m.focus = focusSecrets
 	m.secrets = []secretRow{newSecretRow("A", "val", "masked")}
@@ -230,7 +260,7 @@ func TestEnterInsertAndEsc(t *testing.T) {
 }
 
 func TestVimColumnMoveAndInsert(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, ListScrollbarVertical: true, SidebarScrollbarVertical: true})
 	m.fetching = false
 	m.focus = focusSecrets
 	m.secrets = []secretRow{newSecretRow("A", "val", "masked")}
@@ -247,7 +277,7 @@ func TestVimColumnMoveAndInsert(t *testing.T) {
 }
 
 func TestUndoAfterNavigatingAway(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, ListScrollbarVertical: true, SidebarScrollbarVertical: true})
 	m.fetching = false
 	m.focus = focusSecrets
 	m.secrets = []secretRow{
@@ -276,7 +306,7 @@ func TestUndoAfterNavigatingAway(t *testing.T) {
 }
 
 func TestLoadedMsgSetsState(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, ListScrollbarVertical: true, SidebarScrollbarVertical: true})
 	next, _ := m.Update(loadedMsg{
 		projects:      []string{"p1", "p2"},
 		configs:       buildConfigTree([]models.ConfigInfo{{Name: "dev", Environment: "dev", Root: true}}),
@@ -296,7 +326,7 @@ func TestLoadedMsgSetsState(t *testing.T) {
 }
 
 func TestProjectSelectedMsgLoadsSecrets(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, ListScrollbarVertical: true, SidebarScrollbarVertical: true})
 	m.fetching = true
 	m.focus = focusProjects
 
@@ -381,7 +411,7 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 }
 
 func TestToggleProjectFold(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, ListScrollbarVertical: true, SidebarScrollbarVertical: true})
 	m.fetching = false
 	m.focus = focusProjects
 	m.projects = []string{"api", "web"}
@@ -411,7 +441,7 @@ func TestToggleProjectFold(t *testing.T) {
 }
 
 func TestToggleEnvFold(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, ListScrollbarVertical: true, SidebarScrollbarVertical: true})
 	m.fetching = false
 	m.focus = focusProjects
 	m.projects = []string{"api"}
@@ -441,7 +471,7 @@ func TestToggleEnvFold(t *testing.T) {
 }
 
 func TestSpaceOnLeafDoesNothing(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, ListScrollbarVertical: true, SidebarScrollbarVertical: true})
 	m.fetching = false
 	m.focus = focusProjects
 	m.projects = []string{"api"}
@@ -471,7 +501,7 @@ func TestSpaceOnLeafDoesNothing(t *testing.T) {
 }
 
 func TestCyclePane(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, ListScrollbarVertical: true, SidebarScrollbarVertical: true})
 	m.fetching = false
 	m.focus = focusProjects
 	m.secrets = []secretRow{newSecretRow("A", "1", "masked")}

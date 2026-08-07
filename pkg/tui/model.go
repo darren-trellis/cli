@@ -18,6 +18,7 @@ package tui
 import (
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
@@ -91,7 +92,8 @@ type Model struct {
 
 	pendingChanges []models.ChangeRequest
 
-	helpViewport viewport.Model
+	helpViewport  viewport.Model
+	configModTime time.Time
 }
 
 func newModel(opts models.ScopedOptions, cfg configuration.TUISettings) Model {
@@ -140,7 +142,11 @@ func newModel(opts models.ScopedOptions, cfg configuration.TUISettings) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.spinner.Tick, loadCmd(m.opts))
+	cmds := []tea.Cmd{m.spinner.Tick, loadCmd(m.opts)}
+	if m.cfg.Autoreload {
+		cmds = append(cmds, watchConfigCmd())
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m Model) filteredIndexes() []int {
@@ -354,8 +360,13 @@ func (m *Model) cyclePane(delta int) {
 		return
 	}
 
+	order := paneOrder
+	if !m.cfg.Sidebar {
+		order = []focusArea{focusSecrets}
+	}
+
 	cur := -1
-	for i, p := range paneOrder {
+	for i, p := range order {
 		if p == m.focus {
 			cur = i
 			break
@@ -366,7 +377,17 @@ func (m *Model) cyclePane(delta int) {
 		return
 	}
 
-	n := len(paneOrder)
+	n := len(order)
 	cur = (cur + delta%n + n) % n
-	m.setFocus(paneOrder[cur])
+	m.setFocus(order[cur])
+}
+
+func (m *Model) toggleSidebar() {
+	m.cfg.Sidebar = !m.cfg.Sidebar
+	if !m.cfg.Sidebar && m.focus == focusProjects {
+		m.focus = focusSecrets
+	}
+	if m.cfg.Autosave {
+		configuration.TUISaveSettings(m.cfg)
+	}
 }

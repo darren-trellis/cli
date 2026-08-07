@@ -39,6 +39,10 @@ func tui(cmd *cobra.Command, args []string) {
 		cfg.Theme = cmd.Flag("theme").Value.String()
 		configuration.TUISetTheme(cfg.Theme)
 	}
+	if cmd.Flags().Changed("sidebar") {
+		cfg.Sidebar, _ = cmd.Flags().GetBool("sidebar")
+		configuration.TUISetSidebar(cfg.Sidebar)
+	}
 	if cmd.Flags().Changed("sidebar-width") {
 		cfg.SidebarWidth, _ = cmd.Flags().GetInt("sidebar-width")
 		configuration.TUISetSidebarWidth(cfg.SidebarWidth)
@@ -67,6 +71,22 @@ func tui(cmd *cobra.Command, args []string) {
 		cfg.NameColumnPercent, _ = cmd.Flags().GetInt("name-column-percent")
 		configuration.TUISetNameColumnPercent(cfg.NameColumnPercent)
 	}
+	if cmd.Flags().Changed("list-scrollbar") {
+		cfg.ListScrollbarVertical, _ = cmd.Flags().GetBool("list-scrollbar")
+		configuration.TUISetListScrollbarVertical(cfg.ListScrollbarVertical)
+	}
+	if cmd.Flags().Changed("sidebar-scrollbar") {
+		cfg.SidebarScrollbarVertical, _ = cmd.Flags().GetBool("sidebar-scrollbar")
+		configuration.TUISetSidebarScrollbarVertical(cfg.SidebarScrollbarVertical)
+	}
+	if cmd.Flags().Changed("autosave") {
+		cfg.Autosave, _ = cmd.Flags().GetBool("autosave")
+		configuration.TUISetAutosave(cfg.Autosave)
+	}
+	if cmd.Flags().Changed("autoreload") {
+		cfg.Autoreload, _ = cmd.Flags().GetBool("autoreload")
+		configuration.TUISetAutoreload(cfg.Autoreload)
+	}
 	cfg = configuration.TUIConfig()
 	if strings.TrimSpace(cfg.Theme) == "" {
 		cfg.Theme = "default"
@@ -79,6 +99,7 @@ func init() {
 	tuiCmd.Flags().StringP("project", "p", "", "project (e.g. backend)")
 	tuiCmd.Flags().StringP("config", "c", "", "config (e.g. dev)")
 	tuiCmd.Flags().String("theme", "default", "TUI theme (default, cool, warm, mono, or a teleminator theme like catppuccin)")
+	tuiCmd.Flags().Bool("sidebar", true, "show projects sidebar")
 	tuiCmd.Flags().Int("sidebar-width", 0, "projects sidebar width in columns (0 = auto)")
 	tuiCmd.Flags().String("sidebar-position", "left", "projects sidebar side (left or right)")
 	tuiCmd.Flags().Int("page-lines", 0, "lines to jump on PgUp/PgDn (0 = full viewport)")
@@ -86,6 +107,10 @@ func init() {
 	tuiCmd.Flags().Bool("border", true, "draw pane borders")
 	tuiCmd.Flags().String("case-mode", "smart", "search/filter case mode (sensitive, insensitive, or smart)")
 	tuiCmd.Flags().Int("name-column-percent", 40, "name column width as percent of secrets pane (1-99)")
+	tuiCmd.Flags().Bool("list-scrollbar", true, "show vertical scrollbar in secrets list")
+	tuiCmd.Flags().Bool("sidebar-scrollbar", true, "show vertical scrollbar in projects sidebar")
+	tuiCmd.Flags().Bool("autosave", true, "persist TUI setting changes automatically")
+	tuiCmd.Flags().Bool("autoreload", true, "reload TUI settings when config file changes")
 	tuiCmd.Flags().BoolVar(&utils.DebugTUI, "debug-tui", utils.DebugTUI, "log TUI messages to file")
 	rootCmd.AddCommand(tuiCmd)
 }

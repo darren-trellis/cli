@@ -41,14 +41,18 @@ func (m Model) computeLayout() layoutRegions {
 	w := max(40, m.width)
 	h := max(12, m.height)
 
-	sideW := m.sidebarWidth(w)
-	mainW := w - sideW
 	statusH := 1
 	topH := h - statusH
-
 	layout := layoutRegions{
 		status: rect{0, topH, w, statusH},
 	}
+	if !m.cfg.Sidebar {
+		layout.secrets = rect{0, 0, w, topH}
+		return layout
+	}
+
+	sideW := m.sidebarWidth(w)
+	mainW := w - sideW
 	if m.cfg.SidebarPosition == "right" {
 		layout.secrets = rect{0, 0, mainW, topH}
 		layout.projects = rect{mainW, 0, sideW, topH}
@@ -98,14 +102,17 @@ func (m Model) View() string {
 
 	layout := m.computeLayout()
 
-	projects := m.renderProjectTree(layout.projects.w, layout.projects.h)
 	secrets := m.renderSecretsTable(layout.secrets.w, layout.secrets.h)
-
 	var main string
-	if m.cfg.SidebarPosition == "right" {
-		main = lipgloss.JoinHorizontal(lipgloss.Top, secrets, projects)
+	if !m.cfg.Sidebar {
+		main = secrets
 	} else {
-		main = lipgloss.JoinHorizontal(lipgloss.Top, projects, secrets)
+		projects := m.renderProjectTree(layout.projects.w, layout.projects.h)
+		if m.cfg.SidebarPosition == "right" {
+			main = lipgloss.JoinHorizontal(lipgloss.Top, secrets, projects)
+		} else {
+			main = lipgloss.JoinHorizontal(lipgloss.Top, projects, secrets)
+		}
 	}
 	status := m.renderStatus(layout.status.w)
 
@@ -137,14 +144,19 @@ func (m Model) renderProjectTree(width, height int) string {
 }
 
 func (m Model) renderSecretsTable(width, height int) string {
-	nameW, valueW := m.secretColumnWidths(width)
 	chrome := m.panelChrome()
 	innerH := max(1, height-chrome)
+	idxs := m.filteredIndexes()
+	bodyH := max(1, innerH-1)
+	showSB := m.cfg.ListScrollbarVertical && len(idxs) > bodyH
+	contentW := width
+	if showSB {
+		contentW = max(12, width-1)
+	}
+	nameW, valueW := m.secretColumnWidths(contentW)
 	sep := secretColSeparator()
 	header := dimStyle.Render(padRight("  NAME", nameW)) + sep + dimStyle.Render(padRight("VALUE", valueW))
 
-	idxs := m.filteredIndexes()
-	bodyH := max(1, innerH-1)
 	start := 0
 	if m.secretIdx >= bodyH {
 		start = m.secretIdx - bodyH + 1
@@ -170,11 +182,14 @@ func (m Model) renderSecretsTable(width, height int) string {
 		rows = append(rows, "")
 	}
 
+	body := strings.Join(rows[:innerH], "\n")
+	body = joinWithScrollbar(body, innerH, len(idxs), start, bodyH, showSB)
+
 	title := fmt.Sprintf("Secrets (%d)", len(idxs))
 	if m.activeProject != "" && m.activeConfig != "" {
 		title = fmt.Sprintf("Secrets (%d) [%s / %s]", len(idxs), m.activeProject, m.activeConfig)
 	}
-	return m.renderTitledListPanel(title, strings.Join(rows[:innerH], "\n"), width, height, secretsActive)
+	return m.renderTitledListPanel(title, body, width, height, secretsActive)
 }
 
 func (m Model) renderSecretRow(s secretRow, listIdx, nameW, valueW int, paneActive bool, hits map[int]struct{}) string {
@@ -279,10 +294,14 @@ func padRight(s string, width int) string {
 
 func (m Model) renderLinesPanel(title string, lines []string, selected int, active bool, width, height int, hits map[int]struct{}) string {
 	chrome := m.panelChrome()
-	innerW := max(1, width-chrome)
 	innerH := max(1, height-chrome)
-
 	visible := innerH
+	showSB := m.cfg.SidebarScrollbarVertical && len(lines) > visible
+	innerW := max(1, width-chrome)
+	if showSB {
+		innerW = max(1, innerW-1)
+	}
+
 	start := 0
 	if selected >= visible {
 		start = selected - visible + 1
@@ -308,7 +327,9 @@ func (m Model) renderLinesPanel(title string, lines []string, selected int, acti
 		body = append(body, "")
 	}
 
-	return m.renderTitledListPanel(title, strings.Join(body[:innerH], "\n"), width, height, active)
+	content := strings.Join(body[:innerH], "\n")
+	content = joinWithScrollbar(content, innerH, len(lines), start, visible, showSB)
+	return m.renderTitledListPanel(title, content, width, height, active)
 }
 
 func (m Model) renderStatus(width int) string {

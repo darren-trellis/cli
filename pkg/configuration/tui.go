@@ -19,14 +19,19 @@ import "strings"
 
 // TUISettings are runtime preferences for the Doppler TUI.
 type TUISettings struct {
-	Theme             string
-	SidebarWidth      int    // 0 = auto
-	SidebarPosition   string // left | right
-	PageLines         int    // 0 = viewport height
-	ScrollLines       int    // mouse wheel step
-	Border            bool
-	CaseMode          string // sensitive | insensitive | smart
-	NameColumnPercent int    // 1-99
+	Theme                    string
+	Sidebar                  bool
+	SidebarWidth             int    // 0 = auto
+	SidebarPosition          string // left | right
+	PageLines                int    // 0 = viewport height
+	ScrollLines              int    // mouse wheel step
+	Border                   bool
+	CaseMode                 string // sensitive | insensitive | smart
+	NameColumnPercent        int    // 1-99
+	ListScrollbarVertical    bool
+	SidebarScrollbarVertical bool
+	Autosave                 bool
+	Autoreload               bool
 }
 
 var CURRENT_INTRO_VERSION = 1
@@ -51,19 +56,24 @@ func TUISetTheme(theme string) {
 
 func TUIConfig() TUISettings {
 	return NormalizeTUISettings(TUISettings{
-		Theme:             configContents.TUI.Theme,
-		SidebarWidth:      configContents.TUI.SidebarWidth,
-		SidebarPosition:   configContents.TUI.SidebarPosition,
-		PageLines:         configContents.TUI.PageLines,
-		ScrollLines:       configContents.TUI.ScrollLines,
-		Border:            boolOrDefault(configContents.TUI.Border, true),
-		CaseMode:          configContents.TUI.CaseMode,
-		NameColumnPercent: configContents.TUI.NameColumnPercent,
+		Theme:                    configContents.TUI.Theme,
+		Sidebar:                  boolOrDefault(configContents.TUI.Sidebar, true),
+		SidebarWidth:             configContents.TUI.SidebarWidth,
+		SidebarPosition:          configContents.TUI.SidebarPosition,
+		PageLines:                configContents.TUI.PageLines,
+		ScrollLines:              configContents.TUI.ScrollLines,
+		Border:                   boolOrDefault(configContents.TUI.Border, true),
+		CaseMode:                 configContents.TUI.CaseMode,
+		NameColumnPercent:        configContents.TUI.NameColumnPercent,
+		ListScrollbarVertical:    boolOrDefault(configContents.TUI.ListScrollbarVertical, true),
+		SidebarScrollbarVertical: boolOrDefault(configContents.TUI.SidebarScrollbarVertical, true),
+		Autosave:                 boolOrDefault(configContents.TUI.Autosave, true),
+		Autoreload:               boolOrDefault(configContents.TUI.Autoreload, true),
 	})
 }
 
-// NormalizeTUISettings applies defaults for zero/invalid values.
-// Border is left as-is; use TUIConfig() (or set Border explicitly) for the true default.
+// NormalizeTUISettings applies defaults for zero/invalid string/int values.
+// Bools are left as-is; use TUIConfig() for YAML defaults.
 func NormalizeTUISettings(s TUISettings) TUISettings {
 	s.SidebarPosition = strings.ToLower(strings.TrimSpace(s.SidebarPosition))
 	if s.SidebarPosition != "right" {
@@ -93,6 +103,25 @@ func boolOrDefault(v *bool, def bool) bool {
 
 func boolPtr(v bool) *bool {
 	return &v
+}
+
+// TUISaveSettings writes the full runtime settings to disk.
+func TUISaveSettings(s TUISettings) {
+	s = NormalizeTUISettings(s)
+	configContents.TUI.Theme = s.Theme
+	configContents.TUI.Sidebar = boolPtr(s.Sidebar)
+	configContents.TUI.SidebarWidth = s.SidebarWidth
+	configContents.TUI.SidebarPosition = s.SidebarPosition
+	configContents.TUI.PageLines = s.PageLines
+	configContents.TUI.ScrollLines = s.ScrollLines
+	configContents.TUI.Border = boolPtr(s.Border)
+	configContents.TUI.CaseMode = s.CaseMode
+	configContents.TUI.NameColumnPercent = s.NameColumnPercent
+	configContents.TUI.ListScrollbarVertical = boolPtr(s.ListScrollbarVertical)
+	configContents.TUI.SidebarScrollbarVertical = boolPtr(s.SidebarScrollbarVertical)
+	configContents.TUI.Autosave = boolPtr(s.Autosave)
+	configContents.TUI.Autoreload = boolPtr(s.Autoreload)
+	writeConfig(configContents)
 }
 
 func TUISetSidebarWidth(width int) {
@@ -128,4 +157,34 @@ func TUISetCaseMode(mode string) {
 func TUISetNameColumnPercent(pct int) {
 	configContents.TUI.NameColumnPercent = pct
 	writeConfig(configContents)
+}
+
+func TUISetSidebar(enabled bool) {
+	configContents.TUI.Sidebar = boolPtr(enabled)
+	writeConfig(configContents)
+}
+
+func TUISetListScrollbarVertical(enabled bool) {
+	configContents.TUI.ListScrollbarVertical = boolPtr(enabled)
+	writeConfig(configContents)
+}
+
+func TUISetSidebarScrollbarVertical(enabled bool) {
+	configContents.TUI.SidebarScrollbarVertical = boolPtr(enabled)
+	writeConfig(configContents)
+}
+
+func TUISetAutosave(enabled bool) {
+	configContents.TUI.Autosave = boolPtr(enabled)
+	writeConfig(configContents)
+}
+
+func TUISetAutoreload(enabled bool) {
+	configContents.TUI.Autoreload = boolPtr(enabled)
+	writeConfig(configContents)
+}
+
+// ReloadConfigFromDisk re-reads the user config file into memory.
+func ReloadConfigFromDisk() {
+	configContents, _, _ = readConfig()
 }

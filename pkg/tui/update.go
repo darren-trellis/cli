@@ -16,12 +16,24 @@ limitations under the License.
 package tui
 
 import (
+	"os"
+	"strings"
+	"time"
+
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/utils"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
+type configWatchMsg struct{}
+
+func watchConfigCmd() tea.Cmd {
+	return tea.Tick(time.Second, func(time.Time) tea.Msg {
+		return configWatchMsg{}
+	})
+}
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -42,6 +54,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		return m, nil
+
+	case configWatchMsg:
+		return m.handleConfigWatch()
 
 	case errMsg:
 		m.fetching = false
@@ -320,10 +335,15 @@ func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cyclePane(-1)
 		return m, nil
 	case "1":
-		m.setFocus(focusProjects)
+		if m.cfg.Sidebar {
+			m.setFocus(focusProjects)
+		}
 		return m, nil
 	case "2":
 		m.setFocus(focusSecrets)
+		return m, nil
+	case "B":
+		m.toggleSidebar()
 		return m, nil
 	case "/":
 		m.beginSearch()
@@ -678,6 +698,38 @@ func (m *Model) focusPanelAt(x, y int, layout layoutRegions) {
 	}
 }
 
+func (m Model) handleConfigWatch() (tea.Model, tea.Cmd) {
+	if !m.cfg.Autoreload {
+		return m, nil
+	}
+	info, err := os.Stat(configuration.UserConfigFile)
+	if err != nil {
+		return m, watchConfigCmd()
+	}
+	mod := info.ModTime()
+	if m.configModTime.IsZero() {
+		m.configModTime = mod
+		return m, watchConfigCmd()
+	}
+	if !mod.After(m.configModTime) {
+		return m, watchConfigCmd()
+	}
+	m.configModTime = mod
+	configuration.ReloadConfigFromDisk()
+	newCfg := configuration.TUIConfig()
+	if strings.TrimSpace(newCfg.Theme) == "" {
+		newCfg.Theme = m.cfg.Theme
+	}
+	if newCfg.Theme != m.cfg.Theme {
+		_ = applyTheme(newCfg.Theme)
+	}
+	m.cfg = newCfg
+	if !m.cfg.Sidebar && m.focus == focusProjects {
+		m.focus = focusSecrets
+	}
+	return m, watchConfigCmd()
+}
+
 func clamp(v, lo, hi int) int {
 	if v < lo {
 		return lo
@@ -706,6 +758,7 @@ const helpText = `Global Keybinds:
     Tab / Shift+Tab  Cycle panes
     1 Focus Projects
     2 Focus Secrets
+    B Toggle projects sidebar
     / Search current pane (regex)
     f Filter secrets (status bar)
     n / N Next / previous match
@@ -713,12 +766,15 @@ const helpText = `Global Keybinds:
     ? Help
     q Exit
 
-Themes:
+Themes & settings:
     doppler tui --theme <name>
-    Built-ins: default, cool, warm, mono
-    Plus teleminator themes (catppuccin, nord,
-    tokyo-night, gruvbox, dracula, ...)
-    Choice is saved in your Doppler config
+    Also: --sidebar, --sidebar-width,
+    --sidebar-position, --page-lines,
+    --scroll-lines, --border, --case-mode,
+    --name-column-percent, --list-scrollbar,
+    --sidebar-scrollbar, --autosave,
+    --autoreload
+    Saved under tui: in ~/.doppler/.doppler.yaml
 
 Projects (with configs):
     j / k / ↑↓     Move
