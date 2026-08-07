@@ -58,6 +58,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.secrets = msg.secrets
 		m.secretIdx = 0
 		m.secretCol = colName
+		m.undoStack = nil
 		m.activeProject = msg.activeProject
 		m.activeConfig = msg.activeConfig
 		m.rebuildTree()
@@ -72,6 +73,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.secrets = msg.secrets
 		m.secretIdx = 0
 		m.secretCol = colName
+		m.undoStack = nil
 		m.activeProject = msg.project
 		m.activeConfig = msg.config
 		m.pendingChanges = nil
@@ -102,6 +104,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.secrets = msg.secrets
 		m.secretIdx = 0
 		m.secretCol = colName
+		m.undoStack = nil
 		m.activeProject = msg.activeProject
 		m.activeConfig = msg.activeConfig
 		if _, ok := m.projectConfigs[msg.activeProject]; ok {
@@ -511,6 +514,7 @@ func (m Model) addSecret() (tea.Model, tea.Cmd) {
 	idxs := m.filteredIndexes()
 	m.secretIdx = len(idxs) - 1
 	m.secretCol = colName
+	m.noteSecretEdit(len(m.secrets) - 1)
 	m.enterInsert()
 	return m, nil
 }
@@ -522,20 +526,48 @@ func (m Model) deleteSecret() (tea.Model, tea.Cmd) {
 	}
 	if m.secrets[idx].originalName == nil {
 		m.secrets = append(m.secrets[:idx], m.secrets[idx+1:]...)
+		m.adjustUndoStackForRemoval(idx)
 		m.clampSecretIdx()
 		return m, nil
 	}
 	m.secrets[idx].shouldDelete = true
+	m.noteSecretEdit(idx)
 	return m, nil
 }
 
 func (m Model) undoSecret() (tea.Model, tea.Cmd) {
-	idx, ok := m.selectedSecretIndex()
+	idx, ok := m.popUndoTarget()
 	if !ok {
 		return m, nil
 	}
+
+	if m.secrets[idx].originalName == nil {
+		m.secrets = append(m.secrets[:idx], m.secrets[idx+1:]...)
+		m.adjustUndoStackForRemoval(idx)
+		m.clampSecretIdx()
+		m.setFocus(focusSecrets)
+		return m, nil
+	}
+
 	m.secrets[idx].undo()
+	m.selectSecretByStoreIndex(idx)
+	m.setFocus(focusSecrets)
 	return m, nil
+}
+
+func (m *Model) popUndoTarget() (int, bool) {
+	for len(m.undoStack) > 0 {
+		idx := m.undoStack[len(m.undoStack)-1]
+		m.undoStack = m.undoStack[:len(m.undoStack)-1]
+		if idx >= 0 && idx < len(m.secrets) && m.secrets[idx].isDirty() {
+			return idx, true
+		}
+	}
+	idx, ok := m.selectedSecretIndex()
+	if !ok || !m.secrets[idx].isDirty() {
+		return 0, false
+	}
+	return idx, true
 }
 
 func (m Model) yankSecret() (tea.Model, tea.Cmd) {
@@ -697,7 +729,7 @@ Secrets (vim-style):
     Tab            Next cell (insert)
     o              Add secret
     d              Delete / mark delete
-    u              Undo changes
+    u              Undo last secret change
     y              Yank active cell
     s              Save prompt
 

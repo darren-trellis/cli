@@ -172,6 +172,35 @@ func TestVimColumnMoveAndInsert(t *testing.T) {
 	assert.Equal(t, "val", mod.cellInput.Value())
 }
 
+func TestUndoAfterNavigatingAway(t *testing.T) {
+	m := newModel(models.ScopedOptions{})
+	m.fetching = false
+	m.focus = focusSecrets
+	m.secrets = []secretRow{
+		newSecretRow("A", "one", "masked"),
+		newSecretRow("B", "two", "masked"),
+	}
+	m.secretCol = colValue
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	mod := next.(Model)
+	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	mod = next.(Model)
+	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	mod = next.(Model)
+	assert.True(t, mod.secrets[0].isDirty())
+
+	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	mod = next.(Model)
+	assert.Equal(t, 1, mod.secretIdx)
+
+	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'u'}})
+	mod = next.(Model)
+	assert.False(t, mod.secrets[0].isDirty())
+	assert.Equal(t, "one", mod.secrets[0].value)
+	assert.Equal(t, 0, mod.secretIdx)
+}
+
 func TestLoadedMsgSetsState(t *testing.T) {
 	m := newModel(models.ScopedOptions{})
 	next, _ := m.Update(loadedMsg{

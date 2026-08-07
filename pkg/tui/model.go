@@ -66,6 +66,7 @@ type Model struct {
 	secrets   []secretRow
 	secretIdx int // index into filteredIndexes()
 	secretCol secretCol
+	undoStack []int // secret store indexes, most recent last
 
 	filter      string
 	filterInput textinput.Model
@@ -195,6 +196,7 @@ func (m *Model) applyCellToSelection() {
 	s := &m.secrets[idx]
 	if m.secretCol == colName {
 		s.name = normalizeSecretName(m.cellInput.Value())
+		m.noteSecretEdit(idx)
 		return
 	}
 
@@ -209,6 +211,46 @@ func (m *Model) applyCellToSelection() {
 		}
 	}
 	s.value = val
+	m.noteSecretEdit(idx)
+}
+
+func (m *Model) noteSecretEdit(idx int) {
+	if idx < 0 || idx >= len(m.secrets) || !m.secrets[idx].isDirty() {
+		return
+	}
+	for i, v := range m.undoStack {
+		if v == idx {
+			m.undoStack = append(m.undoStack[:i], m.undoStack[i+1:]...)
+			break
+		}
+	}
+	m.undoStack = append(m.undoStack, idx)
+}
+
+func (m *Model) adjustUndoStackForRemoval(removed int) {
+	next := m.undoStack[:0]
+	for _, i := range m.undoStack {
+		if i == removed {
+			continue
+		}
+		if i > removed {
+			next = append(next, i-1)
+		} else {
+			next = append(next, i)
+		}
+	}
+	m.undoStack = next
+}
+
+func (m *Model) selectSecretByStoreIndex(storeIdx int) {
+	idxs := m.filteredIndexes()
+	for i, idx := range idxs {
+		if idx == storeIdx {
+			m.secretIdx = i
+			return
+		}
+	}
+	m.clampSecretIdx()
 }
 
 func (m Model) currentTreeRow() (treeRow, bool) {
