@@ -41,16 +41,22 @@ func (m Model) computeLayout() layoutRegions {
 	w := max(40, m.width)
 	h := max(12, m.height)
 
-	leftW := m.sidebarWidth(w)
-	rightW := w - leftW
+	sideW := m.sidebarWidth(w)
+	mainW := w - sideW
 	statusH := 1
 	topH := h - statusH
 
-	return layoutRegions{
-		projects: rect{0, 0, leftW, topH},
-		secrets:  rect{leftW, 0, rightW, topH},
-		status:   rect{0, topH, w, statusH},
+	layout := layoutRegions{
+		status: rect{0, topH, w, statusH},
 	}
+	if m.cfg.SidebarPosition == "right" {
+		layout.secrets = rect{0, 0, mainW, topH}
+		layout.projects = rect{mainW, 0, sideW, topH}
+	} else {
+		layout.projects = rect{0, 0, sideW, topH}
+		layout.secrets = rect{sideW, 0, mainW, topH}
+	}
+	return layout
 }
 
 func (m Model) sidebarWidth(totalW int) int {
@@ -64,10 +70,15 @@ func (m Model) sidebarWidth(totalW int) int {
 
 const secretColSep = "│"
 
-func secretColumnWidths(panelW int) (nameW, valueW int) {
-	inner := max(10, panelW-2)
+func (m Model) secretColumnWidths(panelW int) (nameW, valueW int) {
+	chrome := m.panelChrome()
+	inner := max(10, panelW-chrome)
 	avail := max(9, inner-lipgloss.Width(secretColSep))
-	nameW = max(12, avail*2/5)
+	pct := m.cfg.NameColumnPercent
+	if pct < 1 || pct > 99 {
+		pct = 40
+	}
+	nameW = max(12, avail*pct/100)
 	valueW = max(8, avail-nameW)
 	return nameW, valueW
 }
@@ -87,10 +98,15 @@ func (m Model) View() string {
 
 	layout := m.computeLayout()
 
-	left := m.renderProjectTree(layout.projects.w, layout.projects.h)
-	right := m.renderSecretsTable(layout.secrets.w, layout.secrets.h)
+	projects := m.renderProjectTree(layout.projects.w, layout.projects.h)
+	secrets := m.renderSecretsTable(layout.secrets.w, layout.secrets.h)
 
-	main := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
+	var main string
+	if m.cfg.SidebarPosition == "right" {
+		main = lipgloss.JoinHorizontal(lipgloss.Top, secrets, projects)
+	} else {
+		main = lipgloss.JoinHorizontal(lipgloss.Top, projects, secrets)
+	}
 	status := m.renderStatus(layout.status.w)
 
 	base := lipgloss.JoinVertical(lipgloss.Left, main, status)
@@ -121,8 +137,9 @@ func (m Model) renderProjectTree(width, height int) string {
 }
 
 func (m Model) renderSecretsTable(width, height int) string {
-	nameW, valueW := secretColumnWidths(width)
-	innerH := max(1, height-2)
+	nameW, valueW := m.secretColumnWidths(width)
+	chrome := m.panelChrome()
+	innerH := max(1, height-chrome)
 	sep := secretColSeparator()
 	header := dimStyle.Render(padRight("  NAME", nameW)) + sep + dimStyle.Render(padRight("VALUE", valueW))
 
@@ -157,7 +174,7 @@ func (m Model) renderSecretsTable(width, height int) string {
 	if m.activeProject != "" && m.activeConfig != "" {
 		title = fmt.Sprintf("Secrets (%d) [%s / %s]", len(idxs), m.activeProject, m.activeConfig)
 	}
-	return renderTitledListPanel(title, strings.Join(rows[:innerH], "\n"), width, height, secretsActive)
+	return m.renderTitledListPanel(title, strings.Join(rows[:innerH], "\n"), width, height, secretsActive)
 }
 
 func (m Model) renderSecretRow(s secretRow, listIdx, nameW, valueW int, paneActive bool, hits map[int]struct{}) string {
@@ -261,8 +278,9 @@ func padRight(s string, width int) string {
 }
 
 func (m Model) renderLinesPanel(title string, lines []string, selected int, active bool, width, height int, hits map[int]struct{}) string {
-	innerW := max(1, width-2)
-	innerH := max(1, height-2)
+	chrome := m.panelChrome()
+	innerW := max(1, width-chrome)
+	innerH := max(1, height-chrome)
 
 	visible := innerH
 	start := 0
@@ -290,7 +308,7 @@ func (m Model) renderLinesPanel(title string, lines []string, selected int, acti
 		body = append(body, "")
 	}
 
-	return renderTitledListPanel(title, strings.Join(body[:innerH], "\n"), width, height, active)
+	return m.renderTitledListPanel(title, strings.Join(body[:innerH], "\n"), width, height, active)
 }
 
 func (m Model) renderStatus(width int) string {
@@ -360,30 +378,61 @@ func (m Model) renderStatus(width int) string {
 	return statusBarStyle.Width(width).MaxWidth(width).Render(line)
 }
 
-func renderTitledPanel(title, content string, width, height int, active bool) string {
+func (m Model) renderTitledPanel(title, content string, width, height int, active bool) string {
 	style := panelStyle
 	if active {
 		style = activePanelStyle
 	}
-	return renderTitledPanelStyle(title, content, width, height, active, style)
+	return m.renderTitledPanelStyle(title, content, width, height, active, style)
 }
 
-func renderTitledListPanel(title, content string, width, height int, active bool) string {
+func (m Model) renderTitledListPanel(title, content string, width, height int, active bool) string {
 	style := listPanelStyle
 	if active {
 		style = activeListPanelStyle
 	}
-	return renderTitledPanelStyle(title, content, width, height, active, style)
+	return m.renderTitledPanelStyle(title, content, width, height, active, style)
 }
 
-func renderTitledPanelStyle(title, content string, width, height int, active bool, style lipgloss.Style) string {
-	rendered := style.Width(width - 2).Height(height - 2).Render(content)
+func (m Model) renderTitledPanelStyle(title, content string, width, height int, active bool, style lipgloss.Style) string {
+	if !m.cfg.Border {
+		style = style.UnsetBorderStyle().Border(lipgloss.HiddenBorder(), false)
+		titleLine := titledTopPlain(title, width, active)
+		bodyH := max(1, height-1)
+		body := style.Width(max(1, width)).Height(bodyH).Render(content)
+		return titleLine + "\n" + body
+	}
+	rendered := style.Width(max(1, width-2)).Height(max(1, height-2)).Render(content)
 	lines := strings.Split(rendered, "\n")
 	if len(lines) == 0 {
 		return rendered
 	}
 	lines[0] = titledTopBorder(title, width, active)
 	return strings.Join(lines, "\n")
+}
+
+func titledTopPlain(title string, width int, active bool) string {
+	tStyle := titleStyle
+	if active {
+		tStyle = activeTitleStyle
+	}
+	if background != "" {
+		tStyle = tStyle.Background(background)
+	}
+	label := strings.TrimSpace(title)
+	if lipgloss.Width(label) > width {
+		label = truncate(label, width)
+	}
+	pad := max(0, width-lipgloss.Width(label))
+	line := tStyle.Render(label)
+	if pad > 0 {
+		padStyle := lipgloss.NewStyle()
+		if background != "" {
+			padStyle = padStyle.Background(background)
+		}
+		line += padStyle.Render(strings.Repeat(" ", pad))
+	}
+	return line
 }
 
 func titledTopBorder(title string, width int, active bool) string {
@@ -429,12 +478,12 @@ Secrets are a two-column grid. Use hjkl to move,
 i/Enter to edit a cell, Esc for normal mode.
 
 https://github.com/DopplerHQ/cli`
-	return renderTitledPanel("Welcome", body, min(64, max(40, m.width-8)), 12, true)
+	return m.renderTitledPanel("Welcome", body, min(64, max(40, m.width-8)), 12, true)
 }
 
 func (m Model) renderHelpModal() string {
 	body := m.helpViewport.View() + "\n\n" + helpStyle.Render("Enter/Esc close")
-	return renderTitledPanel("Help", body, min(64, m.width-4), min(28, m.height-4), true)
+	return m.renderTitledPanel("Help", body, min(64, m.width-4), min(28, m.height-4), true)
 }
 
 func (m Model) renderSaveModal() string {
@@ -448,7 +497,7 @@ func (m Model) renderSaveModal() string {
 		}
 		body += "\nEnter confirm · Esc/q cancel"
 	}
-	return renderTitledPanel("Confirm Changes", body, min(60, m.width-4), min(20, m.height-4), true)
+	return m.renderTitledPanel("Confirm Changes", body, min(60, m.width-4), min(20, m.height-4), true)
 }
 
 func (m Model) renderOverlay(base, modal string) string {

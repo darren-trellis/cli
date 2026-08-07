@@ -43,10 +43,31 @@ func tui(cmd *cobra.Command, args []string) {
 		cfg.SidebarWidth, _ = cmd.Flags().GetInt("sidebar-width")
 		configuration.TUISetSidebarWidth(cfg.SidebarWidth)
 	}
+	if cmd.Flags().Changed("sidebar-position") {
+		cfg.SidebarPosition, _ = cmd.Flags().GetString("sidebar-position")
+		configuration.TUISetSidebarPosition(cfg.SidebarPosition)
+	}
 	if cmd.Flags().Changed("page-lines") {
 		cfg.PageLines, _ = cmd.Flags().GetInt("page-lines")
 		configuration.TUISetPageLines(cfg.PageLines)
 	}
+	if cmd.Flags().Changed("scroll-lines") {
+		cfg.ScrollLines, _ = cmd.Flags().GetInt("scroll-lines")
+		configuration.TUISetScrollLines(cfg.ScrollLines)
+	}
+	if cmd.Flags().Changed("border") {
+		cfg.Border, _ = cmd.Flags().GetBool("border")
+		configuration.TUISetBorder(cfg.Border)
+	}
+	if cmd.Flags().Changed("case-mode") {
+		cfg.CaseMode, _ = cmd.Flags().GetString("case-mode")
+		configuration.TUISetCaseMode(cfg.CaseMode)
+	}
+	if cmd.Flags().Changed("name-column-percent") {
+		cfg.NameColumnPercent, _ = cmd.Flags().GetInt("name-column-percent")
+		configuration.TUISetNameColumnPercent(cfg.NameColumnPercent)
+	}
+	cfg = configuration.TUIConfig()
 	if strings.TrimSpace(cfg.Theme) == "" {
 		cfg.Theme = "default"
 	}
@@ -59,7 +80,12 @@ func init() {
 	tuiCmd.Flags().StringP("config", "c", "", "config (e.g. dev)")
 	tuiCmd.Flags().String("theme", "default", "TUI theme (default, cool, warm, mono, or a teleminator theme like catppuccin)")
 	tuiCmd.Flags().Int("sidebar-width", 0, "projects sidebar width in columns (0 = auto)")
+	tuiCmd.Flags().String("sidebar-position", "left", "projects sidebar side (left or right)")
 	tuiCmd.Flags().Int("page-lines", 0, "lines to jump on PgUp/PgDn (0 = full viewport)")
+	tuiCmd.Flags().Int("scroll-lines", 1, "lines to jump on mouse wheel")
+	tuiCmd.Flags().Bool("border", true, "draw pane borders")
+	tuiCmd.Flags().String("case-mode", "smart", "search/filter case mode (sensitive, insensitive, or smart)")
+	tuiCmd.Flags().Int("name-column-percent", 40, "name column width as percent of secrets pane (1-99)")
 	tuiCmd.Flags().BoolVar(&utils.DebugTUI, "debug-tui", utils.DebugTUI, "log TUI messages to file")
 	rootCmd.AddCommand(tuiCmd)
 }

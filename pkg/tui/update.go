@@ -421,11 +421,12 @@ func (m Model) pageSize() int {
 		return m.cfg.PageLines
 	}
 	layout := m.computeLayout()
+	chrome := m.panelChrome()
 	switch m.focus {
 	case focusProjects:
-		return max(1, layout.projects.h-2)
+		return max(1, layout.projects.h-chrome)
 	case focusSecrets:
-		return max(1, layout.secrets.h-3) // account for header row
+		return max(1, layout.secrets.h-chrome-1) // account for header row
 	default:
 		return 10
 	}
@@ -607,14 +608,18 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 
 	layout := m.computeLayout()
 
+	scroll := m.cfg.ScrollLines
+	if scroll < 1 {
+		scroll = 1
+	}
 	if msg.Button == tea.MouseButtonWheelUp {
 		m.focusPanelAt(msg.X, msg.Y, layout)
-		m.moveList(-1)
+		m.moveList(-scroll)
 		return m, nil
 	}
 	if msg.Button == tea.MouseButtonWheelDown {
 		m.focusPanelAt(msg.X, msg.Y, layout)
-		m.moveList(1)
+		m.moveList(scroll)
 		return m, nil
 	}
 
@@ -627,7 +632,7 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		m.setFocus(focusProjects)
 		rel := msg.Y - layout.projects.y - 1
 		if rel >= 0 {
-			visible := max(1, layout.projects.h-2)
+			visible := max(1, layout.projects.h-m.panelChrome())
 			start := 0
 			if m.treeIdx >= visible {
 				start = m.treeIdx - visible + 1
@@ -642,7 +647,7 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		m.setFocus(focusSecrets)
 		rel := msg.Y - layout.secrets.y - 2 // title + header
 		idxs := m.filteredIndexes()
-		visible := max(1, layout.secrets.h-3)
+		visible := max(1, layout.secrets.h-m.panelChrome()-1)
 		start := 0
 		if m.secretIdx >= visible {
 			start = m.secretIdx - visible + 1
@@ -650,7 +655,7 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		idx := start + rel
 		if idx >= 0 && idx < len(idxs) {
 			m.secretIdx = idx
-			nameW, _ := secretColumnWidths(layout.secrets.w)
+			nameW, _ := m.secretColumnWidths(layout.secrets.w)
 			relX := msg.X - layout.secrets.x - 1
 			if relX >= nameW+lipgloss.Width(secretColSep) {
 				m.secretCol = colValue

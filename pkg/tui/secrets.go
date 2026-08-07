@@ -154,13 +154,35 @@ func collectChanges(secrets []secretRow) []models.ChangeRequest {
 	return changes
 }
 
-func filterSecretIndexes(secrets []secretRow, filter string) []int {
-	filter = strings.ToUpper(filter)
+func filterSecretIndexes(secrets []secretRow, filter, caseMode string) []int {
 	var idxs []int
 	for i, s := range secrets {
-		if s.isDirty() || filter == "" || strings.Contains(strings.ToUpper(s.name), filter) {
+		if s.isDirty() || filter == "" || matchWithCaseMode(s.name, filter, caseMode) {
 			idxs = append(idxs, i)
 		}
 	}
 	return idxs
+}
+
+func matchWithCaseMode(text, query, caseMode string) bool {
+	switch caseMode {
+	case "sensitive":
+		return strings.Contains(text, query)
+	case "insensitive":
+		return strings.Contains(strings.ToLower(text), strings.ToLower(query))
+	default: // smart
+		if hasUpper(query) {
+			return strings.Contains(text, query)
+		}
+		return strings.Contains(strings.ToLower(text), strings.ToLower(query))
+	}
+}
+
+func hasUpper(s string) bool {
+	for _, r := range s {
+		if unicode.IsUpper(r) {
+			return true
+		}
+	}
+	return false
 }

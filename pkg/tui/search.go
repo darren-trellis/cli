@@ -51,7 +51,11 @@ func (m *Model) compileSearch(query string) error {
 		m.clearSearch()
 		return nil
 	}
-	re, err := regexp.Compile(query)
+	pattern := query
+	if searchShouldIgnoreCase(query, m.cfg.CaseMode) {
+		pattern = "(?i)" + query
+	}
+	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return err
 	}
@@ -67,6 +71,17 @@ func (m *Model) compileSearch(query string) error {
 	m.searchMatchIdx = 0
 	m.jumpToSearchMatch(0)
 	return nil
+}
+
+func searchShouldIgnoreCase(query, caseMode string) bool {
+	switch caseMode {
+	case "sensitive":
+		return false
+	case "insensitive":
+		return true
+	default: // smart
+		return !hasUpper(query)
+	}
 }
 
 func (m *Model) refreshSearchMatches() {

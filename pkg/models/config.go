@@ -51,10 +51,15 @@ type AnalyticsOptions struct {
 }
 
 type TUIOptions struct {
-	IntroVersionSeen int    `yaml:"introVersionSeen"`
-	Theme            string `yaml:"theme,omitempty"`
-	SidebarWidth     int    `yaml:"sidebarWidth,omitempty"`
-	PageLines        int    `yaml:"pageLines,omitempty"`
+	IntroVersionSeen   int    `yaml:"introVersionSeen"`
+	Theme              string `yaml:"theme,omitempty"`
+	SidebarWidth       int    `yaml:"sidebarWidth,omitempty"`
+	SidebarPosition    string `yaml:"sidebarPosition,omitempty"`
+	PageLines          int    `yaml:"pageLines,omitempty"`
+	ScrollLines        int    `yaml:"scrollLines,omitempty"`
+	Border             *bool  `yaml:"border,omitempty"`
+	CaseMode           string `yaml:"caseMode,omitempty"`
+	NameColumnPercent  int    `yaml:"nameColumnPercent,omitempty"`
 }
 
 // ScopedOptions options with their scope

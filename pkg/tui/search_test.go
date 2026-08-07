@@ -26,7 +26,7 @@ import (
 )
 
 func TestSearchSecretsNextPrevAndClear(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
 	m.fetching = false
 	m.focus = focusSecrets
 	m.secrets = []secretRow{
@@ -61,7 +61,7 @@ func TestSearchSecretsNextPrevAndClear(t *testing.T) {
 }
 
 func TestSearchProjectsRegex(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
 	m.fetching = false
 	m.focus = focusProjects
 	m.projects = []string{"api", "web", "admin"}
@@ -82,14 +82,14 @@ func TestSearchProjectsRegex(t *testing.T) {
 }
 
 func TestFilterKeybinding(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
 	m.fetching = false
 	m.focus = focusSecrets
 
 	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
 	assert.Equal(t, focusFilter, next.(Model).focus)
 
-	m = newModel(models.ScopedOptions{}, configuration.TUISettings{})
+	m = newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
 	m.fetching = false
 	m.focus = focusSecrets
 	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})

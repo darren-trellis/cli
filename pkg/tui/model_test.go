@@ -41,14 +41,23 @@ func TestFilterSecretIndexes(t *testing.T) {
 	secrets[1].value = "changed"
 	assert.True(t, secrets[1].isDirty())
 
-	idxs := filterSecretIndexes(secrets, "a")
+	idxs := filterSecretIndexes(secrets, "a", "insensitive")
 	assert.Equal(t, []int{0, 1, 2}, idxs)
 
-	idxs = filterSecretIndexes(secrets, "BETA")
+	idxs = filterSecretIndexes(secrets, "BETA", "insensitive")
 	assert.Equal(t, []int{1}, idxs)
 
-	idxs = filterSecretIndexes(secrets, "zzz")
+	idxs = filterSecretIndexes(secrets, "zzz", "insensitive")
 	assert.Equal(t, []int{1}, idxs)
+
+	idxs = filterSecretIndexes(secrets, "a", "sensitive")
+	assert.Equal(t, []int{1}, idxs)
+
+	idxs = filterSecretIndexes(secrets, "alpha", "smart")
+	assert.Equal(t, []int{0, 1}, idxs)
+
+	idxs = filterSecretIndexes(secrets, "ALPHA", "smart")
+	assert.Equal(t, []int{0, 1}, idxs)
 }
 
 func TestCollectChanges(t *testing.T) {
@@ -84,7 +93,7 @@ func TestSecretRowUndoAndRestricted(t *testing.T) {
 }
 
 func TestNavKeyFocusSwitch(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
 	m.fetching = false
 	m.focus = focusSecrets
 
@@ -96,7 +105,7 @@ func TestNavKeyFocusSwitch(t *testing.T) {
 }
 
 func TestMoveSecretsList(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
 	m.fetching = false
 	m.focus = focusSecrets
 	m.secrets = []secretRow{
@@ -114,7 +123,7 @@ func TestMoveSecretsList(t *testing.T) {
 }
 
 func TestPageUpDownSecrets(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
 	m.fetching = false
 	m.focus = focusSecrets
 	m.width = 80
@@ -142,7 +151,7 @@ func TestPageUpDownSecrets(t *testing.T) {
 }
 
 func TestSidebarWidthConfig(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
 	m.width = 100
 	m.height = 24
 	assert.Equal(t, 20, m.computeLayout().projects.w)
@@ -155,6 +164,38 @@ func TestSidebarWidthConfig(t *testing.T) {
 
 	m.cfg.SidebarWidth = 5
 	assert.Equal(t, 12, m.computeLayout().projects.w)
+}
+
+func TestSidebarPositionRight(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{
+		SidebarPosition: "right",
+		SidebarWidth:    28,
+		Border:          true,
+	})
+	m.width = 100
+	m.height = 24
+	layout := m.computeLayout()
+	assert.Equal(t, 0, layout.secrets.x)
+	assert.Equal(t, 72, layout.secrets.w)
+	assert.Equal(t, 72, layout.projects.x)
+	assert.Equal(t, 28, layout.projects.w)
+}
+
+func TestNameColumnPercent(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{
+		NameColumnPercent: 50,
+		Border:            true,
+	})
+	nameW, valueW := m.secretColumnWidths(52)
+	assert.Equal(t, nameW+valueW+1, 50)
+	assert.InDelta(t, 0.5, float64(nameW)/float64(nameW+valueW), 0.15)
+}
+
+func TestBorderlessChrome(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: false})
+	assert.Equal(t, 1, m.panelChrome())
+	m.cfg.Border = true
+	assert.Equal(t, 2, m.panelChrome())
 }
 
 func TestPageLinesConfig(t *testing.T) {
@@ -174,7 +215,7 @@ func TestPageLinesConfig(t *testing.T) {
 }
 
 func TestEnterInsertAndEsc(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
 	m.fetching = false
 	m.focus = focusSecrets
 	m.secrets = []secretRow{newSecretRow("A", "val", "masked")}
@@ -189,7 +230,7 @@ func TestEnterInsertAndEsc(t *testing.T) {
 }
 
 func TestVimColumnMoveAndInsert(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
 	m.fetching = false
 	m.focus = focusSecrets
 	m.secrets = []secretRow{newSecretRow("A", "val", "masked")}
@@ -206,7 +247,7 @@ func TestVimColumnMoveAndInsert(t *testing.T) {
 }
 
 func TestUndoAfterNavigatingAway(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
 	m.fetching = false
 	m.focus = focusSecrets
 	m.secrets = []secretRow{
@@ -235,7 +276,7 @@ func TestUndoAfterNavigatingAway(t *testing.T) {
 }
 
 func TestLoadedMsgSetsState(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
 	next, _ := m.Update(loadedMsg{
 		projects:      []string{"p1", "p2"},
 		configs:       buildConfigTree([]models.ConfigInfo{{Name: "dev", Environment: "dev", Root: true}}),
@@ -255,7 +296,7 @@ func TestLoadedMsgSetsState(t *testing.T) {
 }
 
 func TestProjectSelectedMsgLoadsSecrets(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
 	m.fetching = true
 	m.focus = focusProjects
 
@@ -340,7 +381,7 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 }
 
 func TestToggleProjectFold(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
 	m.fetching = false
 	m.focus = focusProjects
 	m.projects = []string{"api", "web"}
@@ -370,7 +411,7 @@ func TestToggleProjectFold(t *testing.T) {
 }
 
 func TestToggleEnvFold(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
 	m.fetching = false
 	m.focus = focusProjects
 	m.projects = []string{"api"}
@@ -400,7 +441,7 @@ func TestToggleEnvFold(t *testing.T) {
 }
 
 func TestSpaceOnLeafDoesNothing(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
 	m.fetching = false
 	m.focus = focusProjects
 	m.projects = []string{"api"}
@@ -430,7 +471,7 @@ func TestSpaceOnLeafDoesNothing(t *testing.T) {
 }
 
 func TestCyclePane(t *testing.T) {
-	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true})
 	m.fetching = false
 	m.focus = focusProjects
 	m.secrets = []secretRow{newSecretRow("A", "1", "masked")}

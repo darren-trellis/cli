@@ -15,11 +15,18 @@ limitations under the License.
 */
 package configuration
 
+import "strings"
+
 // TUISettings are runtime preferences for the Doppler TUI.
 type TUISettings struct {
-	Theme        string
-	SidebarWidth int // 0 = auto
-	PageLines    int // 0 = viewport height
+	Theme             string
+	SidebarWidth      int    // 0 = auto
+	SidebarPosition   string // left | right
+	PageLines         int    // 0 = viewport height
+	ScrollLines       int    // mouse wheel step
+	Border            bool
+	CaseMode          string // sensitive | insensitive | smart
+	NameColumnPercent int    // 1-99
 }
 
 var CURRENT_INTRO_VERSION = 1
@@ -43,11 +50,49 @@ func TUISetTheme(theme string) {
 }
 
 func TUIConfig() TUISettings {
-	return TUISettings{
-		Theme:        configContents.TUI.Theme,
-		SidebarWidth: configContents.TUI.SidebarWidth,
-		PageLines:    configContents.TUI.PageLines,
+	return NormalizeTUISettings(TUISettings{
+		Theme:             configContents.TUI.Theme,
+		SidebarWidth:      configContents.TUI.SidebarWidth,
+		SidebarPosition:   configContents.TUI.SidebarPosition,
+		PageLines:         configContents.TUI.PageLines,
+		ScrollLines:       configContents.TUI.ScrollLines,
+		Border:            boolOrDefault(configContents.TUI.Border, true),
+		CaseMode:          configContents.TUI.CaseMode,
+		NameColumnPercent: configContents.TUI.NameColumnPercent,
+	})
+}
+
+// NormalizeTUISettings applies defaults for zero/invalid values.
+// Border is left as-is; use TUIConfig() (or set Border explicitly) for the true default.
+func NormalizeTUISettings(s TUISettings) TUISettings {
+	s.SidebarPosition = strings.ToLower(strings.TrimSpace(s.SidebarPosition))
+	if s.SidebarPosition != "right" {
+		s.SidebarPosition = "left"
 	}
+	if s.ScrollLines < 1 {
+		s.ScrollLines = 1
+	}
+	s.CaseMode = strings.ToLower(strings.TrimSpace(s.CaseMode))
+	switch s.CaseMode {
+	case "sensitive", "insensitive", "smart":
+	default:
+		s.CaseMode = "smart"
+	}
+	if s.NameColumnPercent < 1 || s.NameColumnPercent > 99 {
+		s.NameColumnPercent = 40
+	}
+	return s
+}
+
+func boolOrDefault(v *bool, def bool) bool {
+	if v == nil {
+		return def
+	}
+	return *v
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }
 
 func TUISetSidebarWidth(width int) {
@@ -57,5 +102,30 @@ func TUISetSidebarWidth(width int) {
 
 func TUISetPageLines(lines int) {
 	configContents.TUI.PageLines = lines
+	writeConfig(configContents)
+}
+
+func TUISetSidebarPosition(pos string) {
+	configContents.TUI.SidebarPosition = pos
+	writeConfig(configContents)
+}
+
+func TUISetScrollLines(lines int) {
+	configContents.TUI.ScrollLines = lines
+	writeConfig(configContents)
+}
+
+func TUISetBorder(border bool) {
+	configContents.TUI.Border = boolPtr(border)
+	writeConfig(configContents)
+}
+
+func TUISetCaseMode(mode string) {
+	configContents.TUI.CaseMode = mode
+	writeConfig(configContents)
+}
+
+func TUISetNameColumnPercent(pct int) {
+	configContents.TUI.NameColumnPercent = pct
 	writeConfig(configContents)
 }

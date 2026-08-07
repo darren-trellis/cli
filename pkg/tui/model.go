@@ -95,6 +95,8 @@ type Model struct {
 }
 
 func newModel(opts models.ScopedOptions, cfg configuration.TUISettings) Model {
+	cfg = configuration.NormalizeTUISettings(cfg)
+
 	fi := textinput.New()
 	fi.Placeholder = "Filter secrets…"
 	fi.CharLimit = 128
@@ -142,7 +144,14 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) filteredIndexes() []int {
-	return filterSecretIndexes(m.secrets, m.filter)
+	return filterSecretIndexes(m.secrets, m.filter, m.cfg.CaseMode)
+}
+
+func (m Model) panelChrome() int {
+	if m.cfg.Border {
+		return 2
+	}
+	return 1 // title row without pane border
 }
 
 func (m Model) selectedSecretIndex() (int, bool) {
