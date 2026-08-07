@@ -34,7 +34,6 @@ func (r rect) contains(x, y int) bool {
 type layoutRegions struct {
 	projects rect
 	secrets  rect
-	editor   rect
 	status   rect
 }
 
@@ -45,20 +44,20 @@ func (m Model) computeLayout() layoutRegions {
 	leftW := max(18, w/5)
 	rightW := w - leftW
 	statusH := 1
-	editorH := max(8, h/3)
-	secretsH := h - editorH - statusH
-	if secretsH < 4 {
-		secretsH = 4
-		editorH = max(6, h-secretsH-statusH)
-	}
-	topH := secretsH + editorH
+	topH := h - statusH
 
 	return layoutRegions{
 		projects: rect{0, 0, leftW, topH},
-		secrets:  rect{leftW, 0, rightW, secretsH},
-		editor:   rect{leftW, secretsH, rightW, editorH},
+		secrets:  rect{leftW, 0, rightW, topH},
 		status:   rect{0, topH, w, statusH},
 	}
+}
+
+func secretColumnWidths(panelW int) (nameW, valueW int) {
+	inner := max(10, panelW-2)
+	nameW = max(12, inner*2/5)
+	valueW = max(8, inner-nameW)
+	return nameW, valueW
 }
 
 func (m Model) View() string {
@@ -69,38 +68,7 @@ func (m Model) View() string {
 	layout := m.computeLayout()
 
 	left := m.renderProjectTree(layout.projects.w, layout.projects.h)
-
-	secretsTitle := fmt.Sprintf("Secrets (%d)", len(m.filteredIndexes()))
-	if m.activeProject != "" && m.activeConfig != "" {
-		secretsTitle = fmt.Sprintf("Secrets (%d) [%s / %s]", len(m.filteredIndexes()), m.activeProject, m.activeConfig)
-	}
-
-	idxs := m.filteredIndexes()
-	secretLines := make([]string, len(idxs))
-	for i, idx := range idxs {
-		s := m.secrets[idx]
-		marker := "  "
-		if s.shouldDelete {
-			marker = "D "
-		} else if s.isDirty() {
-			marker = "* "
-		}
-		line := fmt.Sprintf("%s%s  %s", marker, s.name, dimStyle.Render(s.previewValue()))
-		if s.shouldDelete {
-			line = deleteStyle.Render(fmt.Sprintf("%s%s  %s", marker, s.name, s.previewValue()))
-		} else if s.isDirty() {
-			line = dirtyStyle.Render(fmt.Sprintf("%s%s  %s", marker, s.name, s.previewValue()))
-		}
-		secretLines[i] = line
-	}
-
-	secretHits := map[int]struct{}(nil)
-	if m.searchPane == focusSecrets {
-		secretHits = m.searchMatchSet()
-	}
-	secretsPanel := m.renderLinesPanel(secretsTitle, secretLines, m.secretIdx, m.focus == focusSecrets, layout.secrets.w, layout.secrets.h, secretHits)
-	editorPanel := m.renderEditor(layout.editor.w, layout.editor.h)
-	right := lipgloss.JoinVertical(lipgloss.Left, secretsPanel, editorPanel)
+	right := m.renderSecretsTable(layout.secrets.w, layout.secrets.h)
 
 	main := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
 	status := m.renderStatus(layout.status.w)
@@ -130,6 +98,123 @@ func (m Model) renderProjectTree(width, height int) string {
 		hits = m.searchMatchSet()
 	}
 	return m.renderLinesPanel(title, lines, m.treeIdx, m.focus == focusProjects, width, height, hits)
+}
+
+func (m Model) renderSecretsTable(width, height int) string {
+	nameW, valueW := secretColumnWidths(width)
+	innerH := max(1, height-2)
+	header := dimStyle.Render(padRight("  NAME", nameW) + padRight("VALUE", valueW))
+
+	idxs := m.filteredIndexes()
+	bodyH := max(1, innerH-1)
+	start := 0
+	if m.secretIdx >= bodyH {
+		start = m.secretIdx - bodyH + 1
+	}
+	end := start + bodyH
+	if end > len(idxs) {
+		end = len(idxs)
+	}
+
+	hits := map[int]struct{}(nil)
+	if m.searchPane == focusSecrets {
+		hits = m.searchMatchSet()
+	}
+	secretsActive := m.focus == focusSecrets || m.focus == focusSecretInsert
+
+	var rows []string
+	rows = append(rows, header)
+	for i := start; i < end; i++ {
+		s := m.secrets[idxs[i]]
+		rows = append(rows, m.renderSecretRow(s, i, nameW, valueW, secretsActive, hits))
+	}
+	for len(rows) < innerH {
+		rows = append(rows, "")
+	}
+
+	title := fmt.Sprintf("Secrets (%d)", len(idxs))
+	if m.activeProject != "" && m.activeConfig != "" {
+		title = fmt.Sprintf("Secrets (%d) [%s / %s]", len(idxs), m.activeProject, m.activeConfig)
+	}
+	return renderTitledListPanel(title, strings.Join(rows[:innerH], "\n"), width, height, secretsActive)
+}
+
+func (m Model) renderSecretRow(s secretRow, listIdx, nameW, valueW int, paneActive bool, hits map[int]struct{}) string {
+	marker := "  "
+	if s.shouldDelete {
+		marker = "D "
+	} else if s.isDirty() {
+		marker = "* "
+	}
+
+	nameText := s.name
+	valueText := flattenForCell(s.previewValueUnlimited())
+	if len([]rune(valueText)) > 200 {
+		valueText = string([]rune(valueText)[:200]) + "…"
+	}
+
+	editing := m.focus == focusSecretInsert && listIdx == m.secretIdx
+	if editing {
+		cellW := valueW
+		if m.secretCol == colName {
+			cellW = max(4, nameW-2)
+		}
+		m.cellInput.Width = max(4, cellW-1)
+		m.cellInput.TextStyle = selectedStyle
+		view := m.cellInput.View()
+		if m.secretCol == colName {
+			nameText = view
+		} else {
+			valueText = view
+		}
+	}
+
+	nameCell := marker + nameText
+	valueCell := valueText
+
+	rowSelected := paneActive && listIdx == m.secretIdx
+	nameActive := rowSelected && m.secretCol == colName
+	valueActive := rowSelected && m.secretCol == colValue
+
+	nameCell = styleSecretCell(nameCell, nameW, nameActive, s.shouldDelete, s.isDirty(), hits != nil && containsHit(hits, listIdx) && !rowSelected)
+	valueCell = styleSecretCell(valueCell, valueW, valueActive, s.shouldDelete, s.isDirty(), hits != nil && containsHit(hits, listIdx) && !rowSelected)
+
+	return nameCell + valueCell
+}
+
+func (s secretRow) previewValueUnlimited() string {
+	v := s.displayValue()
+	return strings.ReplaceAll(v, "\n", " ")
+}
+
+func containsHit(hits map[int]struct{}, i int) bool {
+	_, ok := hits[i]
+	return ok
+}
+
+func styleSecretCell(text string, width int, active, del, dirty, hit bool) string {
+	plain := truncate(ansi.Strip(text), width)
+	plain = padRight(plain, width)
+	switch {
+	case active:
+		return selectedStyle.Width(width).MaxWidth(width).Render(plain)
+	case del:
+		return deleteStyle.Width(width).MaxWidth(width).Render(plain)
+	case dirty:
+		return dirtyStyle.Width(width).MaxWidth(width).Render(plain)
+	case hit:
+		return searchHitStyle.Width(width).MaxWidth(width).Render(plain)
+	default:
+		return lipgloss.NewStyle().Width(width).MaxWidth(width).Render(plain)
+	}
+}
+
+func padRight(s string, width int) string {
+	w := lipgloss.Width(s)
+	if w >= width {
+		return s
+	}
+	return s + strings.Repeat(" ", width-w)
 }
 
 func (m Model) renderLinesPanel(title string, lines []string, selected int, active bool, width, height int, hits map[int]struct{}) string {
@@ -165,38 +250,6 @@ func (m Model) renderLinesPanel(title string, lines []string, selected int, acti
 	return renderTitledListPanel(title, strings.Join(body[:innerH], "\n"), width, height, active)
 }
 
-func (m Model) renderEditor(width, height int) string {
-	active := m.inEditor()
-
-	innerW := max(10, width-4)
-	m.nameInput.Width = max(8, innerW-7)
-	m.valueInput.SetWidth(innerW)
-	valueH := max(3, height-5)
-	m.valueInput.SetHeight(valueH)
-
-	nameLine := m.nameInput.View()
-	if m.focus == focusEditorName {
-		nameLine = selectedStyle.Render("▸ ") + m.nameInput.View()
-	} else {
-		nameLine = "  " + m.nameInput.View()
-	}
-
-	valueLabel := "Value:"
-	if m.focus == focusEditorValue {
-		valueLabel = selectedStyle.Render("▸ Value:")
-	} else {
-		valueLabel = "  Value:"
-	}
-
-	content := lipgloss.JoinVertical(lipgloss.Left,
-		nameLine,
-		valueLabel,
-		m.valueInput.View(),
-		helpStyle.Render("tab next pane · esc back"),
-	)
-	return renderTitledPanel("Editor", content, width, height, active)
-}
-
 func (m Model) renderStatus(width int) string {
 	var left string
 	if m.fetching {
@@ -205,12 +258,14 @@ func (m Model) renderStatus(width int) string {
 		left = helpStyle.Render("search · enter apply · esc clear")
 	} else if m.focus == focusFilter {
 		left = helpStyle.Render("filter · enter/esc apply")
+	} else if m.focus == focusSecretInsert {
+		left = helpStyle.Render("insert · esc/enter normal · tab next cell")
 	} else if m.errMsg != "" {
 		left = errorStyle.Render(m.errMsg)
 	} else if m.statusMsg != "" {
 		left = statusStyle.Render(m.statusMsg)
 	} else {
-		left = helpStyle.Render("tab cycle · / search · f filter · ? help · q quit")
+		left = helpStyle.Render("tab cycle · hjkl move · i edit · / search · ? help")
 	}
 
 	var right string
@@ -327,8 +382,8 @@ func (m Model) renderIntroModal() string {
 Close this window with Enter/Esc, then press ?
 for keybindings.
 
-Secrets use a list + editor: select a secret,
-press Enter/e to edit name and value.
+Secrets are a two-column grid. Use hjkl to move,
+i/Enter to edit a cell, Esc for normal mode.
 
 https://github.com/DopplerHQ/cli`
 	return renderTitledPanel("Welcome", body, min(64, max(40, m.width-8)), 12, true)

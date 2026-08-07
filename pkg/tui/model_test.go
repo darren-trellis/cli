@@ -140,19 +140,36 @@ func TestPageUpDownSecrets(t *testing.T) {
 	assert.Equal(t, 29, next.(Model).secretIdx)
 }
 
-func TestEnterEditorAndEsc(t *testing.T) {
+func TestEnterInsertAndEsc(t *testing.T) {
 	m := newModel(models.ScopedOptions{})
 	m.fetching = false
 	m.focus = focusSecrets
 	m.secrets = []secretRow{newSecretRow("A", "val", "masked")}
-	m.loadEditorFromSelection()
 
 	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	mod := next.(Model)
-	assert.Equal(t, focusEditorName, mod.focus)
+	assert.Equal(t, focusSecretInsert, mod.focus)
+	assert.Equal(t, "A", mod.cellInput.Value())
 
 	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	assert.Equal(t, focusSecrets, next.(Model).focus)
+}
+
+func TestVimColumnMoveAndInsert(t *testing.T) {
+	m := newModel(models.ScopedOptions{})
+	m.fetching = false
+	m.focus = focusSecrets
+	m.secrets = []secretRow{newSecretRow("A", "val", "masked")}
+	assert.Equal(t, colName, m.secretCol)
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	mod := next.(Model)
+	assert.Equal(t, colValue, mod.secretCol)
+
+	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	mod = next.(Model)
+	assert.Equal(t, focusSecretInsert, mod.focus)
+	assert.Equal(t, "val", mod.cellInput.Value())
 }
 
 func TestLoadedMsgSetsState(t *testing.T) {
@@ -169,10 +186,10 @@ func TestLoadedMsgSetsState(t *testing.T) {
 	assert.Equal(t, []string{"p1", "p2"}, mod.projects)
 	assert.Equal(t, "p2", mod.activeProject)
 	assert.True(t, mod.expanded["p2"])
-	assert.Equal(t, "X", mod.nameInput.Value())
 	require.NotEmpty(t, mod.tree)
 	assert.Equal(t, treeConfig, mod.tree[mod.treeIdx].kind)
 	assert.Equal(t, "dev", mod.tree[mod.treeIdx].config)
+	assert.Equal(t, "X", mod.secrets[0].name)
 }
 
 func TestProjectSelectedMsgLoadsSecrets(t *testing.T) {
@@ -195,7 +212,7 @@ func TestProjectSelectedMsgLoadsSecrets(t *testing.T) {
 	assert.Equal(t, "dev_personal", mod.activeConfig)
 	assert.True(t, mod.expanded["backend-ts"])
 	assert.Equal(t, focusSecrets, mod.focus)
-	assert.Equal(t, "FROM_OTHER", mod.nameInput.Value())
+	assert.Equal(t, "FROM_OTHER", mod.secrets[0].name)
 }
 
 func TestBuildConfigTree(t *testing.T) {
@@ -359,14 +376,10 @@ func TestCyclePane(t *testing.T) {
 	m.cyclePane(1)
 	assert.Equal(t, focusSecrets, m.focus)
 	m.cyclePane(1)
-	assert.Equal(t, focusEditorName, m.focus)
-	m.cyclePane(1)
-	assert.Equal(t, focusEditorValue, m.focus)
-	m.cyclePane(1)
 	assert.Equal(t, focusProjects, m.focus)
 
 	m.cyclePane(-1)
-	assert.Equal(t, focusEditorValue, m.focus)
+	assert.Equal(t, focusSecrets, m.focus)
 }
 
 func configNames(rows []configRow) []string {

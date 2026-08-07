@@ -103,7 +103,6 @@ func (m *Model) jumpToSearchMatch(matchPos int) {
 	case focusSecrets:
 		m.secretIdx = idx
 		m.focus = focusSecrets
-		m.loadEditorFromSelection()
 	}
 }
 

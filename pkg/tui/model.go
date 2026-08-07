@@ -17,11 +17,11 @@ package tui
 
 import (
 	"regexp"
+	"strings"
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -32,13 +32,19 @@ type focusArea int
 const (
 	focusProjects focusArea = iota
 	focusSecrets
-	focusEditorName
-	focusEditorValue
+	focusSecretInsert
 	focusFilter
 	focusSearch
 	focusIntro
 	focusHelp
 	focusSave
+)
+
+type secretCol int
+
+const (
+	colName secretCol = iota
+	colValue
 )
 
 type Model struct {
@@ -58,6 +64,7 @@ type Model struct {
 
 	secrets   []secretRow
 	secretIdx int // index into filteredIndexes()
+	secretCol secretCol
 
 	filter      string
 	filterInput textinput.Model
@@ -69,8 +76,7 @@ type Model struct {
 	searchMatches  []int
 	searchMatchIdx int
 
-	nameInput  textinput.Model
-	valueInput textarea.Model
+	cellInput textinput.Model
 
 	fetching  bool
 	statusMsg string
@@ -96,16 +102,10 @@ func newModel(opts models.ScopedOptions) Model {
 	si.CharLimit = 256
 	si.Prompt = "/ "
 
-	ni := textinput.New()
-	ni.Placeholder = "SECRET_NAME"
-	ni.CharLimit = 256
-	ni.Prompt = "Name: "
-
-	vi := textarea.New()
-	vi.Placeholder = "Secret value"
-	vi.SetHeight(6)
-	vi.ShowLineNumbers = false
-	vi.Prompt = ""
+	ci := textinput.New()
+	ci.CharLimit = 4096
+	ci.Prompt = ""
+	ci.Placeholder = ""
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
@@ -116,8 +116,8 @@ func newModel(opts models.ScopedOptions) Model {
 		filterInput:    fi,
 		searchInput:    si,
 		searchPane:     focusSecrets,
-		nameInput:      ni,
-		valueInput:     vi,
+		cellInput:      ci,
+		secretCol:      colName,
 		spinner:        sp,
 		fetching:       true,
 		projectConfigs: map[string][]configRow{},
@@ -162,26 +162,41 @@ func (m *Model) clampSecretIdx() {
 	}
 }
 
-func (m *Model) loadEditorFromSelection() {
+func flattenForCell(s string) string {
+	return strings.ReplaceAll(s, "\n", "⏎")
+}
+
+func unflattenFromCell(s string) string {
+	return strings.ReplaceAll(s, "⏎", "\n")
+}
+
+func (m *Model) loadCellFromSelection() {
 	idx, ok := m.selectedSecretIndex()
 	if !ok {
-		m.nameInput.SetValue("")
-		m.valueInput.SetValue("")
+		m.cellInput.SetValue("")
 		return
 	}
 	s := m.secrets[idx]
-	m.nameInput.SetValue(s.name)
-	m.valueInput.SetValue(s.displayValue())
+	if m.secretCol == colName {
+		m.cellInput.SetValue(s.name)
+	} else {
+		m.cellInput.SetValue(flattenForCell(s.displayValue()))
+	}
+	m.cellInput.CursorEnd()
 }
 
-func (m *Model) applyEditorToSelection() {
+func (m *Model) applyCellToSelection() {
 	idx, ok := m.selectedSecretIndex()
 	if !ok {
 		return
 	}
 	s := &m.secrets[idx]
-	s.name = normalizeSecretName(m.nameInput.Value())
-	val := m.valueInput.Value()
+	if m.secretCol == colName {
+		s.name = normalizeSecretName(m.cellInput.Value())
+		return
+	}
+
+	val := unflattenFromCell(m.cellInput.Value())
 	if s.originalVisibility == "restricted" && !s.isTouched && val == "[RESTRICTED]" {
 		return
 	}
@@ -238,39 +253,29 @@ func (m Model) inModal() bool {
 	return m.focus == focusIntro || m.focus == focusHelp || m.focus == focusSave
 }
 
-func (m Model) inEditor() bool {
-	return m.focus == focusEditorName || m.focus == focusEditorValue
+func (m Model) inSecretInsert() bool {
+	return m.focus == focusSecretInsert
 }
 
 var paneOrder = []focusArea{
 	focusProjects,
 	focusSecrets,
-	focusEditorName,
-	focusEditorValue,
 }
 
 func (m *Model) setFocus(f focusArea) {
-	m.nameInput.Blur()
-	m.valueInput.Blur()
+	m.cellInput.Blur()
 	m.filterInput.Blur()
 	m.searchInput.Blur()
 
 	m.focus = f
 	switch f {
-	case focusEditorName:
+	case focusSecretInsert:
 		if _, ok := m.selectedSecretIndex(); !ok {
 			m.focus = focusSecrets
 			return
 		}
-		m.loadEditorFromSelection()
-		m.nameInput.Focus()
-	case focusEditorValue:
-		if _, ok := m.selectedSecretIndex(); !ok {
-			m.focus = focusSecrets
-			return
-		}
-		m.loadEditorFromSelection()
-		m.focusValueEditor()
+		m.loadCellFromSelection()
+		m.cellInput.Focus()
 	case focusFilter:
 		m.filterInput.SetValue(m.filter)
 		m.filterInput.CursorEnd()
@@ -282,8 +287,15 @@ func (m *Model) setFocus(f focusArea) {
 	}
 }
 
+func (m *Model) enterInsert() {
+	if _, ok := m.selectedSecretIndex(); !ok {
+		return
+	}
+	m.setFocus(focusSecretInsert)
+}
+
 func (m *Model) cyclePane(delta int) {
-	if m.inModal() {
+	if m.inModal() || m.inSecretInsert() {
 		return
 	}
 
@@ -300,13 +312,6 @@ func (m *Model) cyclePane(delta int) {
 	}
 
 	n := len(paneOrder)
-	for i := 0; i < n; i++ {
-		cur = (cur + delta%n + n) % n
-		next := paneOrder[cur]
-		if (next == focusEditorName || next == focusEditorValue) && len(m.filteredIndexes()) == 0 {
-			continue
-		}
-		m.setFocus(next)
-		return
-	}
+	cur = (cur + delta%n + n) % n
+	m.setFocus(paneOrder[cur])
 }

@@ -27,10 +27,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.valueInput.SetWidth(max(20, m.editorInnerWidth()))
-		m.nameInput.Width = max(10, m.editorInnerWidth()-7)
 		m.filterInput.Width = max(10, m.width-6)
 		m.searchInput.Width = max(10, m.width-6)
+		m.cellInput.Width = max(10, m.width/3)
 		m.helpViewport.Width = min(60, m.width-8)
 		m.helpViewport.Height = min(24, m.height-8)
 		return m, nil
@@ -57,11 +56,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.expanded[msg.activeProject] = true
 		m.secrets = msg.secrets
 		m.secretIdx = 0
+		m.secretCol = colName
 		m.activeProject = msg.activeProject
 		m.activeConfig = msg.activeConfig
 		m.rebuildTree()
 		m.treeIdx = findTreeIndex(m.tree, treeConfig, msg.activeProject, msg.activeConfig)
-		m.loadEditorFromSelection()
 		return m, nil
 
 	case projectSelectedMsg:
@@ -71,6 +70,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.expanded[msg.project] = true
 		m.secrets = msg.secrets
 		m.secretIdx = 0
+		m.secretCol = colName
 		m.activeProject = msg.project
 		m.activeConfig = msg.config
 		m.pendingChanges = nil
@@ -82,7 +82,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.treeIdx = findTreeIndex(m.tree, treeProject, msg.project, "")
 			m.setFocus(focusProjects)
 		}
-		m.loadEditorFromSelection()
 		return m, nil
 
 	case configsLoadedMsg:
@@ -101,6 +100,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.errMsg = ""
 		m.secrets = msg.secrets
 		m.secretIdx = 0
+		m.secretCol = colName
 		m.activeProject = msg.activeProject
 		m.activeConfig = msg.activeConfig
 		if _, ok := m.projectConfigs[msg.activeProject]; ok {
@@ -109,7 +109,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.pendingChanges = nil
 		m.rebuildTree()
 		m.treeIdx = findTreeIndex(m.tree, treeConfig, msg.activeProject, msg.activeConfig)
-		m.loadEditorFromSelection()
 		m.setFocus(focusSecrets)
 		return m, nil
 
@@ -144,8 +143,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleFilterKey(msg)
 	case focusSearch:
 		return m.handleSearchKey(msg)
-	case focusEditorName, focusEditorValue:
-		return m.handleEditorKey(msg)
+	case focusSecretInsert:
+		return m.handleInsertKey(msg)
 	default:
 		return m.handleNavKey(msg)
 	}
@@ -206,7 +205,6 @@ func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "tab", "shift+tab", "enter", "esc":
 		m.filter = m.filterInput.Value()
 		m.secretIdx = 0
-		m.loadEditorFromSelection()
 		m.setFocus(focusSecrets)
 		return m, nil
 	case "ctrl+c":
@@ -217,7 +215,6 @@ func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.filterInput, cmd = m.filterInput.Update(msg)
 	m.filter = m.filterInput.Value()
 	m.clampSecretIdx()
-	m.loadEditorFromSelection()
 	if m.searchPane == focusSecrets && m.searchRe != nil {
 		m.refreshSearchMatches()
 	}
@@ -252,50 +249,60 @@ func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) handleEditorKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleInsertKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
-		m.applyEditorToSelection()
+		m.applyCellToSelection()
+		m.setFocus(focusSecrets)
+		return m, nil
+	case "enter":
+		m.applyCellToSelection()
 		m.setFocus(focusSecrets)
 		return m, nil
 	case "tab":
-		m.applyEditorToSelection()
-		m.cyclePane(1)
+		m.applyCellToSelection()
+		if m.secretCol == colName {
+			m.secretCol = colValue
+		} else {
+			m.secretCol = colName
+		}
+		m.loadCellFromSelection()
+		m.cellInput.Focus()
 		return m, nil
 	case "shift+tab":
-		m.applyEditorToSelection()
-		m.cyclePane(-1)
+		m.applyCellToSelection()
+		if m.secretCol == colValue {
+			m.secretCol = colName
+		} else {
+			m.secretCol = colValue
+		}
+		m.loadCellFromSelection()
+		m.cellInput.Focus()
 		return m, nil
 	case "ctrl+c":
 		return m, tea.Quit
 	}
 
-	var cmd tea.Cmd
-	if m.focus == focusEditorName {
-		m.nameInput, cmd = m.nameInput.Update(msg)
-		normalized := normalizeSecretName(m.nameInput.Value())
-		if normalized != m.nameInput.Value() {
-			m.nameInput.SetValue(normalized)
-			m.nameInput.SetCursor(len(normalized))
+	idx, ok := m.selectedSecretIndex()
+	if ok && m.secretCol == colValue &&
+		m.secrets[idx].originalVisibility == "restricted" && !m.secrets[idx].isTouched {
+		if msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace || msg.Type == tea.KeyBackspace || msg.Type == tea.KeyDelete {
+			m.secrets[idx].isTouched = true
+			m.cellInput.SetValue("")
 		}
-	} else {
-		idx, ok := m.selectedSecretIndex()
-		if ok && m.secrets[idx].originalVisibility == "restricted" && !m.secrets[idx].isTouched {
-			if msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace || msg.Type == tea.KeyBackspace || msg.Type == tea.KeyDelete {
-				m.secrets[idx].isTouched = true
-				m.valueInput.SetValue("")
-			}
-		}
-		m.valueInput, cmd = m.valueInput.Update(msg)
 	}
-	m.applyEditorToSelection()
-	return m, cmd
-}
 
-func (m *Model) focusValueEditor() {
-	m.focus = focusEditorValue
-	m.nameInput.Blur()
-	m.valueInput.Focus()
+	var cmd tea.Cmd
+	m.cellInput, cmd = m.cellInput.Update(msg)
+	if m.secretCol == colName {
+		normalized := normalizeSecretName(m.cellInput.Value())
+		if normalized != m.cellInput.Value() {
+			m.cellInput.SetValue(normalized)
+			m.cellInput.SetCursor(len(normalized))
+		}
+	}
+	m.applyCellToSelection()
+	return m, cmd
 }
 
 func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -331,6 +338,16 @@ func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "k", "up":
 		m.moveList(-1)
 		return m, nil
+	case "h", "left":
+		if m.focus == focusSecrets {
+			m.secretCol = colName
+		}
+		return m, nil
+	case "l", "right":
+		if m.focus == focusSecrets {
+			m.secretCol = colValue
+		}
+		return m, nil
 	case "pgdown":
 		m.moveList(m.pageSize())
 		return m, nil
@@ -353,15 +370,20 @@ func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.toggleFold()
 		}
 		return m, nil
-	case "enter":
-		return m.activateSelection()
-	case "e":
-		if m.focus == focusSecrets || m.focus == focusProjects {
-			m.setFocus(focusEditorName)
+	case "enter", "i", "a":
+		if m.focus == focusSecrets {
+			m.enterInsert()
+			return m, nil
+		}
+		if msg.String() == "enter" {
+			return m.activateSelection()
 		}
 		return m, nil
-	case "a":
-		return m.addSecret()
+	case "o":
+		if m.focus == focusSecrets {
+			return m.addSecret()
+		}
+		return m, nil
 	case "d":
 		return m.deleteSecret()
 	case "u":
@@ -387,7 +409,6 @@ func (m *Model) moveList(delta int) {
 			return
 		}
 		m.secretIdx = clamp(m.secretIdx+delta, 0, len(idxs)-1)
-		m.loadEditorFromSelection()
 	}
 }
 
@@ -397,7 +418,7 @@ func (m Model) pageSize() int {
 	case focusProjects:
 		return max(1, layout.projects.h-2)
 	case focusSecrets:
-		return max(1, layout.secrets.h-2)
+		return max(1, layout.secrets.h-3) // account for header row
 	default:
 		return 10
 	}
@@ -456,50 +477,40 @@ func (m Model) toggleProjectFold(project string) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) activateSelection() (tea.Model, tea.Cmd) {
-	switch m.focus {
-	case focusProjects:
-		row, ok := m.currentTreeRow()
-		if !ok {
-			return m, nil
-		}
-		if row.kind == treeConfig {
-			if row.project == "" || row.config == "" {
-				return m, nil
-			}
-			m.fetching = true
-			m.errMsg = ""
-			return m, tea.Batch(m.spinner.Tick, selectConfigCmd(m.opts, row.project, row.config))
-		}
-		if row.project == "" {
+	if m.focus != focusProjects {
+		return m, nil
+	}
+	row, ok := m.currentTreeRow()
+	if !ok {
+		return m, nil
+	}
+	if row.kind == treeConfig {
+		if row.project == "" || row.config == "" {
 			return m, nil
 		}
 		m.fetching = true
 		m.errMsg = ""
-		return m, tea.Batch(m.spinner.Tick, selectProjectCmd(m.opts, row.project, m.activeConfig))
-	case focusSecrets:
-		m.enterEditor(false)
+		return m, tea.Batch(m.spinner.Tick, selectConfigCmd(m.opts, row.project, row.config))
+	}
+	if row.project == "" {
 		return m, nil
 	}
-	return m, nil
-}
-
-func (m *Model) enterEditor(focusValue bool) {
-	if focusValue {
-		m.setFocus(focusEditorValue)
-		return
-	}
-	m.setFocus(focusEditorName)
+	m.fetching = true
+	m.errMsg = ""
+	return m, tea.Batch(m.spinner.Tick, selectProjectCmd(m.opts, row.project, m.activeConfig))
 }
 
 func (m Model) addSecret() (tea.Model, tea.Cmd) {
-	m.applyEditorToSelection()
+	if m.inSecretInsert() {
+		m.applyCellToSelection()
+	}
 	m.secrets = append(m.secrets, newEmptySecretRow())
 	m.filter = ""
 	m.filterInput.SetValue("")
 	idxs := m.filteredIndexes()
 	m.secretIdx = len(idxs) - 1
-	m.loadEditorFromSelection()
-	m.setFocus(focusEditorName)
+	m.secretCol = colName
+	m.enterInsert()
 	return m, nil
 }
 
@@ -511,7 +522,6 @@ func (m Model) deleteSecret() (tea.Model, tea.Cmd) {
 	if m.secrets[idx].originalName == nil {
 		m.secrets = append(m.secrets[:idx], m.secrets[idx+1:]...)
 		m.clampSecretIdx()
-		m.loadEditorFromSelection()
 		return m, nil
 	}
 	m.secrets[idx].shouldDelete = true
@@ -524,7 +534,6 @@ func (m Model) undoSecret() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.secrets[idx].undo()
-	m.loadEditorFromSelection()
 	return m, nil
 }
 
@@ -534,7 +543,7 @@ func (m Model) yankSecret() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	text := m.secrets[idx].displayValue()
-	if m.focus == focusEditorName {
+	if m.secretCol == colName {
 		text = m.secrets[idx].name
 	}
 	_ = utils.CopyToClipboard(text)
@@ -543,7 +552,9 @@ func (m Model) yankSecret() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) openSave() (tea.Model, tea.Cmd) {
-	m.applyEditorToSelection()
+	if m.inSecretInsert() {
+		m.applyCellToSelection()
+	}
 	m.pendingChanges = collectChanges(m.secrets)
 	m.focus = focusSave
 	return m, nil
@@ -552,6 +563,10 @@ func (m Model) openSave() (tea.Model, tea.Cmd) {
 func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if m.fetching || m.inModal() {
 		return m, nil
+	}
+	if m.inSecretInsert() {
+		m.applyCellToSelection()
+		m.setFocus(focusSecrets)
 	}
 
 	layout := m.computeLayout()
@@ -589,9 +604,9 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 	case layout.secrets.contains(msg.X, msg.Y):
 		m.setFocus(focusSecrets)
-		rel := msg.Y - layout.secrets.y - 1
+		rel := msg.Y - layout.secrets.y - 2 // title + header
 		idxs := m.filteredIndexes()
-		visible := max(1, layout.secrets.h-2)
+		visible := max(1, layout.secrets.h-3)
 		start := 0
 		if m.secretIdx >= visible {
 			start = m.secretIdx - visible + 1
@@ -599,10 +614,14 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		idx := start + rel
 		if idx >= 0 && idx < len(idxs) {
 			m.secretIdx = idx
-			m.loadEditorFromSelection()
+			nameW, _ := secretColumnWidths(layout.secrets.w)
+			relX := msg.X - layout.secrets.x - 1
+			if relX >= nameW {
+				m.secretCol = colValue
+			} else {
+				m.secretCol = colName
+			}
 		}
-	case layout.editor.contains(msg.X, msg.Y):
-		m.enterEditor(msg.Y > layout.editor.y+2)
 	case layout.status.contains(msg.X, msg.Y):
 		m.beginSearch()
 	}
@@ -642,11 +661,6 @@ func min(a, b int) int {
 	return b
 }
 
-func (m Model) editorInnerWidth() int {
-	left := max(20, m.width/5)
-	return max(20, m.width-left-8)
-}
-
 const helpText = `Global Keybinds:
     Tab / Shift+Tab  Cycle panes
     1 Focus Projects
@@ -673,15 +687,18 @@ Projects (with configs):
     Folded nodes still show the active
     config when it belongs under them
 
-Secrets List:
-    j / k / ↑↓     Move
+Secrets (vim-style):
+    h / l / ←→     Name / value column
+    j / k / ↑↓     Move rows
     PgUp / PgDown  Page
-    Enter/e Edit selected secret
-    a       Add secret
-    d       Delete / mark delete
-    u       Undo changes
-    y       Copy value to clipboard
-    s       Save prompt
+    i / a / Enter  Insert (edit cell)
+    Esc            Normal mode
+    Tab            Next cell (insert)
+    o              Add secret
+    d              Delete / mark delete
+    u              Undo changes
+    y              Yank active cell
+    s              Save prompt
 
 Search:
     /       Edit regex in status bar
@@ -692,19 +709,12 @@ Search:
 Filter:
     f       Edit filter in status bar
     Enter / Esc / Tab  Apply and return
-    Active filter shows on the right
-    of the status bar
-
-Editor:
-    Tab     Next pane (name → value → …)
-    Esc     Return to secrets list
 
 Save Prompt:
     Enter   Confirm
     Esc / q Cancel
 
 Mouse:
-    Click lists to focus/select
-    Click editor to edit
+    Click name/value cells to select
     Click status bar to search
     Scroll wheel to navigate`
