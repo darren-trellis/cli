@@ -179,7 +179,7 @@ func (m Model) renderSecretRow(s secretRow, listIdx, nameW, valueW int, paneActi
 		m.cellInput.Cursor.TextStyle = selectedStyle
 		nameCell = padStyledCell(marker+m.cellInput.View(), nameW, true)
 	} else {
-		nameCell = styleSecretCell(marker+nameText, nameW, nameActive, s.shouldDelete, s.isDirty(), hit)
+		nameCell = styleSecretCell(marker+nameText, nameW, rowSelected, nameActive, s.shouldDelete, s.isDirty(), hit)
 	}
 
 	if editing && m.secretCol == colValue {
@@ -189,20 +189,27 @@ func (m Model) renderSecretRow(s secretRow, listIdx, nameW, valueW int, paneActi
 		m.cellInput.Cursor.TextStyle = selectedStyle
 		valueCell = padStyledCell(m.cellInput.View(), valueW, true)
 	} else {
-		valueCell = styleSecretCell(valueText, valueW, valueActive, s.shouldDelete, s.isDirty(), hit)
+		valueCell = styleSecretCell(valueText, valueW, rowSelected, valueActive, s.shouldDelete, s.isDirty(), hit)
 	}
 
-	return nameCell + secretColSeparator() + valueCell
+	sep := secretColSeparator()
+	if rowSelected {
+		sep = selectedStyle.Bold(false).Render(secretColSep)
+	}
+
+	return nameCell + sep + valueCell
 }
 
-func padStyledCell(styled string, width int, active bool) string {
+func padStyledCell(styled string, width int, selected bool) string {
 	w := lipgloss.Width(styled)
 	if w > width {
 		return lipgloss.NewStyle().MaxWidth(width).Render(styled)
 	}
 	pad := strings.Repeat(" ", width-w)
-	if active {
+	if selected {
 		pad = selectedStyle.Render(pad)
+	} else if background != "" {
+		pad = lipgloss.NewStyle().Background(background).Render(pad)
 	}
 	return styled + pad
 }
@@ -217,12 +224,16 @@ func containsHit(hits map[int]struct{}, i int) bool {
 	return ok
 }
 
-func styleSecretCell(text string, width int, active, del, dirty, hit bool) string {
+func styleSecretCell(text string, width int, rowSelected, cellActive, del, dirty, hit bool) string {
 	plain := truncate(ansi.Strip(text), width)
 	plain = padRight(plain, width)
 	switch {
-	case active:
-		return selectedStyle.Width(width).MaxWidth(width).Render(plain)
+	case rowSelected:
+		style := selectedStyle.Width(width).MaxWidth(width)
+		if !cellActive {
+			style = style.Bold(false)
+		}
+		return style.Render(plain)
 	case del:
 		return deleteStyle.Width(width).MaxWidth(width).Render(plain)
 	case dirty:
@@ -230,7 +241,14 @@ func styleSecretCell(text string, width int, active, del, dirty, hit bool) strin
 	case hit:
 		return searchHitStyle.Width(width).MaxWidth(width).Render(plain)
 	default:
-		return lipgloss.NewStyle().Width(width).MaxWidth(width).Render(plain)
+		style := lipgloss.NewStyle().Width(width).MaxWidth(width)
+		if background != "" {
+			style = style.Background(background)
+		}
+		if textColor != "" {
+			style = style.Foreground(textColor)
+		}
+		return style.Render(plain)
 	}
 }
 
