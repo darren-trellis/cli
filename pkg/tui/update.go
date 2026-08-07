@@ -417,6 +417,9 @@ func (m *Model) moveList(delta int) {
 }
 
 func (m Model) pageSize() int {
+	if m.cfg.PageLines > 0 {
+		return m.cfg.PageLines
+	}
 	layout := m.computeLayout()
 	switch m.focus {
 	case focusProjects:

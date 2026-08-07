@@ -20,13 +20,14 @@ import (
 	"log"
 	"os"
 
+	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
 	"github.com/DopplerHQ/cli/pkg/tui/common"
 	"github.com/DopplerHQ/cli/pkg/utils"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func Start(opts models.ScopedOptions, themeName string) {
+func Start(opts models.ScopedOptions, cfg configuration.TUISettings) {
 	cmn, err := common.NewCommon(opts)
 	if err != nil {
 		log.Fatal(err)
@@ -37,12 +38,12 @@ func Start(opts models.ScopedOptions, themeName string) {
 		os.Exit(1)
 	}
 
-	if err := applyTheme(themeName); err != nil {
+	if err := applyTheme(cfg.Theme); err != nil {
 		utils.Log(err.Error())
 		os.Exit(1)
 	}
 
-	m := newModel(cmn.Opts)
+	m := newModel(cmn.Opts, cfg)
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
 		fmt.Println("Error running TUI:", err)

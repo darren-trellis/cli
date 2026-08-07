@@ -53,6 +53,8 @@ type AnalyticsOptions struct {
 type TUIOptions struct {
 	IntroVersionSeen int    `yaml:"introVersionSeen"`
 	Theme            string `yaml:"theme,omitempty"`
+	SidebarWidth     int    `yaml:"sidebarWidth,omitempty"`
+	PageLines        int    `yaml:"pageLines,omitempty"`
 }
 
 // ScopedOptions options with their scope

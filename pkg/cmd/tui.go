@@ -34,22 +34,32 @@ var tuiCmd = &cobra.Command{
 func tui(cmd *cobra.Command, args []string) {
 	localConfig := configuration.LocalConfig(cmd)
 
-	theme := configuration.TUITheme()
+	cfg := configuration.TUIConfig()
 	if cmd.Flags().Changed("theme") {
-		theme = cmd.Flag("theme").Value.String()
-		configuration.TUISetTheme(theme)
+		cfg.Theme = cmd.Flag("theme").Value.String()
+		configuration.TUISetTheme(cfg.Theme)
 	}
-	if strings.TrimSpace(theme) == "" {
-		theme = "default"
+	if cmd.Flags().Changed("sidebar-width") {
+		cfg.SidebarWidth, _ = cmd.Flags().GetInt("sidebar-width")
+		configuration.TUISetSidebarWidth(cfg.SidebarWidth)
+	}
+	if cmd.Flags().Changed("page-lines") {
+		cfg.PageLines, _ = cmd.Flags().GetInt("page-lines")
+		configuration.TUISetPageLines(cfg.PageLines)
+	}
+	if strings.TrimSpace(cfg.Theme) == "" {
+		cfg.Theme = "default"
 	}
 
-	tuiApp.Start(localConfig, theme)
+	tuiApp.Start(localConfig, cfg)
 }
 
 func init() {
 	tuiCmd.Flags().StringP("project", "p", "", "project (e.g. backend)")
 	tuiCmd.Flags().StringP("config", "c", "", "config (e.g. dev)")
 	tuiCmd.Flags().String("theme", "default", "TUI theme (default, cool, warm, mono, or a teleminator theme like catppuccin)")
+	tuiCmd.Flags().Int("sidebar-width", 0, "projects sidebar width in columns (0 = auto)")
+	tuiCmd.Flags().Int("page-lines", 0, "lines to jump on PgUp/PgDn (0 = full viewport)")
 	tuiCmd.Flags().BoolVar(&utils.DebugTUI, "debug-tui", utils.DebugTUI, "log TUI messages to file")
 	rootCmd.AddCommand(tuiCmd)
 }

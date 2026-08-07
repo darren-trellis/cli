@@ -15,6 +15,13 @@ limitations under the License.
 */
 package configuration
 
+// TUISettings are runtime preferences for the Doppler TUI.
+type TUISettings struct {
+	Theme        string
+	SidebarWidth int // 0 = auto
+	PageLines    int // 0 = viewport height
+}
+
 var CURRENT_INTRO_VERSION = 1
 
 func TUIShouldShowIntro() bool {
@@ -32,5 +39,23 @@ func TUITheme() string {
 
 func TUISetTheme(theme string) {
 	configContents.TUI.Theme = theme
+	writeConfig(configContents)
+}
+
+func TUIConfig() TUISettings {
+	return TUISettings{
+		Theme:        configContents.TUI.Theme,
+		SidebarWidth: configContents.TUI.SidebarWidth,
+		PageLines:    configContents.TUI.PageLines,
+	}
+}
+
+func TUISetSidebarWidth(width int) {
+	configContents.TUI.SidebarWidth = width
+	writeConfig(configContents)
+}
+
+func TUISetPageLines(lines int) {
+	configContents.TUI.PageLines = lines
 	writeConfig(configContents)
 }

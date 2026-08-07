@@ -18,6 +18,7 @@ package tui
 import (
 	"testing"
 
+	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
@@ -25,7 +26,7 @@ import (
 )
 
 func TestSearchSecretsNextPrevAndClear(t *testing.T) {
-	m := newModel(models.ScopedOptions{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
 	m.fetching = false
 	m.focus = focusSecrets
 	m.secrets = []secretRow{
@@ -60,7 +61,7 @@ func TestSearchSecretsNextPrevAndClear(t *testing.T) {
 }
 
 func TestSearchProjectsRegex(t *testing.T) {
-	m := newModel(models.ScopedOptions{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
 	m.fetching = false
 	m.focus = focusProjects
 	m.projects = []string{"api", "web", "admin"}
@@ -81,14 +82,14 @@ func TestSearchProjectsRegex(t *testing.T) {
 }
 
 func TestFilterKeybinding(t *testing.T) {
-	m := newModel(models.ScopedOptions{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
 	m.fetching = false
 	m.focus = focusSecrets
 
 	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
 	assert.Equal(t, focusFilter, next.(Model).focus)
 
-	m = newModel(models.ScopedOptions{})
+	m = newModel(models.ScopedOptions{}, configuration.TUISettings{})
 	m.fetching = false
 	m.focus = focusSecrets
 	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})

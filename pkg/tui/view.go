@@ -41,7 +41,7 @@ func (m Model) computeLayout() layoutRegions {
 	w := max(40, m.width)
 	h := max(12, m.height)
 
-	leftW := max(18, w/5)
+	leftW := m.sidebarWidth(w)
 	rightW := w - leftW
 	statusH := 1
 	topH := h - statusH
@@ -51,6 +51,15 @@ func (m Model) computeLayout() layoutRegions {
 		secrets:  rect{leftW, 0, rightW, topH},
 		status:   rect{0, topH, w, statusH},
 	}
+}
+
+func (m Model) sidebarWidth(totalW int) int {
+	if m.cfg.SidebarWidth > 0 {
+		w := clamp(m.cfg.SidebarWidth, 12, 60)
+		maxW := max(12, totalW/2)
+		return min(w, maxW)
+	}
+	return max(18, totalW/5)
 }
 
 const secretColSep = "│"

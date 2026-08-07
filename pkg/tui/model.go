@@ -50,6 +50,7 @@ const (
 
 type Model struct {
 	opts models.ScopedOptions
+	cfg  configuration.TUISettings
 
 	width  int
 	height int
@@ -93,7 +94,7 @@ type Model struct {
 	helpViewport viewport.Model
 }
 
-func newModel(opts models.ScopedOptions) Model {
+func newModel(opts models.ScopedOptions, cfg configuration.TUISettings) Model {
 	fi := textinput.New()
 	fi.Placeholder = "Filter secrets…"
 	fi.CharLimit = 128
@@ -115,6 +116,7 @@ func newModel(opts models.ScopedOptions) Model {
 
 	m := Model{
 		opts:           opts,
+		cfg:            cfg,
 		focus:          focusSecrets,
 		filterInput:    fi,
 		searchInput:    si,

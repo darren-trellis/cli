@@ -18,6 +18,7 @@ package tui
 import (
 	"testing"
 
+	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -83,7 +84,7 @@ func TestSecretRowUndoAndRestricted(t *testing.T) {
 }
 
 func TestNavKeyFocusSwitch(t *testing.T) {
-	m := newModel(models.ScopedOptions{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
 	m.fetching = false
 	m.focus = focusSecrets
 
@@ -95,7 +96,7 @@ func TestNavKeyFocusSwitch(t *testing.T) {
 }
 
 func TestMoveSecretsList(t *testing.T) {
-	m := newModel(models.ScopedOptions{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
 	m.fetching = false
 	m.focus = focusSecrets
 	m.secrets = []secretRow{
@@ -113,7 +114,7 @@ func TestMoveSecretsList(t *testing.T) {
 }
 
 func TestPageUpDownSecrets(t *testing.T) {
-	m := newModel(models.ScopedOptions{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
 	m.fetching = false
 	m.focus = focusSecrets
 	m.width = 80
@@ -140,8 +141,40 @@ func TestPageUpDownSecrets(t *testing.T) {
 	assert.Equal(t, 29, next.(Model).secretIdx)
 }
 
+func TestSidebarWidthConfig(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
+	m.width = 100
+	m.height = 24
+	assert.Equal(t, 20, m.computeLayout().projects.w)
+
+	m.cfg.SidebarWidth = 28
+	assert.Equal(t, 28, m.computeLayout().projects.w)
+
+	m.cfg.SidebarWidth = 80
+	assert.Equal(t, 50, m.computeLayout().projects.w)
+
+	m.cfg.SidebarWidth = 5
+	assert.Equal(t, 12, m.computeLayout().projects.w)
+}
+
+func TestPageLinesConfig(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{PageLines: 5})
+	m.fetching = false
+	m.focus = focusSecrets
+	m.width = 80
+	m.height = 24
+	m.secrets = make([]secretRow, 20)
+	for i := range m.secrets {
+		m.secrets[i] = newSecretRow(string(rune('A'+i%26)), "1", "masked")
+	}
+
+	assert.Equal(t, 5, m.pageSize())
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	assert.Equal(t, 5, next.(Model).secretIdx)
+}
+
 func TestEnterInsertAndEsc(t *testing.T) {
-	m := newModel(models.ScopedOptions{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
 	m.fetching = false
 	m.focus = focusSecrets
 	m.secrets = []secretRow{newSecretRow("A", "val", "masked")}
@@ -156,7 +189,7 @@ func TestEnterInsertAndEsc(t *testing.T) {
 }
 
 func TestVimColumnMoveAndInsert(t *testing.T) {
-	m := newModel(models.ScopedOptions{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
 	m.fetching = false
 	m.focus = focusSecrets
 	m.secrets = []secretRow{newSecretRow("A", "val", "masked")}
@@ -173,7 +206,7 @@ func TestVimColumnMoveAndInsert(t *testing.T) {
 }
 
 func TestUndoAfterNavigatingAway(t *testing.T) {
-	m := newModel(models.ScopedOptions{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
 	m.fetching = false
 	m.focus = focusSecrets
 	m.secrets = []secretRow{
@@ -202,7 +235,7 @@ func TestUndoAfterNavigatingAway(t *testing.T) {
 }
 
 func TestLoadedMsgSetsState(t *testing.T) {
-	m := newModel(models.ScopedOptions{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
 	next, _ := m.Update(loadedMsg{
 		projects:      []string{"p1", "p2"},
 		configs:       buildConfigTree([]models.ConfigInfo{{Name: "dev", Environment: "dev", Root: true}}),
@@ -222,7 +255,7 @@ func TestLoadedMsgSetsState(t *testing.T) {
 }
 
 func TestProjectSelectedMsgLoadsSecrets(t *testing.T) {
-	m := newModel(models.ScopedOptions{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
 	m.fetching = true
 	m.focus = focusProjects
 
@@ -307,7 +340,7 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 }
 
 func TestToggleProjectFold(t *testing.T) {
-	m := newModel(models.ScopedOptions{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
 	m.fetching = false
 	m.focus = focusProjects
 	m.projects = []string{"api", "web"}
@@ -337,7 +370,7 @@ func TestToggleProjectFold(t *testing.T) {
 }
 
 func TestToggleEnvFold(t *testing.T) {
-	m := newModel(models.ScopedOptions{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
 	m.fetching = false
 	m.focus = focusProjects
 	m.projects = []string{"api"}
@@ -367,7 +400,7 @@ func TestToggleEnvFold(t *testing.T) {
 }
 
 func TestSpaceOnLeafDoesNothing(t *testing.T) {
-	m := newModel(models.ScopedOptions{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
 	m.fetching = false
 	m.focus = focusProjects
 	m.projects = []string{"api"}
@@ -397,7 +430,7 @@ func TestSpaceOnLeafDoesNothing(t *testing.T) {
 }
 
 func TestCyclePane(t *testing.T) {
-	m := newModel(models.ScopedOptions{})
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
 	m.fetching = false
 	m.focus = focusProjects
 	m.secrets = []secretRow{newSecretRow("A", "1", "masked")}
