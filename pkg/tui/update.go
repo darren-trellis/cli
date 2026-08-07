@@ -20,6 +20,7 @@ import (
 	"github.com/DopplerHQ/cli/pkg/utils"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -616,7 +617,7 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			m.secretIdx = idx
 			nameW, _ := secretColumnWidths(layout.secrets.w)
 			relX := msg.X - layout.secrets.x - 1
-			if relX >= nameW {
+			if relX >= nameW+lipgloss.Width(secretColSep) {
 				m.secretCol = colValue
 			} else {
 				m.secretCol = colName

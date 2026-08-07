@@ -53,11 +53,22 @@ func (m Model) computeLayout() layoutRegions {
 	}
 }
 
+const secretColSep = "│"
+
 func secretColumnWidths(panelW int) (nameW, valueW int) {
 	inner := max(10, panelW-2)
-	nameW = max(12, inner*2/5)
-	valueW = max(8, inner-nameW)
+	avail := max(9, inner-lipgloss.Width(secretColSep))
+	nameW = max(12, avail*2/5)
+	valueW = max(8, avail-nameW)
 	return nameW, valueW
+}
+
+func secretColSeparator() string {
+	style := lipgloss.NewStyle().Foreground(dim)
+	if background != "" {
+		style = style.Background(background)
+	}
+	return style.Render(secretColSep)
 }
 
 func (m Model) View() string {
@@ -103,7 +114,8 @@ func (m Model) renderProjectTree(width, height int) string {
 func (m Model) renderSecretsTable(width, height int) string {
 	nameW, valueW := secretColumnWidths(width)
 	innerH := max(1, height-2)
-	header := dimStyle.Render(padRight("  NAME", nameW) + padRight("VALUE", valueW))
+	sep := secretColSeparator()
+	header := dimStyle.Render(padRight("  NAME", nameW)) + sep + dimStyle.Render(padRight("VALUE", valueW))
 
 	idxs := m.filteredIndexes()
 	bodyH := max(1, innerH-1)
@@ -153,33 +165,46 @@ func (m Model) renderSecretRow(s secretRow, listIdx, nameW, valueW int, paneActi
 		valueText = string([]rune(valueText)[:200]) + "…"
 	}
 
-	editing := m.focus == focusSecretInsert && listIdx == m.secretIdx
-	if editing {
-		cellW := valueW
-		if m.secretCol == colName {
-			cellW = max(4, nameW-2)
-		}
-		m.cellInput.Width = max(4, cellW-1)
-		m.cellInput.TextStyle = selectedStyle
-		view := m.cellInput.View()
-		if m.secretCol == colName {
-			nameText = view
-		} else {
-			valueText = view
-		}
-	}
-
-	nameCell := marker + nameText
-	valueCell := valueText
-
 	rowSelected := paneActive && listIdx == m.secretIdx
 	nameActive := rowSelected && m.secretCol == colName
 	valueActive := rowSelected && m.secretCol == colValue
+	editing := m.focus == focusSecretInsert && listIdx == m.secretIdx
+	hit := hits != nil && containsHit(hits, listIdx) && !rowSelected
 
-	nameCell = styleSecretCell(nameCell, nameW, nameActive, s.shouldDelete, s.isDirty(), hits != nil && containsHit(hits, listIdx) && !rowSelected)
-	valueCell = styleSecretCell(valueCell, valueW, valueActive, s.shouldDelete, s.isDirty(), hits != nil && containsHit(hits, listIdx) && !rowSelected)
+	var nameCell, valueCell string
+	if editing && m.secretCol == colName {
+		m.cellInput.Width = max(1, nameW-lipgloss.Width(marker))
+		m.cellInput.TextStyle = selectedStyle
+		m.cellInput.Cursor.Style = selectedStyle
+		m.cellInput.Cursor.TextStyle = selectedStyle
+		nameCell = padStyledCell(marker+m.cellInput.View(), nameW, true)
+	} else {
+		nameCell = styleSecretCell(marker+nameText, nameW, nameActive, s.shouldDelete, s.isDirty(), hit)
+	}
 
-	return nameCell + valueCell
+	if editing && m.secretCol == colValue {
+		m.cellInput.Width = max(1, valueW)
+		m.cellInput.TextStyle = selectedStyle
+		m.cellInput.Cursor.Style = selectedStyle
+		m.cellInput.Cursor.TextStyle = selectedStyle
+		valueCell = padStyledCell(m.cellInput.View(), valueW, true)
+	} else {
+		valueCell = styleSecretCell(valueText, valueW, valueActive, s.shouldDelete, s.isDirty(), hit)
+	}
+
+	return nameCell + secretColSeparator() + valueCell
+}
+
+func padStyledCell(styled string, width int, active bool) string {
+	w := lipgloss.Width(styled)
+	if w > width {
+		return lipgloss.NewStyle().MaxWidth(width).Render(styled)
+	}
+	pad := strings.Repeat(" ", width-w)
+	if active {
+		pad = selectedStyle.Render(pad)
+	}
+	return styled + pad
 }
 
 func (s secretRow) previewValueUnlimited() string {

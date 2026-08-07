@@ -21,6 +21,7 @@ import (
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
+	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -106,6 +107,7 @@ func newModel(opts models.ScopedOptions) Model {
 	ci.CharLimit = 4096
 	ci.Prompt = ""
 	ci.Placeholder = ""
+	_ = ci.Cursor.SetMode(cursor.CursorStatic)
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
