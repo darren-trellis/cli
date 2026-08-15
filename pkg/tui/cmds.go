@@ -49,6 +49,13 @@ type configsLoadedMsg struct {
 	expand  bool
 }
 
+type configLockMsg struct {
+	project string
+	configs []configRow
+	config  string
+	locked  bool
+}
+
 type secretsLoadedMsg struct {
 	secrets       []secretRow
 	activeProject string
@@ -224,6 +231,34 @@ func renameConfigCmd(opts models.ScopedOptions, project, from, to string) tea.Cm
 			secrets: secretsFromComputed(computed),
 			project: project,
 			config:  info.Name,
+		}
+	}
+}
+
+func setConfigLockCmd(opts models.ScopedOptions, project, config string, lock bool) tea.Cmd {
+	return func() tea.Msg {
+		scoped := withProjectConfig(opts, project, config)
+		var info models.ConfigInfo
+		var err controllers.Error
+		if lock {
+			info, err = controllers.LockConfig(scoped)
+		} else {
+			info, err = controllers.UnlockConfig(scoped)
+		}
+		if err.Unwrap() != nil {
+			return errMsg{err.Unwrap()}
+		}
+
+		configInfos, listErr := controllers.GetConfigs(withProject(opts, project))
+		if listErr.Unwrap() != nil {
+			return errMsg{listErr.Unwrap()}
+		}
+
+		return configLockMsg{
+			project: project,
+			configs: buildConfigTree(configInfos),
+			config:  info.Name,
+			locked:  info.Locked,
 		}
 	}
 }

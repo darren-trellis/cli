@@ -161,3 +161,65 @@ func TestSubmitRenameConfigNoopSameName(t *testing.T) {
 	assert.Equal(t, focusProjects, mod.focus)
 	assert.Equal(t, configPromptCreate, mod.configPromptMode)
 }
+
+func TestConfigLockToggleKeybinding(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusProjects
+	m.projects = []string{"api"}
+	m.projectConfigs["api"] = buildConfigTree([]models.ConfigInfo{
+		{Name: "dev", Environment: "dev", Root: true, Locked: false},
+	})
+	m.expanded["api"] = true
+	m.rebuildTree()
+	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
+
+	next, cmd := m.handleNavKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'L'}})
+	mod := next.(Model)
+	require.NotNil(t, cmd)
+	assert.True(t, mod.fetching)
+}
+
+func TestSetSelectedConfigLockAlreadyLocked(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusProjects
+	m.projects = []string{"api"}
+	m.projectConfigs["api"] = buildConfigTree([]models.ConfigInfo{
+		{Name: "prd", Environment: "prd", Root: true, Locked: true},
+	})
+	m.expanded["api"] = true
+	m.rebuildTree()
+	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "prd")
+
+	next, cmd := m.setSelectedConfigLock(boolPtr(true))
+	mod := next.(Model)
+	assert.Nil(t, cmd)
+	assert.Contains(t, mod.statusMsg, "already locked")
+}
+
+func TestConfigLockMsgUpdatesTree(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = true
+	m.focus = focusProjects
+	m.projects = []string{"api"}
+	m.projectConfigs["api"] = buildConfigTree([]models.ConfigInfo{
+		{Name: "dev", Environment: "dev", Root: true, Locked: false},
+	})
+	m.expanded["api"] = true
+	m.rebuildTree()
+
+	next, _ := m.Update(configLockMsg{
+		project: "api",
+		configs: buildConfigTree([]models.ConfigInfo{
+			{Name: "dev", Environment: "dev", Root: true, Locked: true},
+		}),
+		config: "dev",
+		locked: true,
+	})
+	mod := next.(Model)
+	assert.False(t, mod.fetching)
+	assert.Equal(t, "Locked dev", mod.statusMsg)
+	assert.True(t, configIsLocked(mod.projectConfigs["api"], "dev"))
+	assert.Equal(t, focusProjects, mod.focus)
+}

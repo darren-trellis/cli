@@ -139,6 +139,21 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.treeIdx = findTreeIndex(m.tree, treeProject, msg.project, "")
 		return m, nil
 
+	case configLockMsg:
+		m.fetching = false
+		m.errMsg = ""
+		m.projectConfigs[msg.project] = msg.configs
+		m.expanded[msg.project] = true
+		m.rebuildTree()
+		m.treeIdx = findTreeIndex(m.tree, treeConfig, msg.project, msg.config)
+		if msg.locked {
+			m.statusMsg = "Locked " + msg.config
+		} else {
+			m.statusMsg = "Unlocked " + msg.config
+		}
+		m.setFocus(focusProjects)
+		return m, nil
+
 	case secretsLoadedMsg:
 		m.fetching = false
 		m.errMsg = ""
@@ -699,6 +714,41 @@ func (m Model) beginRenameConfig() (tea.Model, tea.Cmd) {
 	m.setFocus(focusCreateConfig)
 	return m, nil
 }
+
+// setSelectedConfigLock locks/unlocks the selected config.
+// lock == nil toggles based on current state.
+func (m Model) setSelectedConfigLock(lock *bool) (tea.Model, tea.Cmd) {
+	if len(m.tree) == 0 || m.treeIdx < 0 || m.treeIdx >= len(m.tree) {
+		m.errMsg = "Select a config"
+		return m, nil
+	}
+	row := m.tree[m.treeIdx]
+	if row.kind != treeConfig || row.config == "" {
+		m.errMsg = "Select a config"
+		return m, nil
+	}
+
+	shouldLock := !row.locked
+	if lock != nil {
+		shouldLock = *lock
+	}
+	if shouldLock == row.locked {
+		if shouldLock {
+			m.statusMsg = row.config + " already locked"
+		} else {
+			m.statusMsg = row.config + " already unlocked"
+		}
+		m.errMsg = ""
+		return m, nil
+	}
+
+	m.errMsg = ""
+	m.statusMsg = ""
+	m.fetching = true
+	return m, tea.Batch(m.spinner.Tick, setConfigLockCmd(m.opts, row.project, row.config, shouldLock))
+}
+
+func boolPtr(v bool) *bool { return &v }
 
 func (m Model) configEnvironment(project, configName string) string {
 	for _, c := range m.projectConfigs[project] {

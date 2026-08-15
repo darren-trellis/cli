@@ -57,6 +57,9 @@ var commandCatalog = []commandInfo{
 	{"filter", "Open secrets filter"},
 	{"config create", "Create a config"},
 	{"config rename", "Rename selected config"},
+	{"config lock", "Lock selected config"},
+	{"config unlock", "Unlock selected config"},
+	{"config lock toggle", "Toggle lock on selected config"},
 	{"sidebar toggle", "Toggle projects sidebar"},
 	{"command", "Open command prompt"},
 	{"command clear", "Clear status / search"},
@@ -113,7 +116,7 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "config":
 		if len(args) == 0 {
-			m.errMsg = "usage: config create|rename"
+			m.errMsg = "usage: config create|rename|lock|unlock"
 			return m, nil
 		}
 		switch args[0] {
@@ -121,6 +124,13 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 			return m.beginCreateConfig()
 		case "rename":
 			return m.beginRenameConfig()
+		case "lock":
+			if len(args) > 1 && args[1] == "toggle" {
+				return m.setSelectedConfigLock(nil)
+			}
+			return m.setSelectedConfigLock(boolPtr(true))
+		case "unlock":
+			return m.setSelectedConfigLock(boolPtr(false))
 		default:
 			m.errMsg = "unknown config command"
 			return m, nil
@@ -304,7 +314,7 @@ func (m Model) renderHelpText() string {
 		"nav up", "nav down", "nav top", "nav bottom", "nav page up", "nav page down", "nav left", "nav right",
 	})
 	writeSection("Projects:", focusProjects, []string{
-		"fold toggle", "select", "config create", "config rename",
+		"fold toggle", "select", "config create", "config rename", "config lock toggle",
 	})
 	writeSection("Secrets:", focusSecrets, []string{
 		"edit", "secret add", "secret delete", "secret undo", "secret yank", "secret save",

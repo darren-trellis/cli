@@ -52,6 +52,26 @@ func UpdateConfig(config models.ScopedOptions, name string) (models.ConfigInfo, 
 	return info, Error{}
 }
 
+func LockConfig(config models.ScopedOptions) (models.ConfigInfo, Error) {
+	utils.RequireValue("token", config.Token.Value)
+
+	info, err := http.LockConfig(config.APIHost.Value, utils.GetBool(config.VerifyTLS.Value, true), config.Token.Value, config.EnclaveProject.Value, config.EnclaveConfig.Value)
+	if !err.IsNil() {
+		return models.ConfigInfo{}, Error{Err: err.Unwrap(), Message: err.Message}
+	}
+	return info, Error{}
+}
+
+func UnlockConfig(config models.ScopedOptions) (models.ConfigInfo, Error) {
+	utils.RequireValue("token", config.Token.Value)
+
+	info, err := http.UnlockConfig(config.APIHost.Value, utils.GetBool(config.VerifyTLS.Value, true), config.Token.Value, config.EnclaveProject.Value, config.EnclaveConfig.Value)
+	if !err.IsNil() {
+		return models.ConfigInfo{}, Error{Err: err.Unwrap(), Message: err.Message}
+	}
+	return info, Error{}
+}
+
 func GetConfigNames(config models.ScopedOptions) ([]string, Error) {
 	configs, err := GetConfigs(config)
 	if !err.IsNil() {

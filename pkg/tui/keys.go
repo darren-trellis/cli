@@ -74,6 +74,7 @@ func defaultProjectsKeys() map[string]string {
 		"enter": "select",
 		"o":     "config create",
 		"r":     "config rename",
+		"L":     "config lock toggle",
 	}
 }
 
