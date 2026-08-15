@@ -45,6 +45,9 @@ func Start(opts models.ScopedOptions, cfg configuration.TUISettings) {
 
 	m := newModel(cmn.Opts, cfg)
 	m.sessionEnabled = true
+	hist := configuration.LoadTUIHistory()
+	m.commandHistory = newInputHistory(hist.Commands)
+	m.searchHistory = newInputHistory(hist.Searches)
 	if session, ok := configuration.LoadTUISession(); ok {
 		m.applySession(session)
 	}

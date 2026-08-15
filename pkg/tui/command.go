@@ -78,6 +78,7 @@ func (m *Model) beginCommand() {
 	m.commandInput.SetValue("")
 	m.statusMsg = ""
 	m.errMsg = ""
+	m.commandHistory.Reset()
 	if m.focus != focusCommand {
 		m.commandReturnFocus = m.focus
 	}
@@ -374,6 +375,7 @@ func (m Model) renderHelpText() string {
 		"edit", "secret add", "secret delete", "secret undo", "yank", "secret yank", "paste", "secret save",
 	})
 	b.WriteString("Typing modes (search/filter/insert/create/rename) use Esc/Enter locally.\n")
+	b.WriteString("Command and search ↑/↓ (C-p/C-n) recall history; Tab completes commands.\n")
 	b.WriteString("Counts: 7j / 3k / 10G (G with a count jumps to that row).\n")
 	b.WriteString("Cached configs show · ; highlighting one shows its secrets. n/N hops cached configs when not searching.\n")
 	b.WriteString("Projects yank: y then n/y/j/e (name / yaml / json / env).\n")

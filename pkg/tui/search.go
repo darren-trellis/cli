@@ -46,6 +46,7 @@ func (m *Model) beginSearch() {
 	if m.searchPane != focusProjects && m.searchPane != focusSecrets {
 		m.searchPane = focusSecrets
 	}
+	m.searchHistory.Reset()
 	m.setFocus(focusSearch)
 }
 

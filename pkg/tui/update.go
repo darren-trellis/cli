@@ -419,6 +419,7 @@ func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.statusMsg = ""
 			return m, nil
 		}
+		m.recordSearchHistory(query)
 		m.errMsg = ""
 		m.setFocus(m.searchPane)
 		return m, nil
@@ -428,7 +429,23 @@ func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c":
 		return m, tea.Quit
 	}
+	if step := historyStep(msg.String()); step != 0 {
+		current := m.searchInput.Value()
+		next := current
+		ok := false
+		if step < 0 {
+			next, ok = m.searchHistory.Prev(current)
+		} else {
+			next, ok = m.searchHistory.Next(current)
+		}
+		if ok {
+			applyHistoryValue(&m.searchInput, next)
+			_ = m.applySearch(next, false)
+		}
+		return m, nil
+	}
 
+	m.searchHistory.Reset()
 	var cmd tea.Cmd
 	m.searchInput, cmd = m.searchInput.Update(msg)
 	_ = m.applySearch(m.searchInput.Value(), false)
@@ -666,6 +683,7 @@ func (m Model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.commandInput.SetValue("")
 		m.completions.Clear()
 		m.restoreCommandFocus()
+		m.recordCommandHistory(line)
 		return m.executeCommand(line)
 	case "tab":
 		m.tabComplete(true)
@@ -673,24 +691,28 @@ func (m Model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "shift+tab":
 		m.tabComplete(false)
 		return m, nil
-	case "down":
-		if len(m.completions.Items) > 0 {
-			m.completions.SelectNext()
-			m.completions.Browsed = true
-			return m, nil
-		}
-	case "up":
-		if len(m.completions.Items) > 0 {
-			m.completions.SelectPrev()
-			m.completions.Browsed = true
-			return m, nil
-		}
 	case "ctrl+c":
 		return m, tea.Quit
+	}
+	if step := historyStep(msg.String()); step != 0 {
+		current := m.commandInput.Value()
+		next := current
+		ok := false
+		if step < 0 {
+			next, ok = m.commandHistory.Prev(current)
+		} else {
+			next, ok = m.commandHistory.Next(current)
+		}
+		if ok {
+			applyHistoryValue(&m.commandInput, next)
+			m.refreshCompletions()
+		}
+		return m, nil
 	}
 	if m.completions.SelectedItem() != nil && !m.selectionApplied() {
 		m.applySelectedCompletion()
 	}
+	m.commandHistory.Reset()
 	var cmd tea.Cmd
 	m.commandInput, cmd = m.commandInput.Update(msg)
 	m.refreshCompletions()

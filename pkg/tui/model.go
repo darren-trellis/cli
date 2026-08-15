@@ -101,6 +101,8 @@ type Model struct {
 
 	commandInput       textinput.Model
 	commandReturnFocus focusArea
+	commandHistory     inputHistory
+	searchHistory      inputHistory
 	completions        CompletionState
 	keys             KeysConfig
 	pendingYank      bool
