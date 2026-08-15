@@ -25,6 +25,7 @@ type configRow struct {
 	name        string
 	environment string
 	root        bool
+	locked      bool
 	depth       int
 	lastSibling bool
 }
@@ -66,12 +67,14 @@ func buildConfigTree(infos []models.ConfigInfo) []configRow {
 				name:        g.root.Name,
 				environment: env,
 				root:        true,
+				locked:      g.root.Locked,
 				depth:       0,
 			})
 			for i, kid := range g.kids {
 				rows = append(rows, configRow{
 					name:        kid.Name,
 					environment: env,
+					locked:      kid.Locked,
 					depth:       1,
 					lastSibling: i == len(g.kids)-1,
 				})
@@ -83,6 +86,7 @@ func buildConfigTree(infos []models.ConfigInfo) []configRow {
 			rows = append(rows, configRow{
 				name:        kid.Name,
 				environment: env,
+				locked:      kid.Locked,
 				depth:       0,
 				lastSibling: i == len(g.kids)-1,
 			})

@@ -446,7 +446,7 @@ func TestBuildConfigTree(t *testing.T) {
 	rows := buildConfigTree([]models.ConfigInfo{
 		{Name: "dev_feature", Environment: "dev", Root: false},
 		{Name: "dev", Environment: "dev", Root: true},
-		{Name: "prd", Environment: "prd", Root: true},
+		{Name: "prd", Environment: "prd", Root: true, Locked: true},
 		{Name: "dev_personal", Environment: "dev", Root: false},
 		{Name: "stg_only", Environment: "stg", Root: false},
 	})
@@ -457,7 +457,16 @@ func TestBuildConfigTree(t *testing.T) {
 	assert.Equal(t, 1, rows[1].depth)
 	assert.False(t, rows[1].lastSibling)
 	assert.True(t, rows[2].lastSibling)
+	assert.True(t, rows[3].locked)
 	assert.Equal(t, 0, rows[4].depth) // no root for stg
+}
+
+func TestFormatTreeRowShowsLock(t *testing.T) {
+	row := treeRow{kind: treeConfig, project: "api", config: "prd", depth: 1, lastSibling: true, locked: true}
+	assert.Equal(t, "  └─ prd 🔒", ansi.Strip(formatTreeRow(row, "api", "dev")))
+
+	active := treeRow{kind: treeConfig, project: "api", config: "prd", depth: 1, lastSibling: true, locked: true}
+	assert.Equal(t, "  └─ *prd 🔒", ansi.Strip(formatTreeRow(active, "api", "prd")))
 }
 
 func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {

@@ -32,6 +32,7 @@ type treeRow struct {
 	folded          bool
 	pinned          bool
 	hasChildren     bool
+	locked          bool
 	foldRoot        string // root config name for env fold target
 }
 
@@ -80,6 +81,7 @@ func buildProjectTree(
 				depth:       1,
 				lastSibling: true,
 				pinned:      true,
+				locked:      configIsLocked(configs, activeConfig),
 			})
 		}
 	}
@@ -130,6 +132,7 @@ func configTreeRows(
 			folded:      hasChildren && !envExpanded,
 			hasChildren: hasChildren,
 			foldRoot:    g.root.name,
+			locked:      g.root.locked,
 		})
 
 		if !hasChildren {
@@ -147,6 +150,7 @@ func configTreeRows(
 					parentContinues: !parentIsLast,
 					foldRoot:        g.root.name,
 					hasChildren:     false,
+					locked:          kid.locked,
 				})
 			}
 			continue
@@ -164,6 +168,7 @@ func configTreeRows(
 						parentContinues: !parentIsLast,
 						pinned:          true,
 						foldRoot:        g.root.name,
+						locked:          kid.locked,
 					})
 					break
 				}
@@ -203,9 +208,13 @@ func formatTreeRow(row treeRow, activeProject, activeConfig string) string {
 	}
 
 	active := row.project == activeProject && row.config == activeConfig
-	name := row.config
+	label := row.config
+	if row.locked {
+		label = label + " 🔒"
+	}
+	name := label
 	if active {
-		name = activeEnvStyle.Render("*" + row.config)
+		name = activeEnvStyle.Render("*" + label)
 	}
 	if row.hasChildren {
 		icon := "▾ "
@@ -230,4 +239,13 @@ func formatTreeRow(row treeRow, activeProject, activeConfig string) string {
 	default:
 		return "  " + branch + name
 	}
+}
+
+func configIsLocked(configs []configRow, name string) bool {
+	for _, c := range configs {
+		if c.name == name {
+			return c.locked
+		}
+	}
+	return false
 }
