@@ -121,6 +121,8 @@ type Model struct {
 
 	helpViewport  viewport.Model
 	configModTime time.Time
+
+	sessionEnabled bool
 }
 
 func newModel(opts models.ScopedOptions, cfg configuration.TUISettings) Model {
@@ -178,7 +180,13 @@ func newModel(opts models.ScopedOptions, cfg configuration.TUISettings) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{m.spinner.Tick, loadCmd(m.opts)}
+	loadOpts := m.opts
+	if configuration.ShouldRestoreTUISession(m.opts) {
+		if session, ok := configuration.LoadTUISession(); ok {
+			loadOpts = configuration.ApplyTUISession(m.opts, session)
+		}
+	}
+	cmds := []tea.Cmd{m.spinner.Tick, loadCmd(loadOpts, m.opts)}
 	if m.cfg.Autoreload {
 		cmds = append(cmds, watchConfigCmd())
 	}

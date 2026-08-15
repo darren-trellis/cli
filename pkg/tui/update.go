@@ -87,6 +87,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.activeConfig = msg.activeConfig
 		m.rebuildTree()
 		m.treeIdx = findTreeIndex(m.tree, treeConfig, msg.activeProject, msg.activeConfig)
+		m.persistSession()
 		return m, nil
 
 	case projectSelectedMsg:
@@ -126,6 +127,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.treeIdx = findTreeIndex(m.tree, treeProject, msg.project, "")
 			m.setFocus(focusProjects)
 		}
+		m.persistSession()
 		return m, nil
 
 	case configsLoadedMsg:
@@ -170,6 +172,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.rebuildTree()
 		m.treeIdx = findTreeIndex(m.tree, treeConfig, msg.activeProject, msg.activeConfig)
 		m.setFocus(focusSecrets)
+		m.persistSession()
 		return m, nil
 
 	case tea.MouseMsg:
@@ -698,6 +701,7 @@ func (m Model) toggleEnvFold(project, rootConfig string) (tea.Model, tea.Cmd) {
 	m.expandedEnvs[key] = !isEnvExpanded(m.expandedEnvs, project, rootConfig)
 	m.rebuildTree()
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, project, rootConfig)
+	m.persistSession()
 	return m, nil
 }
 

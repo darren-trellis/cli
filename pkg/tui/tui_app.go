@@ -44,6 +44,10 @@ func Start(opts models.ScopedOptions, cfg configuration.TUISettings) {
 	}
 
 	m := newModel(cmn.Opts, cfg)
+	m.sessionEnabled = true
+	if session, ok := configuration.LoadTUISession(); ok {
+		m.applySession(session)
+	}
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
 		fmt.Println("Error running TUI:", err)

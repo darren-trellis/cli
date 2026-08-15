@@ -73,42 +73,54 @@ func withProjectConfig(opts models.ScopedOptions, project, config string) models
 	return opts
 }
 
-func loadCmd(opts models.ScopedOptions) tea.Cmd {
+func loadCmd(opts, fallback models.ScopedOptions) tea.Cmd {
 	return func() tea.Msg {
-		var projectIDs []string
-		var configInfos []models.ConfigInfo
-		var computed map[string]models.ComputedSecret
-
-		g, _ := errgroup.WithContext(context.Background())
-		g.Go(func() error {
-			var err controllers.Error
-			projectIDs, err = controllers.GetProjectIDs(opts)
-			return err.Unwrap()
-		})
-		g.Go(func() error {
-			var err controllers.Error
-			configInfos, err = controllers.GetConfigs(withProject(opts, opts.EnclaveProject.Value))
-			return err.Unwrap()
-		})
-		g.Go(func() error {
-			var err controllers.Error
-			computed, err = controllers.GetSecrets(withProjectConfig(opts, opts.EnclaveProject.Value, opts.EnclaveConfig.Value))
-			return err.Unwrap()
-		})
-		if err := g.Wait(); err != nil {
-			return errMsg{err}
+		msg := loadOnce(opts)
+		if _, ok := msg.(errMsg); ok && !sameLoadTarget(opts, fallback) {
+			return loadOnce(fallback)
 		}
+		return msg
+	}
+}
 
-		projects := make([]string, len(projectIDs))
-		copy(projects, projectIDs)
+func sameLoadTarget(a, b models.ScopedOptions) bool {
+	return a.EnclaveProject.Value == b.EnclaveProject.Value && a.EnclaveConfig.Value == b.EnclaveConfig.Value
+}
 
-		return loadedMsg{
-			projects:      projects,
-			configs:       buildConfigTree(configInfos),
-			secrets:       secretsFromComputed(computed),
-			activeProject: opts.EnclaveProject.Value,
-			activeConfig:  opts.EnclaveConfig.Value,
-		}
+func loadOnce(opts models.ScopedOptions) tea.Msg {
+	var projectIDs []string
+	var configInfos []models.ConfigInfo
+	var computed map[string]models.ComputedSecret
+
+	g, _ := errgroup.WithContext(context.Background())
+	g.Go(func() error {
+		var err controllers.Error
+		projectIDs, err = controllers.GetProjectIDs(opts)
+		return err.Unwrap()
+	})
+	g.Go(func() error {
+		var err controllers.Error
+		configInfos, err = controllers.GetConfigs(withProject(opts, opts.EnclaveProject.Value))
+		return err.Unwrap()
+	})
+	g.Go(func() error {
+		var err controllers.Error
+		computed, err = controllers.GetSecrets(withProjectConfig(opts, opts.EnclaveProject.Value, opts.EnclaveConfig.Value))
+		return err.Unwrap()
+	})
+	if err := g.Wait(); err != nil {
+		return errMsg{err}
+	}
+
+	projects := make([]string, len(projectIDs))
+	copy(projects, projectIDs)
+
+	return loadedMsg{
+		projects:      projects,
+		configs:       buildConfigTree(configInfos),
+		secrets:       secretsFromComputed(computed),
+		activeProject: opts.EnclaveProject.Value,
+		activeConfig:  opts.EnclaveConfig.Value,
 	}
 }
 
