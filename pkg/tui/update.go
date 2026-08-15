@@ -219,13 +219,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	buttons := m.helpModalButtons()
+	if delta, ok := modalCycleDelta(msg.String()); ok {
+		m.cycleModalButton(len(buttons), delta)
+		return m, nil
+	}
 	switch msg.String() {
-	case "tab":
-		m.cycleModalButton(len(buttons), 1)
-	case "shift+tab":
-		m.cycleModalButton(len(buttons), -1)
 	case "enter":
-		m.setFocus(focusSecrets)
+		return m.activateFocusedModalButton()
 	case "esc", "q":
 		m.setFocus(focusSecrets)
 	case "ctrl+c":
@@ -244,28 +244,13 @@ func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleSaveKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	buttons := m.saveModalButtons()
+	if delta, ok := modalCycleDelta(msg.String()); ok {
+		m.cycleModalButton(len(buttons), delta)
+		return m, nil
+	}
 	switch msg.String() {
-	case "tab":
-		m.cycleModalButton(len(buttons), 1)
-		return m, nil
-	case "shift+tab":
-		m.cycleModalButton(len(buttons), -1)
-		return m, nil
 	case "enter":
-		if len(m.pendingChanges) == 0 {
-			m.setFocus(focusSecrets)
-			return m, nil
-		}
-		if m.modalBtnIdx == 1 {
-			m.setFocus(focusSecrets)
-			m.pendingChanges = nil
-			return m, nil
-		}
-		m.fetching = true
-		m.statusMsg = ""
-		m.errMsg = ""
-		m.setFocus(focusSecrets)
-		return m, tea.Batch(m.spinner.Tick, saveSecretsCmd(m.opts, m.activeProject, m.activeConfig, m.pendingChanges))
+		return m.activateFocusedModalButton()
 	case "esc", "q":
 		m.setFocus(focusSecrets)
 		m.pendingChanges = nil
@@ -277,24 +262,13 @@ func (m Model) handleSaveKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleSwitchConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	buttons := m.switchConfirmButtons()
+	if delta, ok := modalCycleDelta(msg.String()); ok {
+		m.cycleModalButton(len(buttons), delta)
+		return m, nil
+	}
 	switch msg.String() {
-	case "tab":
-		m.cycleModalButton(len(buttons), 1)
-		return m, nil
-	case "shift+tab":
-		m.cycleModalButton(len(buttons), -1)
-		return m, nil
 	case "enter":
-		switch m.modalBtnIdx {
-		case 1:
-			return m.confirmSwitchDiscard()
-		case 2:
-			m.clearPendingSwitch()
-			m.setFocus(focusSecrets)
-			return m, nil
-		default:
-			return m.confirmSwitchSave()
-		}
+		return m.activateFocusedModalButton()
 	case "d":
 		return m.confirmSwitchDiscard()
 	case "esc", "q":
@@ -305,6 +279,38 @@ func (m Model) handleSwitchConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 	return m, nil
+}
+
+func (m Model) activateFocusedModalButton() (tea.Model, tea.Cmd) {
+	switch m.focus {
+	case focusHelp:
+		m.setFocus(focusSecrets)
+		return m, nil
+	case focusSave:
+		if len(m.pendingChanges) == 0 || m.modalBtnIdx == 1 {
+			m.setFocus(focusSecrets)
+			m.pendingChanges = nil
+			return m, nil
+		}
+		m.fetching = true
+		m.statusMsg = ""
+		m.errMsg = ""
+		m.setFocus(focusSecrets)
+		return m, tea.Batch(m.spinner.Tick, saveSecretsCmd(m.opts, m.activeProject, m.activeConfig, m.pendingChanges))
+	case focusSwitchConfirm:
+		switch m.modalBtnIdx {
+		case 1:
+			return m.confirmSwitchDiscard()
+		case 2:
+			m.clearPendingSwitch()
+			m.setFocus(focusSecrets)
+			return m, nil
+		default:
+			return m.confirmSwitchSave()
+		}
+	default:
+		return m, nil
+	}
 }
 
 func (m *Model) clearPendingSwitch() {
@@ -964,8 +970,11 @@ func (m Model) openSave() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	if m.fetching || m.inModal() {
+	if m.fetching {
 		return m, nil
+	}
+	if m.inModal() {
+		return m.handleModalMouse(msg)
 	}
 	if m.inSecretInsert() {
 		m.applyCellToSelection()
@@ -1025,6 +1034,26 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 	case layout.status.contains(msg.X, msg.Y):
 		m.beginSearch()
+	}
+	return m, nil
+}
+
+func (m Model) handleModalMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
+		return m, nil
+	}
+	buttons := m.currentModalButtons()
+	modal := m.currentModalView()
+	if modal == "" || len(buttons) == 0 {
+		return m, nil
+	}
+	ox := max(0, (m.width-lipgloss.Width(modal))/2)
+	oy := max(0, (m.height-lipgloss.Height(modal))/2)
+	for i, r := range buttonHitRects(modal, buttons, ox, oy) {
+		if r.contains(msg.X, msg.Y) {
+			m.modalBtnIdx = i
+			return m.activateFocusedModalButton()
+		}
 	}
 	return m, nil
 }

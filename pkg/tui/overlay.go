@@ -166,3 +166,72 @@ func (m *Model) cycleModalButton(n int, delta int) {
 		m.modalBtnIdx += n
 	}
 }
+
+func modalCycleDelta(key string) (int, bool) {
+	switch key {
+	case "tab", "right":
+		return 1, true
+	case "shift+tab", "left":
+		return -1, true
+	default:
+		return 0, false
+	}
+}
+
+func modalButtonCellWidth(buttons []modalButton) int {
+	cellW := 0
+	for _, b := range buttons {
+		if w := lipgloss.Width(b.text()); w > cellW {
+			cellW = w
+		}
+	}
+	return cellW
+}
+
+func buttonHitRects(modal string, buttons []modalButton, originX, originY int) []rect {
+	if len(buttons) == 0 || modal == "" {
+		return nil
+	}
+	cellW := modalButtonCellWidth(buttons)
+	first := " " + padRight(buttons[0].text(), cellW) + " "
+	for i, line := range strings.Split(modal, "\n") {
+		plain := ansi.Strip(line)
+		col := strings.Index(plain, first)
+		if col < 0 {
+			continue
+		}
+		btnW := cellW + 2
+		rects := make([]rect, len(buttons))
+		for j := range buttons {
+			rects[j] = rect{x: originX + col + j*(btnW+1), y: originY + i, w: btnW, h: 1}
+		}
+		return rects
+	}
+	return nil
+}
+
+func (m Model) currentModalButtons() []modalButton {
+	switch m.focus {
+	case focusHelp:
+		return m.helpModalButtons()
+	case focusSave:
+		return m.saveModalButtons()
+	case focusSwitchConfirm:
+		return m.switchConfirmButtons()
+	default:
+		return nil
+	}
+}
+
+func (m Model) currentModalView() string {
+	switch m.focus {
+	case focusHelp:
+		return m.renderHelpModal()
+	case focusSave:
+		return m.renderSaveModal()
+	case focusSwitchConfirm:
+		return m.renderSwitchConfirmModal()
+	default:
+		return ""
+	}
+}

@@ -22,6 +22,7 @@ import (
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -104,6 +105,44 @@ func TestSwitchConfirmTabCyclesButtons(t *testing.T) {
 	next, _ = mod.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyShiftTab})
 	mod = next.(Model)
 	assert.Equal(t, 2, mod.modalBtnIdx)
+
+	next, _ = mod.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyRight})
+	mod = next.(Model)
+	assert.Equal(t, 0, mod.modalBtnIdx)
+
+	next, _ = mod.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyLeft})
+	mod = next.(Model)
+	assert.Equal(t, 2, mod.modalBtnIdx)
+}
+
+func TestSwitchConfirmMouseClicksDiscard(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.width = 80
+	m.height = 24
+	m.fetching = false
+	m.focus = focusSwitchConfirm
+	m.activeProject = "api"
+	m.activeConfig = "dev"
+	m.pendingSwitchProject = "api"
+	m.pendingSwitchConfig = "prd"
+	m.pendingChanges = []models.ChangeRequest{{Name: "FOO"}}
+
+	modal := m.renderSwitchConfirmModal()
+	ox := (m.width - lipgloss.Width(modal)) / 2
+	oy := (m.height - lipgloss.Height(modal)) / 2
+	hits := buttonHitRects(modal, m.switchConfirmButtons(), ox, oy)
+	require.Len(t, hits, 3)
+
+	next, cmd := m.handleMouse(tea.MouseMsg{
+		X:      hits[1].x,
+		Y:      hits[1].y,
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonLeft,
+	})
+	mod := next.(Model)
+	require.NotNil(t, cmd)
+	assert.True(t, mod.fetching)
+	assert.Empty(t, mod.pendingSwitchConfig)
 }
 
 func TestSwitchConfirmCancelButton(t *testing.T) {

@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPlaceOverlayCompositesOntoBackground(t *testing.T) {
@@ -40,6 +41,23 @@ func TestPlaceOverlayCompositesOntoBackground(t *testing.T) {
 	assert.Equal(t, "BBXXBBBBBB", lines[1])
 	assert.Equal(t, "CCYYCCCCCC", lines[2])
 	assert.Equal(t, "DDDDDDDDDD", lines[3])
+}
+
+func TestButtonHitRectsFindsCenteredRow(t *testing.T) {
+	m := Model{modalBtnIdx: 0}
+	buttons := []modalButton{
+		{Label: "Save", Key: "enter"},
+		{Label: "Discard", Key: "d"},
+		{Label: "Cancel", Key: "esc"},
+	}
+	row := m.renderModalButtons(buttons, 40)
+	hits := buttonHitRects(row, buttons, 3, 5)
+	require.Len(t, hits, 3)
+	assert.Equal(t, 5, hits[0].y)
+	assert.True(t, hits[0].x < hits[1].x)
+	assert.True(t, hits[1].x < hits[2].x)
+	assert.True(t, hits[1].contains(hits[1].x, 5))
+	assert.False(t, hits[0].contains(hits[1].x, 5))
 }
 
 func TestFillLineBackgroundPadsShortLines(t *testing.T) {
