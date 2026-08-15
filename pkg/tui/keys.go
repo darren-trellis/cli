@@ -63,7 +63,6 @@ func defaultBaseKeys() map[string]string {
 		":":        "command",
 		"d":        "secret delete",
 		"u":        "secret undo",
-		"y":        "yank",
 		"s":        "secret save",
 	}
 }
@@ -75,6 +74,7 @@ func defaultProjectsKeys() map[string]string {
 		"o":     "config create",
 		"r":     "config rename",
 		"L":     "config lock toggle",
+		"y":     "yank",
 	}
 }
 
@@ -84,6 +84,7 @@ func defaultSecretsKeys() map[string]string {
 		"i":     "edit",
 		"a":     "edit",
 		"o":     "secret add",
+		"y":     "secret yank",
 	}
 }
 

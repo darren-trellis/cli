@@ -52,11 +52,15 @@ func TestFormatSecretsCopy(t *testing.T) {
 func TestYankOperatorSequence(t *testing.T) {
 	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
 	m.fetching = false
-	m.focus = focusSecrets
-	m.secrets = []secretRow{
-		newSecretRow("FOO", "bar", "masked"),
-	}
-	m.secretIdx = 0
+	m.focus = focusProjects
+	m.projects = []string{"api"}
+	m.projectConfigs["api"] = buildConfigTree([]models.ConfigInfo{
+		{Name: "dev", Environment: "dev", Root: true},
+	})
+	m.expanded["api"] = true
+	m.rebuildTree()
+	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
+	m.secrets = []secretRow{newSecretRow("FOO", "bar", "masked")}
 
 	next, _ := m.handleNavKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
 	mod := next.(Model)
@@ -67,6 +71,35 @@ func TestYankOperatorSequence(t *testing.T) {
 	mod = next.(Model)
 	assert.False(t, mod.pendingYank)
 	assert.Equal(t, "Copied name", mod.statusMsg)
+}
+
+func TestSecretsYRemainsCellYank(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusSecrets
+	m.secrets = []secretRow{newSecretRow("FOO", "bar", "masked")}
+	m.secretIdx = 0
+	m.secretCol = colValue
+
+	cmd, ok := m.keys.Resolve(focusSecrets, "y")
+	require.True(t, ok)
+	assert.Equal(t, "secret yank", cmd)
+
+	next, _ := m.handleNavKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	mod := next.(Model)
+	assert.False(t, mod.pendingYank)
+	assert.Equal(t, "Copied to clipboard", mod.statusMsg)
+}
+
+func TestYankOperatorRejectedInSecrets(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusSecrets
+
+	next, _ := m.executeCommand("yank")
+	mod := next.(Model)
+	assert.False(t, mod.pendingYank)
+	assert.Contains(t, mod.errMsg, "Projects")
 }
 
 func TestYankNameConfig(t *testing.T) {
@@ -104,7 +137,7 @@ func TestYankYamlSkipsRestricted(t *testing.T) {
 func TestYankCommandDirect(t *testing.T) {
 	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
 	m.fetching = false
-	m.focus = focusSecrets
+	m.focus = focusProjects
 	m.secrets = []secretRow{newSecretRow("A", "x", "masked")}
 
 	next, _ := m.executeCommand("yank env")

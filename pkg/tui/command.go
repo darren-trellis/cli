@@ -49,12 +49,11 @@ var commandCatalog = []commandInfo{
 	{"secret delete", "Delete/mark delete secret"},
 	{"secret undo", "Undo last secret change"},
 	{"secret yank", "Copy active cell"},
-	{"yank", "Start yank (n/y/j/e/c)"},
-	{"yank name", "Copy config or secret name"},
+	{"yank", "Start yank in Projects (n/y/j/e)"},
+	{"yank name", "Copy config or project name"},
 	{"yank yaml", "Copy secrets as YAML"},
 	{"yank json", "Copy secrets as JSON"},
 	{"yank env", "Copy secrets as env"},
-	{"yank cell", "Copy active cell"},
 	{"secret save", "Open save prompt"},
 	{"search", "Open search"},
 	{"search next", "Next search match"},
@@ -324,12 +323,13 @@ func (m Model) renderHelpText() string {
 		"nav up", "nav down", "nav top", "nav bottom", "nav page up", "nav page down", "nav left", "nav right",
 	})
 	writeSection("Projects:", focusProjects, []string{
-		"fold toggle", "select", "config create", "config rename", "config lock toggle", "yank name",
+		"fold toggle", "select", "config create", "config rename", "config lock toggle",
+		"yank name", "yank yaml", "yank json", "yank env",
 	})
 	writeSection("Secrets:", focusSecrets, []string{
-		"edit", "secret add", "secret delete", "secret undo", "yank name", "yank yaml", "yank json", "yank env", "yank cell", "secret save",
+		"edit", "secret add", "secret delete", "secret undo", "secret yank", "secret save",
 	})
 	b.WriteString("Typing modes (search/filter/insert/create/rename) use Esc/Enter locally.\n")
-	b.WriteString("Yank: y then n/y/j/e/c (name / yaml / json / env / cell).\n")
+	b.WriteString("Projects yank: y then n/y/j/e (name / yaml / json / env).\n")
 	return b.String()
 }

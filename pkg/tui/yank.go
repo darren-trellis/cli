@@ -63,25 +63,25 @@ func (m Model) handleYankMotion(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	default:
 		m.statusMsg = ""
-		m.errMsg = "yank: n name · y yaml · j json · e env · c cell"
+		m.errMsg = "yank: n name · y yaml · j json · e env"
 		return m, nil
 	}
 }
 
 func (m Model) execYank(args []string) (tea.Model, tea.Cmd) {
 	if len(args) == 0 {
+		if m.focus != focusProjects {
+			m.errMsg = "yank operator is only available in Projects"
+			return m, nil
+		}
 		m.beginYank()
 		return m, nil
 	}
 	switch args[0] {
 	case "name":
 		return m.yankName()
-	case "yaml":
-		return m.yankSecretsFormat("yaml")
-	case "json":
-		return m.yankSecretsFormat("json")
-	case "env":
-		return m.yankSecretsFormat("env")
+	case "yaml", "json", "env":
+		return m.yankSecretsFormat(args[0])
 	case "cell":
 		return m.yankSecret()
 	default:
@@ -92,29 +92,15 @@ func (m Model) execYank(args []string) (tea.Model, tea.Cmd) {
 
 func (m Model) yankName() (tea.Model, tea.Cmd) {
 	var text string
-	switch m.focus {
-	case focusProjects:
-		row, ok := m.currentTreeRow()
-		if !ok {
-			m.errMsg = "Nothing to copy"
-			return m, nil
-		}
-		if row.kind == treeConfig && row.config != "" {
-			text = row.config
-		} else if row.project != "" {
-			text = row.project
-		}
-	case focusSecrets:
-		idx, ok := m.selectedSecretIndex()
-		if !ok {
-			m.errMsg = "Nothing to copy"
-			return m, nil
-		}
-		text = m.secrets[idx].name
-	default:
-		if m.activeConfig != "" {
-			text = m.activeConfig
-		}
+	row, ok := m.currentTreeRow()
+	if !ok {
+		m.errMsg = "Nothing to copy"
+		return m, nil
+	}
+	if row.kind == treeConfig && row.config != "" {
+		text = row.config
+	} else if row.project != "" {
+		text = row.project
 	}
 	if text == "" {
 		m.errMsg = "Nothing to copy"
