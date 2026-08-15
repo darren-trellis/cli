@@ -655,7 +655,7 @@ func (m Model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		m.commandInput.SetValue("")
 		m.completions.Clear()
-		m.setFocus(focusSecrets)
+		m.restoreCommandFocus()
 		return m, nil
 	case "enter":
 		if m.completions.Browsed && m.completions.SelectedItem() != nil {
@@ -665,7 +665,7 @@ func (m Model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		line := m.commandInput.Value()
 		m.commandInput.SetValue("")
 		m.completions.Clear()
-		m.setFocus(focusSecrets)
+		m.restoreCommandFocus()
 		return m.executeCommand(line)
 	case "tab":
 		m.tabComplete(true)

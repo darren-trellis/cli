@@ -175,3 +175,25 @@ func TestCommandPrompt(t *testing.T) {
 	mod = next.(Model)
 	assert.Equal(t, focusHelp, mod.focus)
 }
+
+func TestCommandModeRestoresSidebarFocus(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusProjects
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	mod := next.(Model)
+	assert.Equal(t, focusCommand, mod.focus)
+	assert.Equal(t, focusProjects, mod.commandReturnFocus)
+
+	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	mod = next.(Model)
+	assert.Equal(t, focusProjects, mod.focus)
+
+	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	mod = next.(Model)
+	mod.commandInput.SetValue("help")
+	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	mod = next.(Model)
+	assert.Equal(t, focusHelp, mod.focus)
+}

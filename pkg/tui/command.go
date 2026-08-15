@@ -78,8 +78,22 @@ func (m *Model) beginCommand() {
 	m.commandInput.SetValue("")
 	m.statusMsg = ""
 	m.errMsg = ""
+	if m.focus != focusCommand {
+		m.commandReturnFocus = m.focus
+	}
 	m.setFocus(focusCommand)
 	m.refreshCompletions()
+}
+
+func (m *Model) restoreCommandFocus() {
+	f := m.commandReturnFocus
+	if f == focusProjects && !m.cfg.Sidebar {
+		f = focusSecrets
+	}
+	if f != focusProjects && f != focusSecrets {
+		f = focusSecrets
+	}
+	m.setFocus(f)
 }
 
 func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {

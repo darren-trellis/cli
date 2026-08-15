@@ -99,8 +99,9 @@ type Model struct {
 	configPromptMode    configPromptKind // create or rename
 	renameFromConfig    string
 
-	commandInput textinput.Model
-	completions  CompletionState
+	commandInput       textinput.Model
+	commandReturnFocus focusArea
+	completions        CompletionState
 	keys             KeysConfig
 	pendingYank      bool
 	yankFormat       string
