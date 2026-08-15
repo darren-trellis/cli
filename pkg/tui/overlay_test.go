@@ -46,9 +46,9 @@ func TestPlaceOverlayCompositesOntoBackground(t *testing.T) {
 func TestButtonHitRectsFindsCenteredRow(t *testing.T) {
 	m := Model{modalBtnIdx: 0}
 	buttons := []modalButton{
-		{Label: "Save", Key: "enter"},
+		{Label: "Save", Key: "s"},
 		{Label: "Discard", Key: "d"},
-		{Label: "Cancel", Key: "esc"},
+		{Label: "Cancel", Key: "c"},
 	}
 	row := m.renderModalButtons(buttons, 40)
 	hits := buttonHitRects(row, buttons, 3, 5)

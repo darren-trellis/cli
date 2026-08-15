@@ -603,9 +603,9 @@ func (m Model) saveModalButtons() []modalButton {
 
 func (m Model) switchConfirmButtons() []modalButton {
 	return []modalButton{
-		{Label: "Save", Key: "enter"},
+		{Label: "Save", Key: "s"},
 		{Label: "Discard", Key: "d"},
-		{Label: "Cancel", Key: "esc"},
+		{Label: "Cancel", Key: "c"},
 	}
 }
 

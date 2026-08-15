@@ -84,6 +84,20 @@ func TestSwitchConfirmDiscardStartsNavigation(t *testing.T) {
 	assert.Empty(t, mod.pendingSwitchConfig)
 }
 
+func TestSwitchConfirmLetterShortcuts(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusSwitchConfirm
+	m.pendingSwitchProject = "api"
+	m.pendingSwitchConfig = "prd"
+	m.modalBtnIdx = 1
+
+	next, _ := m.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	mod := next.(Model)
+	assert.Equal(t, focusSecrets, mod.focus)
+	assert.Empty(t, mod.pendingSwitchProject)
+}
+
 func TestSwitchConfirmTabCyclesButtons(t *testing.T) {
 	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
 	m.fetching = false
@@ -171,9 +185,9 @@ func TestSwitchConfirmModalCopyAndSize(t *testing.T) {
 	assert.NotContains(t, view, "You have unsaved")
 	assert.Contains(t, view, "Modified:")
 	assert.Contains(t, view, "FOO")
-	assert.Contains(t, view, "Save (enter)")
+	assert.Contains(t, view, "Save (s)")
 	assert.Contains(t, view, "Discard (d)")
-	assert.Contains(t, view, "Cancel (esc)")
+	assert.Contains(t, view, "Cancel (c)")
 	assert.Less(t, strings.Count(view, "\n")+1, 12)
 }
 
