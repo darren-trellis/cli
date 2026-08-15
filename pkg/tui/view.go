@@ -140,6 +140,8 @@ func (m Model) View() string {
 		base = m.renderOverlay(base, m.renderHelpModal())
 	case focusSave:
 		base = m.renderOverlay(base, m.renderSaveModal())
+	case focusSwitchConfirm:
+		base = m.renderOverlay(base, m.renderSwitchConfirmModal())
 	}
 
 	return appStyle.Width(m.width).Height(m.height).Render(base)
@@ -154,7 +156,7 @@ func (m Model) renderProjectTree(width, height int) string {
 	needles := make([]string, len(m.tree))
 	for i, row := range m.tree {
 		needles[i] = searchableTreeText(row)
-		line := formatTreeRow(row, m.activeProject, m.activeConfig)
+		line := formatTreeRow(row, m.activeProject, m.activeConfig, m.hasDirtySecrets())
 		if searchRe != nil {
 			line = highlightNeedleInDisplay(ansi.Strip(line), needles[i], searchRe, baseTextStyle())
 		}
@@ -588,6 +590,26 @@ func (m Model) renderSaveModal() string {
 		body += "\nEnter confirm · Esc/q cancel"
 	}
 	return m.renderTitledPanel("Confirm Changes", body, min(60, m.width-4), min(20, m.height-4), true)
+}
+
+func (m Model) renderSwitchConfirmModal() string {
+	target := m.pendingSwitchConfig
+	if target == "" {
+		target = m.pendingSwitchProject
+	}
+	body := "You have unsaved secret changes.\n\n"
+	if target != "" {
+		body += "Switch to " + target + "?\n\n"
+	}
+	if len(m.pendingChanges) > 0 {
+		body += "Modified:\n"
+		for _, c := range m.pendingChanges {
+			body += "● " + fmt.Sprint(c.Name) + "\n"
+		}
+		body += "\n"
+	}
+	body += "Enter save & switch · d discard · Esc cancel"
+	return m.renderTitledPanel("Unsaved Changes", body, min(60, m.width-4), min(22, m.height-4), true)
 }
 
 func (m Model) renderOverlay(base, modal string) string {

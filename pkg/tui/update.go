@@ -92,6 +92,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case projectSelectedMsg:
 		m.fetching = false
 		m.errMsg = ""
+		m.clearPendingSwitch()
 		m.projectConfigs[msg.project] = msg.configs
 		m.expanded[msg.project] = true
 		m.secrets = msg.secrets
@@ -100,7 +101,6 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.undoStack = nil
 		m.activeProject = msg.project
 		m.activeConfig = msg.config
-		m.pendingChanges = nil
 		m.createConfigProject = ""
 		m.createConfigEnv = ""
 		m.renameFromConfig = ""
@@ -157,6 +157,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case secretsLoadedMsg:
 		m.fetching = false
 		m.errMsg = ""
+		m.clearPendingSwitch()
 		m.secrets = msg.secrets
 		m.secretIdx = 0
 		m.secretCol = colName
@@ -166,7 +167,6 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if _, ok := m.projectConfigs[msg.activeProject]; ok {
 			m.expanded[msg.activeProject] = true
 		}
-		m.pendingChanges = nil
 		m.rebuildTree()
 		m.treeIdx = findTreeIndex(m.tree, treeConfig, msg.activeProject, msg.activeConfig)
 		m.setFocus(focusSecrets)
@@ -197,6 +197,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleHelpKey(msg)
 	case focusSave:
 		return m.handleSaveKey(msg)
+	case focusSwitchConfirm:
+		return m.handleSwitchConfirmKey(msg)
 	case focusFilter:
 		return m.handleFilterKey(msg)
 	case focusSearch:
@@ -248,6 +250,72 @@ func (m Model) handleSaveKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c":
 		return m, tea.Quit
 	}
+	return m, nil
+}
+
+func (m Model) handleSwitchConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		return m.confirmSwitchSave()
+	case "d":
+		return m.confirmSwitchDiscard()
+	case "esc", "q":
+		m.clearPendingSwitch()
+		m.setFocus(focusSecrets)
+		return m, nil
+	case "ctrl+c":
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
+func (m *Model) clearPendingSwitch() {
+	m.pendingSwitchProject = ""
+	m.pendingSwitchConfig = ""
+	m.pendingChanges = nil
+}
+
+func (m Model) confirmSwitchSave() (tea.Model, tea.Cmd) {
+	changes := m.pendingChanges
+	if len(changes) == 0 {
+		changes = collectChanges(m.secrets)
+	}
+	toProject := m.pendingSwitchProject
+	toConfig := m.pendingSwitchConfig
+	fromProject := m.activeProject
+	fromConfig := m.activeConfig
+	m.clearPendingSwitch()
+	m.fetching = true
+	m.statusMsg = ""
+	m.errMsg = ""
+	m.setFocus(focusSecrets)
+	return m, tea.Batch(m.spinner.Tick, saveAndNavigateCmd(m.opts, fromProject, fromConfig, changes, toProject, toConfig))
+}
+
+func (m Model) confirmSwitchDiscard() (tea.Model, tea.Cmd) {
+	toProject := m.pendingSwitchProject
+	toConfig := m.pendingSwitchConfig
+	m.clearPendingSwitch()
+	m.fetching = true
+	m.statusMsg = ""
+	m.errMsg = ""
+	m.setFocus(focusProjects)
+	if toConfig != "" {
+		return m, tea.Batch(m.spinner.Tick, selectConfigCmd(m.opts, toProject, toConfig))
+	}
+	return m, tea.Batch(m.spinner.Tick, selectProjectCmd(m.opts, toProject, m.activeConfig))
+}
+
+func (m Model) openSwitchConfirm(project, config string) (tea.Model, tea.Cmd) {
+	if m.inSecretInsert() {
+		m.applyCellToSelection()
+	}
+	m.pendingSwitchProject = project
+	m.pendingSwitchConfig = config
+	m.pendingChanges = collectChanges(m.secrets)
+	m.focus = focusSwitchConfirm
+	m.errMsg = ""
+	m.statusMsg = ""
 	return m, nil
 }
 
@@ -636,12 +704,30 @@ func (m Model) activateSelection() (tea.Model, tea.Cmd) {
 		if row.project == "" || row.config == "" {
 			return m, nil
 		}
+		if row.project == m.activeProject && row.config == m.activeConfig {
+			m.setFocus(focusSecrets)
+			return m, nil
+		}
+		if m.hasDirtySecrets() {
+			return m.openSwitchConfirm(row.project, row.config)
+		}
 		m.fetching = true
 		m.errMsg = ""
 		return m, tea.Batch(m.spinner.Tick, selectConfigCmd(m.opts, row.project, row.config))
 	}
 	if row.project == "" {
 		return m, nil
+	}
+	if row.project == m.activeProject {
+		if m.expanded == nil {
+			m.expanded = map[string]bool{}
+		}
+		m.expanded[row.project] = true
+		m.rebuildTree()
+		return m, nil
+	}
+	if m.hasDirtySecrets() {
+		return m.openSwitchConfirm(row.project, "")
 	}
 	m.fetching = true
 	m.errMsg = ""

@@ -198,7 +198,7 @@ func findTreeIndex(tree []treeRow, kind treeKind, project, config string) int {
 	return 0
 }
 
-func formatTreeRow(row treeRow, activeProject, activeConfig string) string {
+func formatTreeRow(row treeRow, activeProject, activeConfig string, secretsDirty bool) string {
 	if row.kind == treeProject {
 		icon := "▾ "
 		if row.folded {
@@ -211,6 +211,9 @@ func formatTreeRow(row treeRow, activeProject, activeConfig string) string {
 	label := row.config
 	if row.locked {
 		label = label + " 🔒"
+	}
+	if active && secretsDirty {
+		label = label + " +"
 	}
 	name := label
 	if active {

@@ -183,6 +183,34 @@ func saveSecretsCmd(opts models.ScopedOptions, project, config string, changes [
 	}
 }
 
+func saveAndNavigateCmd(
+	opts models.ScopedOptions,
+	fromProject, fromConfig string,
+	changes []models.ChangeRequest,
+	toProject, toConfig string,
+) tea.Cmd {
+	return func() tea.Msg {
+		if len(changes) > 0 {
+			_, err := controllers.SetSecrets(withProjectConfig(opts, fromProject, fromConfig), changes)
+			if err.Unwrap() != nil {
+				return errMsg{err.Unwrap()}
+			}
+		}
+		if toConfig != "" {
+			computed, err := controllers.GetSecrets(withProjectConfig(opts, toProject, toConfig))
+			if err.Unwrap() != nil {
+				return errMsg{err.Unwrap()}
+			}
+			return secretsLoadedMsg{
+				secrets:       secretsFromComputed(computed),
+				activeProject: toProject,
+				activeConfig:  toConfig,
+			}
+		}
+		return selectProjectCmd(opts, toProject, fromConfig)()
+	}
+}
+
 func createConfigCmd(opts models.ScopedOptions, project, name, environment string) tea.Cmd {
 	return func() tea.Msg {
 		info, err := controllers.CreateConfig(withProject(opts, project), name, environment)

@@ -41,6 +41,7 @@ const (
 	focusCommand
 	focusHelp
 	focusSave
+	focusSwitchConfirm
 )
 
 type secretCol int
@@ -112,6 +113,9 @@ type Model struct {
 	activeConfig  string
 
 	pendingChanges []models.ChangeRequest
+
+	pendingSwitchProject string
+	pendingSwitchConfig  string
 
 	helpViewport  viewport.Model
 	configModTime time.Time
@@ -379,7 +383,11 @@ func (m *Model) rebuildTree() {
 }
 
 func (m Model) inModal() bool {
-	return m.focus == focusHelp || m.focus == focusSave
+	return m.focus == focusHelp || m.focus == focusSave || m.focus == focusSwitchConfirm
+}
+
+func (m Model) hasDirtySecrets() bool {
+	return len(collectChanges(m.secrets)) > 0
 }
 
 func (m Model) inSecretInsert() bool {
