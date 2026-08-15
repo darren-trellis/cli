@@ -56,6 +56,7 @@ var commandCatalog = []commandInfo{
 	{"search clear", "Clear search"},
 	{"filter", "Open secrets filter"},
 	{"config create", "Create a config"},
+	{"config rename", "Rename selected config"},
 	{"sidebar toggle", "Toggle projects sidebar"},
 	{"command", "Open command prompt"},
 	{"command clear", "Clear status / search"},
@@ -111,11 +112,19 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 		m.setFocus(focusFilter)
 		return m, nil
 	case "config":
-		if len(args) > 0 && args[0] == "create" {
-			return m.beginCreateConfig()
+		if len(args) == 0 {
+			m.errMsg = "usage: config create|rename"
+			return m, nil
 		}
-		m.errMsg = "unknown config command"
-		return m, nil
+		switch args[0] {
+		case "create":
+			return m.beginCreateConfig()
+		case "rename":
+			return m.beginRenameConfig()
+		default:
+			m.errMsg = "unknown config command"
+			return m, nil
+		}
 	case "sidebar":
 		if len(args) > 0 && args[0] == "toggle" {
 			m.toggleSidebar()
@@ -295,11 +304,11 @@ func (m Model) renderHelpText() string {
 		"nav up", "nav down", "nav top", "nav bottom", "nav page up", "nav page down", "nav left", "nav right",
 	})
 	writeSection("Projects:", focusProjects, []string{
-		"fold toggle", "select", "config create",
+		"fold toggle", "select", "config create", "config rename",
 	})
 	writeSection("Secrets:", focusSecrets, []string{
 		"edit", "secret add", "secret delete", "secret undo", "secret yank", "secret save",
 	})
-	b.WriteString("Typing modes (search/filter/insert/create) use Esc/Enter locally.\n")
+	b.WriteString("Typing modes (search/filter/insert/create/rename) use Esc/Enter locally.\n")
 	return b.String()
 }

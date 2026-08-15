@@ -103,6 +103,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.pendingChanges = nil
 		m.createConfigProject = ""
 		m.createConfigEnv = ""
+		m.renameFromConfig = ""
+		m.configPromptMode = configPromptCreate
 		if msg.config != "" {
 			for _, c := range msg.configs {
 				if c.name == msg.config && c.environment != "" {
@@ -290,9 +292,14 @@ func (m Model) handleCreateConfigKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.createConfigInput.SetValue("")
 		m.createConfigProject = ""
 		m.createConfigEnv = ""
+		m.renameFromConfig = ""
+		m.configPromptMode = configPromptCreate
 		m.setFocus(focusProjects)
 		return m, nil
 	case "enter":
+		if m.configPromptMode == configPromptRename {
+			return m.submitRenameConfig()
+		}
 		return m.submitCreateConfig()
 	case "ctrl+c":
 		return m, tea.Quit
@@ -330,8 +337,42 @@ func (m Model) submitCreateConfig() (tea.Model, tea.Cmd) {
 	m.statusMsg = ""
 	m.fetching = true
 	m.createConfigInput.SetValue("")
+	m.renameFromConfig = ""
+	m.configPromptMode = configPromptCreate
 	m.setFocus(focusProjects)
 	return m, tea.Batch(m.spinner.Tick, createConfigCmd(m.opts, project, name, environment))
+}
+
+func (m Model) submitRenameConfig() (tea.Model, tea.Cmd) {
+	name := strings.TrimSpace(m.createConfigInput.Value())
+	project := m.createConfigProject
+	from := m.renameFromConfig
+	if project == "" || from == "" {
+		m.errMsg = "Select a config to rename"
+		m.statusMsg = ""
+		return m, nil
+	}
+	if name == "" {
+		m.errMsg = "Config name required"
+		m.statusMsg = ""
+		return m, nil
+	}
+	if name == from {
+		m.createConfigInput.SetValue("")
+		m.renameFromConfig = ""
+		m.configPromptMode = configPromptCreate
+		m.setFocus(focusProjects)
+		return m, nil
+	}
+
+	m.errMsg = ""
+	m.statusMsg = ""
+	m.fetching = true
+	m.createConfigInput.SetValue("")
+	m.renameFromConfig = ""
+	m.configPromptMode = configPromptCreate
+	m.setFocus(focusProjects)
+	return m, tea.Batch(m.spinner.Tick, renameConfigCmd(m.opts, project, from, name))
 }
 
 func inferEnvironmentFromConfigName(name string) string {
@@ -617,6 +658,8 @@ func (m Model) beginCreateConfig() (tea.Model, tea.Cmd) {
 
 	m.createConfigProject = row.project
 	m.createConfigEnv = ""
+	m.renameFromConfig = ""
+	m.configPromptMode = configPromptCreate
 	prefill := ""
 	if row.kind == treeConfig && row.config != "" {
 		m.createConfigEnv = m.configEnvironment(row.project, row.config)
@@ -624,7 +667,33 @@ func (m Model) beginCreateConfig() (tea.Model, tea.Cmd) {
 			prefill = m.createConfigEnv + "_"
 		}
 	}
+	m.createConfigInput.Prompt = "+ "
+	m.createConfigInput.Placeholder = "New config (e.g. dev_personal)…"
 	m.createConfigInput.SetValue(prefill)
+	m.errMsg = ""
+	m.statusMsg = ""
+	m.setFocus(focusCreateConfig)
+	return m, nil
+}
+
+func (m Model) beginRenameConfig() (tea.Model, tea.Cmd) {
+	if len(m.tree) == 0 || m.treeIdx < 0 || m.treeIdx >= len(m.tree) {
+		m.errMsg = "Select a config to rename"
+		return m, nil
+	}
+	row := m.tree[m.treeIdx]
+	if row.kind != treeConfig || row.config == "" {
+		m.errMsg = "Select a config to rename"
+		return m, nil
+	}
+
+	m.createConfigProject = row.project
+	m.createConfigEnv = m.configEnvironment(row.project, row.config)
+	m.renameFromConfig = row.config
+	m.configPromptMode = configPromptRename
+	m.createConfigInput.Prompt = "~ "
+	m.createConfigInput.Placeholder = "Rename config…"
+	m.createConfigInput.SetValue(row.config)
 	m.errMsg = ""
 	m.statusMsg = ""
 	m.setFocus(focusCreateConfig)

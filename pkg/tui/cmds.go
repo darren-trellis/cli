@@ -201,3 +201,29 @@ func createConfigCmd(opts models.ScopedOptions, project, name, environment strin
 		}
 	}
 }
+
+func renameConfigCmd(opts models.ScopedOptions, project, from, to string) tea.Cmd {
+	return func() tea.Msg {
+		info, err := controllers.UpdateConfig(withProjectConfig(opts, project, from), to)
+		if err.Unwrap() != nil {
+			return errMsg{err.Unwrap()}
+		}
+
+		configInfos, listErr := controllers.GetConfigs(withProject(opts, project))
+		if listErr.Unwrap() != nil {
+			return errMsg{listErr.Unwrap()}
+		}
+
+		computed, secretsErr := controllers.GetSecrets(withProjectConfig(opts, project, info.Name))
+		if secretsErr.Unwrap() != nil {
+			return errMsg{secretsErr.Unwrap()}
+		}
+
+		return projectSelectedMsg{
+			configs: buildConfigTree(configInfos),
+			secrets: secretsFromComputed(computed),
+			project: project,
+			config:  info.Name,
+		}
+	}
+}

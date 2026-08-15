@@ -102,3 +102,62 @@ func TestSubmitCreateConfigInfersEnvironment(t *testing.T) {
 	assert.Equal(t, focusProjects, mod.focus)
 	assert.Equal(t, "", mod.errMsg)
 }
+
+func TestBeginRenameConfig(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusProjects
+	m.projects = []string{"api"}
+	m.projectConfigs["api"] = buildConfigTree([]models.ConfigInfo{
+		{Name: "dev", Environment: "dev", Root: true},
+		{Name: "dev_personal", Environment: "dev", Root: false},
+	})
+	m.expanded["api"] = true
+	m.expandedEnvs[envKey("api", "dev")] = true
+	m.rebuildTree()
+	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev_personal")
+
+	next, _ := m.beginRenameConfig()
+	mod := next.(Model)
+	assert.Equal(t, focusCreateConfig, mod.focus)
+	assert.Equal(t, configPromptRename, mod.configPromptMode)
+	assert.Equal(t, "api", mod.createConfigProject)
+	assert.Equal(t, "dev_personal", mod.renameFromConfig)
+	assert.Equal(t, "dev_personal", mod.createConfigInput.Value())
+	assert.Equal(t, "~ ", mod.createConfigInput.Prompt)
+}
+
+func TestRenameConfigKeybindingFromProjects(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusProjects
+	m.projects = []string{"api"}
+	m.projectConfigs["api"] = buildConfigTree([]models.ConfigInfo{
+		{Name: "dev", Environment: "dev", Root: true},
+	})
+	m.expanded["api"] = true
+	m.rebuildTree()
+	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
+
+	next, _ := m.handleNavKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	mod := next.(Model)
+	assert.Equal(t, focusCreateConfig, mod.focus)
+	assert.Equal(t, configPromptRename, mod.configPromptMode)
+	assert.Equal(t, "dev", mod.renameFromConfig)
+}
+
+func TestSubmitRenameConfigNoopSameName(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusCreateConfig
+	m.configPromptMode = configPromptRename
+	m.createConfigProject = "api"
+	m.renameFromConfig = "dev"
+	m.createConfigInput.SetValue("dev")
+
+	next, cmd := m.submitRenameConfig()
+	mod := next.(Model)
+	assert.Nil(t, cmd)
+	assert.Equal(t, focusProjects, mod.focus)
+	assert.Equal(t, configPromptCreate, mod.configPromptMode)
+}

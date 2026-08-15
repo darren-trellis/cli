@@ -50,6 +50,13 @@ const (
 	colValue
 )
 
+type configPromptKind int
+
+const (
+	configPromptCreate configPromptKind = iota
+	configPromptRename
+)
+
 type Model struct {
 	opts models.ScopedOptions
 	cfg  configuration.TUISettings
@@ -86,6 +93,8 @@ type Model struct {
 	createConfigInput   textinput.Model
 	createConfigProject string
 	createConfigEnv     string
+	configPromptMode    configPromptKind // create or rename
+	renameFromConfig    string
 
 	commandInput textinput.Model
 	completions  CompletionState
