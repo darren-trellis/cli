@@ -365,6 +365,14 @@ func CopyToClipboard(text string) error {
 	return nil
 }
 
+// ReadClipboard reads text from the user's clipboard
+func ReadClipboard() (string, error) {
+	if clipboard.Unsupported {
+		return "", fmt.Errorf("clipboard unsupported")
+	}
+	return clipboard.ReadAll()
+}
+
 // HostOS the host OS
 func HostOS() string {
 	os := runtime.GOOS

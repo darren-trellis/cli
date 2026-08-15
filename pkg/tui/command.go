@@ -54,6 +54,7 @@ var commandCatalog = []commandInfo{
 	{"yank yaml", "Copy secrets as YAML"},
 	{"yank json", "Copy secrets as JSON"},
 	{"yank env", "Copy secrets as env"},
+	{"paste", "Paste secrets from clipboard"},
 	{"secret save", "Open save prompt"},
 	{"search", "Open search"},
 	{"search next", "Next search match"},
@@ -117,6 +118,8 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 		return m.execSecret(args)
 	case "yank":
 		return m.execYank(args)
+	case "paste":
+		return m.pasteSecrets()
 	case "search":
 		return m.execSearch(args)
 	case "filter":
@@ -327,9 +330,10 @@ func (m Model) renderHelpText() string {
 		"yank name", "yank yaml", "yank json", "yank env",
 	})
 	writeSection("Secrets:", focusSecrets, []string{
-		"edit", "secret add", "secret delete", "secret undo", "secret yank", "secret save",
+		"edit", "secret add", "secret delete", "secret undo", "secret yank", "paste", "secret save",
 	})
 	b.WriteString("Typing modes (search/filter/insert/create/rename) use Esc/Enter locally.\n")
 	b.WriteString("Projects yank: y then n/y/j/e (name / yaml / json / env).\n")
+	b.WriteString("Secrets paste: p imports yaml/json/env from the clipboard.\n")
 	return b.String()
 }
