@@ -176,8 +176,6 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch m.focus {
-	case focusIntro:
-		return m.handleIntroKey(msg)
 	case focusHelp:
 		return m.handleHelpKey(msg)
 	case focusSave:
@@ -195,17 +193,6 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	default:
 		return m.handleNavKey(msg)
 	}
-}
-
-func (m Model) handleIntroKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "enter", "esc", "q":
-		configuration.TUIMarkIntroSeen()
-		m.setFocus(focusSecrets)
-	case "ctrl+c":
-		return m, tea.Quit
-	}
-	return m, nil
 }
 
 func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {

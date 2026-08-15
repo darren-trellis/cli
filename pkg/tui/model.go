@@ -39,7 +39,6 @@ const (
 	focusSearch
 	focusCreateConfig
 	focusCommand
-	focusIntro
 	focusHelp
 	focusSave
 )
@@ -157,10 +156,6 @@ func newModel(opts models.ScopedOptions, cfg configuration.TUISettings) Model {
 		projectConfigs:    map[string][]configRow{},
 		expanded:          map[string]bool{},
 		expandedEnvs:      map[string]bool{},
-	}
-
-	if configuration.TUIShouldShowIntro() {
-		m.focus = focusIntro
 	}
 
 	return m
@@ -374,7 +369,7 @@ func (m *Model) rebuildTree() {
 }
 
 func (m Model) inModal() bool {
-	return m.focus == focusIntro || m.focus == focusHelp || m.focus == focusSave
+	return m.focus == focusHelp || m.focus == focusSave
 }
 
 func (m Model) inSecretInsert() bool {

@@ -136,8 +136,6 @@ func (m Model) View() string {
 	}
 
 	switch m.focus {
-	case focusIntro:
-		base = m.renderOverlay(base, m.renderIntroModal())
 	case focusHelp:
 		base = m.renderOverlay(base, m.renderHelpModal())
 	case focusSave:
@@ -571,19 +569,6 @@ func titledTopBorder(title string, width int, active bool) string {
 		tStyle.Render(label) +
 		borderStyle.Render(strings.Repeat(roundedBorder.Top, right)) +
 		borderStyle.Render(roundedBorder.TopRight)
-}
-
-func (m Model) renderIntroModal() string {
-	body := `Welcome to the Doppler TUI!
-
-Close this window with Enter/Esc, then press ?
-for keybindings.
-
-Secrets are a two-column grid. Use hjkl to move,
-i/Enter to edit a cell, Esc for normal mode.
-
-https://github.com/DopplerHQ/cli`
-	return m.renderTitledPanel("Welcome", body, min(64, max(40, m.width-8)), 12, true)
 }
 
 func (m Model) renderHelpModal() string {
