@@ -330,21 +330,15 @@ func (m Model) renderLinesPanel(title string, lines, needles []string, selected 
 }
 
 func (m Model) renderStatus(width int) string {
-	fullInputW := max(8, width-2)
-
 	switch {
 	case m.focus == focusSearch:
-		styleStatusInput(&m.searchInput, fullInputW)
-		return statusBarStyle.Width(width).MaxWidth(width).Render(m.searchInput.View())
+		return renderStatusInput(&m.searchInput, width)
 	case m.focus == focusCommand:
-		styleStatusInput(&m.commandInput, fullInputW)
-		return statusBarStyle.Width(width).MaxWidth(width).Render(m.commandInput.View())
+		return renderStatusInput(&m.commandInput, width)
 	case m.focus == focusCreateConfig:
-		styleStatusInput(&m.createConfigInput, fullInputW)
-		return statusBarStyle.Width(width).MaxWidth(width).Render(m.createConfigInput.View())
+		return renderStatusInput(&m.createConfigInput, width)
 	case m.focus == focusFilter:
-		styleStatusInput(&m.filterInput, fullInputW)
-		return statusBarStyle.Width(width).MaxWidth(width).Render(m.filterInput.View())
+		return renderStatusInput(&m.filterInput, width)
 	}
 
 	var left string
@@ -390,21 +384,35 @@ func (m Model) renderStatus(width int) string {
 	return statusBarStyle.Width(width).MaxWidth(width).Render(line)
 }
 
-func styleStatusInput(ti *textinput.Model, width int) {
+func renderStatusInput(ti *textinput.Model, width int) string {
 	text := lipgloss.NewStyle().Foreground(textColor)
-	prompt := helpStyle
 	cursorStyle := lipgloss.NewStyle().Foreground(textColor)
 	if background != "" {
 		text = text.Background(background)
 		cursorStyle = cursorStyle.Background(background)
 	}
-	ti.Width = width
 	ti.TextStyle = text
-	ti.PromptStyle = prompt
+	ti.PromptStyle = helpStyle
 	ti.PlaceholderStyle = helpStyle
 	ti.Cursor.Style = cursorStyle
 	ti.Cursor.TextStyle = text
 	_ = ti.Cursor.SetMode(cursor.CursorStatic)
+
+	// textinput's placeholder path pads with unstyled spaces; keep Width=0 when
+	// empty so statusBarStyle can fill the full row with the theme background.
+	promptW := lipgloss.Width(ti.PromptStyle.Render(ti.Prompt))
+	avail := max(1, width-promptW)
+	if ti.Value() == "" {
+		ti.Width = 0
+	} else {
+		ti.Width = avail
+	}
+
+	view := ti.View()
+	if lipgloss.Width(view) > width {
+		view = lipgloss.NewStyle().MaxWidth(width).Render(view)
+	}
+	return statusBarStyle.Width(width).MaxWidth(width).Render(view)
 }
 
 func (m Model) renderTitledPanel(title, content string, width, height int, active bool) string {
