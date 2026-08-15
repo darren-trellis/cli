@@ -47,9 +47,10 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.filterInput.Width = max(10, m.width-6)
-		m.searchInput.Width = max(10, m.width-6)
-		m.createConfigInput.Width = max(10, m.width-6)
+		m.filterInput.Width = max(10, m.width-2)
+		m.searchInput.Width = max(10, m.width-2)
+		m.createConfigInput.Width = max(10, m.width-2)
+		m.commandInput.Width = max(10, m.width-2)
 		m.cellInput.Width = max(10, m.width/3)
 		m.helpViewport.Width = min(60, m.width-8)
 		m.helpViewport.Height = min(24, m.height-8)
@@ -187,6 +188,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleSearchKey(msg)
 	case focusCreateConfig:
 		return m.handleCreateConfigKey(msg)
+	case focusCommand:
+		return m.handleCommandKey(msg)
 	case focusSecretInsert:
 		return m.handleInsertKey(msg)
 	default:
@@ -409,108 +412,34 @@ func (m Model) handleInsertKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	chord, ok := encodeKey(msg)
+	if !ok {
+		return m, nil
+	}
+	cmd, ok := m.keys.Resolve(m.focus, chord)
+	if !ok {
+		return m, nil
+	}
+	return m.executeCommand(cmd)
+}
+
+func (m Model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "ctrl+c", "q":
-		return m, tea.Quit
-	case "tab":
-		m.cyclePane(1)
-		return m, nil
-	case "shift+tab":
-		m.cyclePane(-1)
-		return m, nil
-	case "1":
-		if m.cfg.Sidebar {
-			m.setFocus(focusProjects)
-		}
-		return m, nil
-	case "2":
+	case "esc":
+		m.commandInput.SetValue("")
 		m.setFocus(focusSecrets)
 		return m, nil
-	case "B":
-		m.toggleSidebar()
-		return m, nil
-	case "/":
-		m.beginSearch()
-		return m, nil
-	case "f":
-		m.setFocus(focusFilter)
-		return m, nil
-	case "?":
-		m.focus = focusHelp
-		m.helpViewport.SetContent(helpText)
-		m.helpViewport.GotoTop()
-		return m, nil
-	case "j", "down":
-		m.moveList(1)
-		return m, nil
-	case "k", "up":
-		m.moveList(-1)
-		return m, nil
-	case "h", "left":
-		if m.focus == focusSecrets {
-			m.secretCol = colName
-		}
-		return m, nil
-	case "l", "right":
-		if m.focus == focusSecrets {
-			m.secretCol = colValue
-		}
-		return m, nil
-	case "pgdown":
-		m.moveList(m.pageSize())
-		return m, nil
-	case "pgup":
-		m.moveList(-m.pageSize())
-		return m, nil
-	case "g":
-		m.jumpListEdge(false)
-		return m, nil
-	case "G":
-		m.jumpListEdge(true)
-		return m, nil
-	case "n":
-		m.stepSearchMatch(1)
-		return m, nil
-	case "N":
-		m.stepSearchMatch(-1)
-		return m, nil
-	case "esc":
-		if m.searchRe != nil || m.searchQuery != "" {
-			m.clearSearch()
-		}
-		return m, nil
-	case " ":
-		if m.focus == focusProjects {
-			return m.toggleFold()
-		}
-		return m, nil
-	case "enter", "i", "a":
-		if m.focus == focusSecrets {
-			m.enterInsert()
-			return m, nil
-		}
-		if msg.String() == "enter" {
-			return m.activateSelection()
-		}
-		return m, nil
-	case "o":
-		if m.focus == focusSecrets {
-			return m.addSecret()
-		}
-		if m.focus == focusProjects {
-			return m.beginCreateConfig()
-		}
-		return m, nil
-	case "d":
-		return m.deleteSecret()
-	case "u":
-		return m.undoSecret()
-	case "y":
-		return m.yankSecret()
-	case "s":
-		return m.openSave()
+	case "enter":
+		line := m.commandInput.Value()
+		m.commandInput.SetValue("")
+		m.setFocus(focusSecrets)
+		return m.executeCommand(line)
+	case "ctrl+c":
+		return m, tea.Quit
 	}
-	return m, nil
+	var cmd tea.Cmd
+	m.commandInput, cmd = m.commandInput.Update(msg)
+	return m, cmd
 }
 
 func (m *Model) moveList(delta int) {
@@ -871,6 +800,7 @@ func (m Model) handleConfigWatch() (tea.Model, tea.Cmd) {
 		_ = applyTheme(newCfg.Theme)
 	}
 	m.cfg = newCfg
+	m.keys = MergeKeys(newCfg.Keys)
 	if !m.cfg.Sidebar && m.focus == focusProjects {
 		m.focus = focusSecrets
 	}
@@ -900,75 +830,3 @@ func min(a, b int) int {
 	}
 	return b
 }
-
-const helpText = `Global Keybinds:
-    Tab / Shift+Tab  Cycle panes
-    1 Focus Projects
-    2 Focus Secrets
-    B Toggle projects sidebar
-    / Search current pane (regex)
-    f Filter secrets (status bar)
-    n / N Next / previous match
-    Esc   Clear search
-    ? Help
-    q Exit
-
-Themes & settings:
-    doppler tui --theme <name>
-    Also: --sidebar, --sidebar-width,
-    --sidebar-position, --page-lines,
-    --scroll-lines, --border, --case-mode,
-    --name-column-percent, --list-scrollbar,
-    --sidebar-scrollbar, --autosave,
-    --autoreload
-    Saved under tui: in ~/.doppler/.doppler.yaml
-
-Projects (with configs):
-    j / k / ↑↓     Move
-    g / G          Top / bottom
-    PgUp / PgDown  Page
-    Space   Fold / unfold project or env
-    Enter   Select project or config
-    o       Create config (status bar)
-    Folded nodes still show the active
-    config when it belongs under them
-
-Secrets (vim-style):
-    h / l / ←→     Name / value column
-    j / k / ↑↓     Move rows
-    g / G          Top / bottom
-    PgUp / PgDown  Page
-    i / a / Enter  Insert (edit cell)
-    Esc            Normal mode
-    Tab            Next cell (insert)
-    o              Add secret
-    d              Delete / mark delete
-    u              Undo last secret change
-    y              Yank active cell
-    s              Save prompt
-
-Search:
-    /       Edit regex in status bar
-    Enter   Jump to first match
-    Esc     Clear search
-    n / N   Next / previous match
-
-Filter:
-    f       Edit filter in status bar
-    Enter / Esc / Tab  Apply and return
-
-Create config:
-    o (Projects)  Name prompt in status bar
-    Enter         Create and open
-    Esc           Cancel
-    Tip: select an env/config first, or
-    use names like env_branch (dev_personal)
-
-Save Prompt:
-    Enter   Confirm
-    Esc / q Cancel
-
-Mouse:
-    Click name/value cells to select
-    Click status bar to search
-    Scroll wheel to navigate`

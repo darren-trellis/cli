@@ -15,7 +15,11 @@ limitations under the License.
 */
 package configuration
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/DopplerHQ/cli/pkg/models"
+)
 
 // TUISettings are runtime preferences for the Doppler TUI.
 type TUISettings struct {
@@ -32,6 +36,7 @@ type TUISettings struct {
 	SidebarScrollbarVertical bool
 	Autosave                 bool
 	Autoreload               bool
+	Keys                     *models.TUIKeysOptions
 }
 
 var CURRENT_INTRO_VERSION = 1
@@ -69,6 +74,7 @@ func TUIConfig() TUISettings {
 		SidebarScrollbarVertical: boolOrDefault(configContents.TUI.SidebarScrollbarVertical, true),
 		Autosave:                 boolOrDefault(configContents.TUI.Autosave, true),
 		Autoreload:               boolOrDefault(configContents.TUI.Autoreload, true),
+		Keys:                     configContents.TUI.Keys,
 	})
 }
 
@@ -121,6 +127,7 @@ func TUISaveSettings(s TUISettings) {
 	configContents.TUI.SidebarScrollbarVertical = boolPtr(s.SidebarScrollbarVertical)
 	configContents.TUI.Autosave = boolPtr(s.Autosave)
 	configContents.TUI.Autoreload = boolPtr(s.Autoreload)
+	configContents.TUI.Keys = s.Keys
 	writeConfig(configContents)
 }
 

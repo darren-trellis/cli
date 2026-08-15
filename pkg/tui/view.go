@@ -20,6 +20,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/cursor"
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -328,47 +330,34 @@ func (m Model) renderLinesPanel(title string, lines, needles []string, selected 
 }
 
 func (m Model) renderStatus(width int) string {
+	fullInputW := max(8, width-2)
+
+	switch {
+	case m.focus == focusSearch:
+		styleStatusInput(&m.searchInput, fullInputW)
+		return statusBarStyle.Width(width).MaxWidth(width).Render(m.searchInput.View())
+	case m.focus == focusCommand:
+		styleStatusInput(&m.commandInput, fullInputW)
+		return statusBarStyle.Width(width).MaxWidth(width).Render(m.commandInput.View())
+	case m.focus == focusCreateConfig:
+		styleStatusInput(&m.createConfigInput, fullInputW)
+		return statusBarStyle.Width(width).MaxWidth(width).Render(m.createConfigInput.View())
+	case m.focus == focusFilter:
+		styleStatusInput(&m.filterInput, fullInputW)
+		return statusBarStyle.Width(width).MaxWidth(width).Render(m.filterInput.View())
+	}
+
 	var left string
 	if m.fetching {
 		left = m.spinner.View() + " Loading…"
-	} else if m.focus == focusSearch {
-		left = helpStyle.Render("search · enter apply · esc clear")
-	} else if m.focus == focusCreateConfig {
-		left = helpStyle.Render("new config · enter create · esc cancel")
-	} else if m.focus == focusFilter {
-		left = helpStyle.Render("filter · enter/esc apply")
-	} else if m.focus == focusSecretInsert {
-		left = helpStyle.Render("insert · esc/enter normal · tab next cell")
 	} else if m.errMsg != "" {
 		left = errorStyle.Render(m.errMsg)
 	} else if m.statusMsg != "" {
 		left = statusStyle.Render(m.statusMsg)
-	} else {
-		left = helpStyle.Render("tab cycle · hjkl move · i edit · o add · / search · ? help")
 	}
 
 	var right string
-	rightW := max(12, min(40, width/2))
-	inputTextStyle := lipgloss.NewStyle().Foreground(textColor)
-	if background != "" {
-		inputTextStyle = inputTextStyle.Background(background)
-	}
 	switch {
-	case m.focus == focusSearch:
-		m.searchInput.Width = max(8, rightW-2)
-		m.searchInput.TextStyle = inputTextStyle
-		m.searchInput.PromptStyle = helpStyle
-		right = m.searchInput.View()
-	case m.focus == focusCreateConfig:
-		m.createConfigInput.Width = max(8, rightW-2)
-		m.createConfigInput.TextStyle = inputTextStyle
-		m.createConfigInput.PromptStyle = helpStyle
-		right = m.createConfigInput.View()
-	case m.focus == focusFilter:
-		m.filterInput.Width = max(8, rightW-2)
-		m.filterInput.TextStyle = inputTextStyle
-		m.filterInput.PromptStyle = helpStyle
-		right = m.filterInput.View()
 	case m.searchQuery != "":
 		right = searchHitStyle.Render(m.searchStatusLabel())
 		if m.filter != "" {
@@ -399,6 +388,23 @@ func (m Model) renderStatus(width int) string {
 	}
 
 	return statusBarStyle.Width(width).MaxWidth(width).Render(line)
+}
+
+func styleStatusInput(ti *textinput.Model, width int) {
+	text := lipgloss.NewStyle().Foreground(textColor)
+	prompt := helpStyle
+	cursorStyle := lipgloss.NewStyle().Foreground(textColor)
+	if background != "" {
+		text = text.Background(background)
+		cursorStyle = cursorStyle.Background(background)
+	}
+	ti.Width = width
+	ti.TextStyle = text
+	ti.PromptStyle = prompt
+	ti.PlaceholderStyle = helpStyle
+	ti.Cursor.Style = cursorStyle
+	ti.Cursor.TextStyle = text
+	_ = ti.Cursor.SetMode(cursor.CursorStatic)
 }
 
 func (m Model) renderTitledPanel(title, content string, width, height int, active bool) string {

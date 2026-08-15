@@ -38,6 +38,7 @@ const (
 	focusFilter
 	focusSearch
 	focusCreateConfig
+	focusCommand
 	focusIntro
 	focusHelp
 	focusSave
@@ -87,6 +88,9 @@ type Model struct {
 	createConfigProject string
 	createConfigEnv     string
 
+	commandInput textinput.Model
+	keys         KeysConfig
+
 	cellInput textinput.Model
 
 	fetching  bool
@@ -121,6 +125,11 @@ func newModel(opts models.ScopedOptions, cfg configuration.TUISettings) Model {
 	cci.CharLimit = 128
 	cci.Prompt = "+ "
 
+	cmi := textinput.New()
+	cmi.Placeholder = "command…"
+	cmi.CharLimit = 256
+	cmi.Prompt = ": "
+
 	ci := textinput.New()
 	ci.CharLimit = 4096
 	ci.Prompt = ""
@@ -138,6 +147,8 @@ func newModel(opts models.ScopedOptions, cfg configuration.TUISettings) Model {
 		searchInput:       si,
 		searchPane:        focusSecrets,
 		createConfigInput: cci,
+		commandInput:      cmi,
+		keys:              MergeKeys(cfg.Keys),
 		cellInput:         ci,
 		secretCol:         colName,
 		spinner:           sp,
@@ -379,6 +390,7 @@ func (m *Model) setFocus(f focusArea) {
 	m.filterInput.Blur()
 	m.searchInput.Blur()
 	m.createConfigInput.Blur()
+	m.commandInput.Blur()
 
 	m.focus = f
 	switch f {
@@ -400,6 +412,9 @@ func (m *Model) setFocus(f focusArea) {
 	case focusCreateConfig:
 		m.createConfigInput.Focus()
 		m.createConfigInput.CursorEnd()
+	case focusCommand:
+		m.commandInput.Focus()
+		m.commandInput.CursorEnd()
 	}
 }
 

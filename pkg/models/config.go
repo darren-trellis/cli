@@ -16,7 +16,10 @@ limitations under the License.
 package models
 
 import (
+	"fmt"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // ConfigFile structure of the config file
@@ -51,20 +54,103 @@ type AnalyticsOptions struct {
 }
 
 type TUIOptions struct {
-	IntroVersionSeen         int    `yaml:"introVersionSeen"`
-	Theme                    string `yaml:"theme,omitempty"`
-	Sidebar                  *bool  `yaml:"sidebar,omitempty"`
-	SidebarWidth             int    `yaml:"sidebarWidth,omitempty"`
-	SidebarPosition          string `yaml:"sidebarPosition,omitempty"`
-	PageLines                int    `yaml:"pageLines,omitempty"`
-	ScrollLines              int    `yaml:"scrollLines,omitempty"`
-	Border                   *bool  `yaml:"border,omitempty"`
-	CaseMode                 string `yaml:"caseMode,omitempty"`
-	NameColumnPercent        int    `yaml:"nameColumnPercent,omitempty"`
-	ListScrollbarVertical    *bool  `yaml:"listScrollbarVertical,omitempty"`
-	SidebarScrollbarVertical *bool  `yaml:"sidebarScrollbarVertical,omitempty"`
-	Autosave                 *bool  `yaml:"autosave,omitempty"`
-	Autoreload               *bool  `yaml:"autoreload,omitempty"`
+	IntroVersionSeen         int             `yaml:"introVersionSeen"`
+	Theme                    string          `yaml:"theme,omitempty"`
+	Sidebar                  *bool           `yaml:"sidebar,omitempty"`
+	SidebarWidth             int             `yaml:"sidebarWidth,omitempty"`
+	SidebarPosition          string          `yaml:"sidebarPosition,omitempty"`
+	PageLines                int             `yaml:"pageLines,omitempty"`
+	ScrollLines              int             `yaml:"scrollLines,omitempty"`
+	Border                   *bool           `yaml:"border,omitempty"`
+	CaseMode                 string          `yaml:"caseMode,omitempty"`
+	NameColumnPercent        int             `yaml:"nameColumnPercent,omitempty"`
+	ListScrollbarVertical    *bool           `yaml:"listScrollbarVertical,omitempty"`
+	SidebarScrollbarVertical *bool           `yaml:"sidebarScrollbarVertical,omitempty"`
+	Autosave                 *bool           `yaml:"autosave,omitempty"`
+	Autoreload               *bool           `yaml:"autoreload,omitempty"`
+	Keys                     *TUIKeysOptions `yaml:"keys,omitempty"`
+}
+
+// TUIKeysOptions stores user keybindings under tui.keys.
+// Flat entries are base bindings; projects/secrets are focus overlays.
+type TUIKeysOptions struct {
+	Bindings map[string]string `yaml:"-"`
+	Projects map[string]string `yaml:"projects,omitempty"`
+	Secrets  map[string]string `yaml:"secrets,omitempty"`
+}
+
+func (k *TUIKeysOptions) UnmarshalYAML(value *yaml.Node) error {
+	if value == nil || value.Kind == yaml.ScalarNode && value.Tag == "!!null" {
+		return nil
+	}
+	if value.Kind != yaml.MappingNode {
+		return fmt.Errorf("tui.keys must be a mapping")
+	}
+	k.Bindings = map[string]string{}
+	k.Projects = nil
+	k.Secrets = nil
+	for i := 0; i+1 < len(value.Content); i += 2 {
+		keyNode := value.Content[i]
+		valNode := value.Content[i+1]
+		key := keyNode.Value
+		switch key {
+		case "projects", "secrets":
+			m := map[string]string{}
+			if err := valNode.Decode(&m); err != nil {
+				return fmt.Errorf("tui.keys.%s: %w", key, err)
+			}
+			if key == "projects" {
+				k.Projects = m
+			} else {
+				k.Secrets = m
+			}
+		default:
+			var s string
+			if err := valNode.Decode(&s); err != nil {
+				return fmt.Errorf("tui.keys.%s: %w", key, err)
+			}
+			k.Bindings[key] = s
+		}
+	}
+	return nil
+}
+
+func (k TUIKeysOptions) MarshalYAML() (interface{}, error) {
+	out := yaml.Node{Kind: yaml.MappingNode}
+	add := func(key, val string) {
+		out.Content = append(out.Content,
+			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key},
+			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: val},
+		)
+	}
+	for key, val := range k.Bindings {
+		add(key, val)
+	}
+	encodeMap := func(name string, m map[string]string) error {
+		if len(m) == 0 {
+			return nil
+		}
+		var node yaml.Node
+		if err := node.Encode(m); err != nil {
+			return err
+		}
+		out.Content = append(out.Content,
+			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: name},
+			&node,
+		)
+		return nil
+	}
+	if err := encodeMap("projects", k.Projects); err != nil {
+		return nil, err
+	}
+	if err := encodeMap("secrets", k.Secrets); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (k *TUIKeysOptions) IsZero() bool {
+	return k == nil || (len(k.Bindings) == 0 && len(k.Projects) == 0 && len(k.Secrets) == 0)
 }
 
 // ScopedOptions options with their scope
