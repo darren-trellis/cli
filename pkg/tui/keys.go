@@ -63,7 +63,7 @@ func defaultBaseKeys() map[string]string {
 		":":        "command",
 		"d":        "secret delete",
 		"u":        "secret undo",
-		"y":        "secret yank",
+		"y":        "yank",
 		"s":        "secret save",
 	}
 }

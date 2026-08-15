@@ -99,6 +99,7 @@ type Model struct {
 	commandInput textinput.Model
 	completions  CompletionState
 	keys         KeysConfig
+	pendingYank  bool
 
 	cellInput textinput.Model
 

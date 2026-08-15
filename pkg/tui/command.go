@@ -49,6 +49,12 @@ var commandCatalog = []commandInfo{
 	{"secret delete", "Delete/mark delete secret"},
 	{"secret undo", "Undo last secret change"},
 	{"secret yank", "Copy active cell"},
+	{"yank", "Start yank (n/y/j/e/c)"},
+	{"yank name", "Copy config or secret name"},
+	{"yank yaml", "Copy secrets as YAML"},
+	{"yank json", "Copy secrets as JSON"},
+	{"yank env", "Copy secrets as env"},
+	{"yank cell", "Copy active cell"},
 	{"secret save", "Open save prompt"},
 	{"search", "Open search"},
 	{"search next", "Next search match"},
@@ -66,6 +72,7 @@ var commandCatalog = []commandInfo{
 }
 
 func (m *Model) beginCommand() {
+	m.cancelYank()
 	m.commandInput.SetValue("")
 	m.statusMsg = ""
 	m.errMsg = ""
@@ -109,6 +116,8 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "secret":
 		return m.execSecret(args)
+	case "yank":
+		return m.execYank(args)
 	case "search":
 		return m.execSearch(args)
 	case "filter":
@@ -147,6 +156,7 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 			m.statusMsg = ""
 			m.errMsg = ""
 			m.clearSearch()
+			m.cancelYank()
 			return m, nil
 		}
 		if len(args) > 0 {
@@ -314,11 +324,12 @@ func (m Model) renderHelpText() string {
 		"nav up", "nav down", "nav top", "nav bottom", "nav page up", "nav page down", "nav left", "nav right",
 	})
 	writeSection("Projects:", focusProjects, []string{
-		"fold toggle", "select", "config create", "config rename", "config lock toggle",
+		"fold toggle", "select", "config create", "config rename", "config lock toggle", "yank name",
 	})
 	writeSection("Secrets:", focusSecrets, []string{
-		"edit", "secret add", "secret delete", "secret undo", "secret yank", "secret save",
+		"edit", "secret add", "secret delete", "secret undo", "yank name", "yank yaml", "yank json", "yank env", "yank cell", "secret save",
 	})
 	b.WriteString("Typing modes (search/filter/insert/create/rename) use Esc/Enter locally.\n")
+	b.WriteString("Yank: y then n/y/j/e/c (name / yaml / json / env / cell).\n")
 	return b.String()
 }

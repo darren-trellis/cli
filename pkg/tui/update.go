@@ -455,6 +455,9 @@ func (m Model) handleInsertKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.pendingYank {
+		return m.handleYankMotion(msg)
+	}
 	chord, ok := encodeKey(msg)
 	if !ok {
 		return m, nil
