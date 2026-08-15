@@ -573,22 +573,38 @@ func titledTopBorder(title string, width int, active bool) string {
 		borderStyle.Render(roundedBorder.TopRight)
 }
 
+func (m Model) helpModalButtons() []string {
+	return []string{"Close"}
+}
+
+func (m Model) saveModalButtons() []string {
+	if len(m.pendingChanges) == 0 {
+		return []string{"Close"}
+	}
+	return []string{"Confirm", "Cancel"}
+}
+
+func (m Model) switchConfirmButtons() []string {
+	return []string{"Save & Switch", "Discard", "Cancel"}
+}
+
 func (m Model) renderHelpModal() string {
-	body := m.helpViewport.View() + "\n\n" + helpStyle.Render("Enter/Esc close")
+	body := m.helpViewport.View() + "\n\n" + m.renderModalButtons(m.helpModalButtons())
 	return m.renderTitledPanel("Help", body, min(64, m.width-4), min(28, m.height-4), true)
 }
 
 func (m Model) renderSaveModal() string {
 	var body string
 	if len(m.pendingChanges) == 0 {
-		body = "There are no changes to save"
+		body = "There are no changes to save\n\n"
 	} else {
 		body = "The following secrets will be updated:\n\n"
 		for _, c := range m.pendingChanges {
 			body += "● " + fmt.Sprint(c.Name) + "\n"
 		}
-		body += "\nEnter confirm · Esc/q cancel"
+		body += "\n"
 	}
+	body += m.renderModalButtons(m.saveModalButtons())
 	return m.renderTitledPanel("Confirm Changes", body, min(60, m.width-4), min(20, m.height-4), true)
 }
 
@@ -608,19 +624,8 @@ func (m Model) renderSwitchConfirmModal() string {
 		}
 		body += "\n"
 	}
-	body += "Enter save & switch · d discard · Esc cancel"
+	body += m.renderModalButtons(m.switchConfirmButtons())
 	return m.renderTitledPanel("Unsaved Changes", body, min(60, m.width-4), min(22, m.height-4), true)
-}
-
-func (m Model) renderOverlay(base, modal string) string {
-	opts := []lipgloss.WhitespaceOption{
-		lipgloss.WithWhitespaceChars(" "),
-		lipgloss.WithWhitespaceForeground(dim),
-	}
-	if background != "" {
-		opts = append(opts, lipgloss.WithWhitespaceBackground(background))
-	}
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal, opts...)
 }
 
 func truncate(s string, width int) string {

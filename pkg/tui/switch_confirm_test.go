@@ -74,12 +74,51 @@ func TestSwitchConfirmDiscardStartsNavigation(t *testing.T) {
 	m.activeConfig = "dev"
 	m.pendingSwitchProject = "api"
 	m.pendingSwitchConfig = "prd"
+	m.modalBtnIdx = 1
 
-	next, cmd := m.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
+	next, cmd := m.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyEnter})
 	mod := next.(Model)
 	require.NotNil(t, cmd)
 	assert.True(t, mod.fetching)
 	assert.Empty(t, mod.pendingSwitchConfig)
+}
+
+func TestSwitchConfirmTabCyclesButtons(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusSwitchConfirm
+	m.modalBtnIdx = 0
+
+	next, _ := m.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyTab})
+	mod := next.(Model)
+	assert.Equal(t, 1, mod.modalBtnIdx)
+
+	next, _ = mod.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyTab})
+	mod = next.(Model)
+	assert.Equal(t, 2, mod.modalBtnIdx)
+
+	next, _ = mod.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyTab})
+	mod = next.(Model)
+	assert.Equal(t, 0, mod.modalBtnIdx)
+
+	next, _ = mod.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyShiftTab})
+	mod = next.(Model)
+	assert.Equal(t, 2, mod.modalBtnIdx)
+}
+
+func TestSwitchConfirmCancelButton(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusSwitchConfirm
+	m.pendingSwitchProject = "api"
+	m.pendingSwitchConfig = "prd"
+	m.modalBtnIdx = 2
+
+	next, cmd := m.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyEnter})
+	mod := next.(Model)
+	assert.Nil(t, cmd)
+	assert.Equal(t, focusSecrets, mod.focus)
+	assert.Empty(t, mod.pendingSwitchProject)
 }
 
 func TestActivateSameConfigSkipsPrompt(t *testing.T) {

@@ -94,6 +94,7 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case "help":
 		m.focus = focusHelp
+		m.modalBtnIdx = 0
 		m.helpViewport.SetContent(m.renderHelpText())
 		m.helpViewport.GotoTop()
 		return m, nil

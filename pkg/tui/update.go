@@ -215,8 +215,15 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	buttons := m.helpModalButtons()
 	switch msg.String() {
-	case "enter", "esc", "q":
+	case "tab":
+		m.cycleModalButton(len(buttons), 1)
+	case "shift+tab":
+		m.cycleModalButton(len(buttons), -1)
+	case "enter":
+		m.setFocus(focusSecrets)
+	case "esc", "q":
 		m.setFocus(focusSecrets)
 	case "ctrl+c":
 		return m, tea.Quit
@@ -233,10 +240,22 @@ func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleSaveKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	buttons := m.saveModalButtons()
 	switch msg.String() {
+	case "tab":
+		m.cycleModalButton(len(buttons), 1)
+		return m, nil
+	case "shift+tab":
+		m.cycleModalButton(len(buttons), -1)
+		return m, nil
 	case "enter":
 		if len(m.pendingChanges) == 0 {
 			m.setFocus(focusSecrets)
+			return m, nil
+		}
+		if m.modalBtnIdx == 1 {
+			m.setFocus(focusSecrets)
+			m.pendingChanges = nil
 			return m, nil
 		}
 		m.fetching = true
@@ -254,11 +273,25 @@ func (m Model) handleSaveKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleSwitchConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	buttons := m.switchConfirmButtons()
 	switch msg.String() {
+	case "tab":
+		m.cycleModalButton(len(buttons), 1)
+		return m, nil
+	case "shift+tab":
+		m.cycleModalButton(len(buttons), -1)
+		return m, nil
 	case "enter":
-		return m.confirmSwitchSave()
-	case "d":
-		return m.confirmSwitchDiscard()
+		switch m.modalBtnIdx {
+		case 1:
+			return m.confirmSwitchDiscard()
+		case 2:
+			m.clearPendingSwitch()
+			m.setFocus(focusSecrets)
+			return m, nil
+		default:
+			return m.confirmSwitchSave()
+		}
 	case "esc", "q":
 		m.clearPendingSwitch()
 		m.setFocus(focusSecrets)
@@ -313,6 +346,7 @@ func (m Model) openSwitchConfirm(project, config string) (tea.Model, tea.Cmd) {
 	m.pendingSwitchProject = project
 	m.pendingSwitchConfig = config
 	m.pendingChanges = collectChanges(m.secrets)
+	m.modalBtnIdx = 0
 	m.focus = focusSwitchConfirm
 	m.errMsg = ""
 	m.statusMsg = ""
@@ -918,6 +952,7 @@ func (m Model) openSave() (tea.Model, tea.Cmd) {
 		m.applyCellToSelection()
 	}
 	m.pendingChanges = collectChanges(m.secrets)
+	m.modalBtnIdx = 0
 	m.focus = focusSave
 	return m, nil
 }

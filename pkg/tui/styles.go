@@ -39,6 +39,8 @@ var (
 	statusStyle      lipgloss.Style
 	statusBarStyle   lipgloss.Style
 	modalStyle       lipgloss.Style
+	buttonStyle      lipgloss.Style
+	buttonFocusStyle lipgloss.Style
 	helpStyle        lipgloss.Style
 	appStyle         lipgloss.Style
 
@@ -111,6 +113,20 @@ func rebuildStyles(theme Theme) {
 		Padding(1, 2).
 		Width(60)
 
+	buttonStyle = lipgloss.NewStyle().
+		Foreground(theme.Dim).
+		Border(lipgloss.HiddenBorder()).
+		Padding(0, 1)
+	buttonFocusStyle = lipgloss.NewStyle().
+		Foreground(theme.SelectionFg).
+		Bold(true).
+		Padding(0, 1)
+	if theme.SelectionBg != "" {
+		buttonFocusStyle = buttonFocusStyle.Background(theme.SelectionBg)
+	} else {
+		buttonFocusStyle = buttonFocusStyle.Background(lipgloss.Color("237"))
+	}
+
 	appStyle = lipgloss.NewStyle().Foreground(theme.Text)
 	if theme.Background != "" {
 		bg := theme.Background
@@ -120,6 +136,7 @@ func rebuildStyles(theme Theme) {
 		listPanelStyle = listPanelStyle.Background(bg).BorderBackground(bg)
 		activeListPanelStyle = activeListPanelStyle.Background(bg).BorderBackground(bg)
 		modalStyle = modalStyle.Background(bg).BorderBackground(bg)
+		buttonStyle = buttonStyle.Background(bg)
 		statusBarStyle = statusBarStyle.Background(bg)
 		helpStyle = helpStyle.Background(bg)
 		statusStyle = statusStyle.Background(bg)

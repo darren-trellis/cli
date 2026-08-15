@@ -117,6 +117,8 @@ type Model struct {
 	pendingSwitchProject string
 	pendingSwitchConfig  string
 
+	modalBtnIdx int
+
 	helpViewport  viewport.Model
 	configModTime time.Time
 }
