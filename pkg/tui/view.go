@@ -142,6 +142,8 @@ func (m Model) View() string {
 		base = m.renderOverlay(base, m.renderSaveModal())
 	case focusSwitchConfirm:
 		base = m.renderOverlay(base, m.renderSwitchConfirmModal())
+	case focusDeleteConfirm:
+		base = m.renderOverlay(base, m.renderDeleteConfirmModal())
 	}
 
 	return appStyle.Width(m.width).Height(m.height).Render(base)
@@ -601,6 +603,13 @@ func (m Model) saveModalButtons() []modalButton {
 	}
 }
 
+func (m Model) deleteConfirmButtons() []modalButton {
+	return []modalButton{
+		{Label: "Delete", Key: "d"},
+		{Label: "Cancel", Key: "c"},
+	}
+}
+
 func (m Model) switchConfirmButtons() []modalButton {
 	return []modalButton{
 		{Label: "Save", Key: "s"},
@@ -653,6 +662,22 @@ func (m Model) renderSwitchConfirmModal() string {
 	body := strings.Join(lines, "\n") + "\n\n" + m.renderModalButtons(m.switchConfirmButtons(), inner)
 	height := min(lipgloss.Height(body)+m.panelChrome(), max(4, m.height-2))
 	return m.renderTitledPanel("Unsaved Changes", body, width, height, true)
+}
+
+func (m Model) renderDeleteConfirmModal() string {
+	width := min(60, max(24, m.width-4))
+	inner := m.modalInnerWidth(width)
+	target := m.pendingDeleteConfig
+	if m.pendingDeleteProject != "" && target != "" {
+		target = m.pendingDeleteProject + " / " + target
+	}
+	body := "Delete config?\n"
+	if target != "" {
+		body += "● " + target + "\n"
+	}
+	body += "\n" + m.renderModalButtons(m.deleteConfirmButtons(), inner)
+	height := min(lipgloss.Height(body)+m.panelChrome(), max(4, m.height-2))
+	return m.renderTitledPanel("Delete Config", body, width, height, true)
 }
 
 func truncate(s string, width int) string {

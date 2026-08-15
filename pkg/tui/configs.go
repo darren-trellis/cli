@@ -103,3 +103,12 @@ func indexOfConfig(rows []configRow, name string) int {
 	}
 	return 0
 }
+
+func configExists(rows []configRow, name string) bool {
+	for _, r := range rows {
+		if r.name == name {
+			return true
+		}
+	}
+	return false
+}

@@ -218,6 +218,8 @@ func (m Model) currentModalButtons() []modalButton {
 		return m.saveModalButtons()
 	case focusSwitchConfirm:
 		return m.switchConfirmButtons()
+	case focusDeleteConfirm:
+		return m.deleteConfirmButtons()
 	default:
 		return nil
 	}
@@ -231,6 +233,8 @@ func (m Model) currentModalView() string {
 		return m.renderSaveModal()
 	case focusSwitchConfirm:
 		return m.renderSwitchConfirmModal()
+	case focusDeleteConfirm:
+		return m.renderDeleteConfirmModal()
 	default:
 		return ""
 	}

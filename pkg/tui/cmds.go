@@ -275,6 +275,54 @@ func renameConfigCmd(opts models.ScopedOptions, project, from, to string) tea.Cm
 	}
 }
 
+func deleteConfigCmd(opts models.ScopedOptions, project, config, stayConfig, env string) tea.Cmd {
+	return func() tea.Msg {
+		err := controllers.DeleteConfig(withProjectConfig(opts, project, config))
+		if err.Unwrap() != nil {
+			return errMsg{err.Unwrap()}
+		}
+
+		configInfos, listErr := controllers.GetConfigs(withProject(opts, project))
+		if listErr.Unwrap() != nil {
+			return errMsg{listErr.Unwrap()}
+		}
+		configs := buildConfigTree(configInfos)
+
+		next := stayConfig
+		if next == config || !configExists(configs, next) {
+			next = pickConfigAfterDelete(configs, env)
+		}
+
+		if next == "" {
+			return projectSelectedMsg{configs: configs, project: project}
+		}
+		computed, secretsErr := controllers.GetSecrets(withProjectConfig(opts, project, next))
+		if secretsErr.Unwrap() != nil {
+			return errMsg{secretsErr.Unwrap()}
+		}
+		return projectSelectedMsg{
+			configs: configs,
+			secrets: secretsFromComputed(computed),
+			project: project,
+			config:  next,
+		}
+	}
+}
+
+func pickConfigAfterDelete(configs []configRow, env string) string {
+	if env != "" {
+		for _, c := range configs {
+			if c.environment == env {
+				return c.name
+			}
+		}
+	}
+	if len(configs) > 0 {
+		return configs[0].name
+	}
+	return ""
+}
+
 func setConfigLockCmd(opts models.ScopedOptions, project, config string, lock bool) tea.Cmd {
 	return func() tea.Msg {
 		scoped := withProjectConfig(opts, project, config)

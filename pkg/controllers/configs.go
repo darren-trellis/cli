@@ -62,6 +62,16 @@ func LockConfig(config models.ScopedOptions) (models.ConfigInfo, Error) {
 	return info, Error{}
 }
 
+func DeleteConfig(config models.ScopedOptions) Error {
+	utils.RequireValue("token", config.Token.Value)
+
+	err := http.DeleteConfig(config.APIHost.Value, utils.GetBool(config.VerifyTLS.Value, true), config.Token.Value, config.EnclaveProject.Value, config.EnclaveConfig.Value)
+	if !err.IsNil() {
+		return Error{Err: err.Unwrap(), Message: err.Message}
+	}
+	return Error{}
+}
+
 func UnlockConfig(config models.ScopedOptions) (models.ConfigInfo, Error) {
 	utils.RequireValue("token", config.Token.Value)
 

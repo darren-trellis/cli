@@ -51,8 +51,6 @@ func defaultBaseKeys() map[string]string {
 		"right":    "nav right",
 		"tab":      "focus cycle",
 		"backtab":  "focus prev",
-		"1":        "focus projects",
-		"2":        "focus secrets",
 		"B":        "sidebar toggle",
 		"/":        "search",
 		"n":        "search next",
@@ -74,6 +72,7 @@ func defaultProjectsKeys() map[string]string {
 		"o":     "config create",
 		"r":     "config rename",
 		"L":     "config lock toggle",
+		"d":     "config delete",
 		"y":     "yank",
 	}
 }

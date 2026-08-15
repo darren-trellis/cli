@@ -99,10 +99,10 @@ func TestNavKeyFocusSwitch(t *testing.T) {
 	m.fetching = false
 	m.focus = focusSecrets
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}})
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
 	assert.Equal(t, focusProjects, next.(Model).focus)
 
-	next, _ = next.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
+	next, _ = next.Update(tea.KeyMsg{Type: tea.KeyTab})
 	assert.Equal(t, focusSecrets, next.(Model).focus)
 }
 

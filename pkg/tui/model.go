@@ -42,6 +42,7 @@ const (
 	focusHelp
 	focusSave
 	focusSwitchConfirm
+	focusDeleteConfirm
 )
 
 type secretCol int
@@ -101,6 +102,7 @@ type Model struct {
 	completions  CompletionState
 	keys         KeysConfig
 	pendingYank  bool
+	motionCount  int
 
 	cellInput textinput.Model
 
@@ -116,6 +118,9 @@ type Model struct {
 
 	pendingSwitchProject string
 	pendingSwitchConfig  string
+
+	pendingDeleteProject string
+	pendingDeleteConfig  string
 
 	modalBtnIdx int
 
@@ -393,7 +398,7 @@ func (m *Model) rebuildTree() {
 }
 
 func (m Model) inModal() bool {
-	return m.focus == focusHelp || m.focus == focusSave || m.focus == focusSwitchConfirm
+	return m.focus == focusHelp || m.focus == focusSave || m.focus == focusSwitchConfirm || m.focus == focusDeleteConfirm
 }
 
 func (m Model) hasDirtySecrets() bool {

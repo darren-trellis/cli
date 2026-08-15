@@ -202,6 +202,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleSaveKey(msg)
 	case focusSwitchConfirm:
 		return m.handleSwitchConfirmKey(msg)
+	case focusDeleteConfirm:
+		return m.handleDeleteConfirmKey(msg)
 	case focusFilter:
 		return m.handleFilterKey(msg)
 	case focusSearch:
@@ -310,6 +312,13 @@ func (m Model) activateFocusedModalButton() (tea.Model, tea.Cmd) {
 		default:
 			return m.confirmSwitchSave()
 		}
+	case focusDeleteConfirm:
+		if m.modalBtnIdx == 1 {
+			m.clearPendingDelete()
+			m.setFocus(focusProjects)
+			return m, nil
+		}
+		return m.confirmDeleteConfig()
 	default:
 		return m, nil
 	}
@@ -577,11 +586,58 @@ func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	cmd, ok := m.keys.Resolve(m.focus, chord)
-	if !ok {
+	if d, isDigit := countDigit(chord); isDigit {
+		if d == 0 && m.motionCount == 0 {
+			return m, nil
+		}
+		m.motionCount = m.motionCount*10 + d
+		if m.motionCount > 9999 {
+			m.motionCount = 9999
+		}
 		return m, nil
 	}
+	cmd, ok := m.keys.Resolve(m.focus, chord)
+	if !ok {
+		m.motionCount = 0
+		return m, nil
+	}
+	if !commandUsesMotionCount(cmd) {
+		m.motionCount = 0
+	}
 	return m.executeCommand(cmd)
+}
+
+func countDigit(chord string) (int, bool) {
+	if len(chord) != 1 || chord[0] < '0' || chord[0] > '9' {
+		return 0, false
+	}
+	return int(chord[0] - '0'), true
+}
+
+func commandUsesMotionCount(cmd string) bool {
+	switch cmd {
+	case "nav up", "nav down", "nav page up", "nav page down", "nav bottom", "search next", "search prev":
+		return true
+	default:
+		return false
+	}
+}
+
+func (m *Model) takeMotionCount() int {
+	n, _ := m.takeMotionCountExplicit()
+	if n < 1 {
+		return 1
+	}
+	return n
+}
+
+func (m *Model) takeMotionCountExplicit() (int, bool) {
+	n := m.motionCount
+	m.motionCount = 0
+	if n < 1 {
+		return 1, false
+	}
+	return n, true
 }
 
 func (m Model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -644,6 +700,22 @@ func (m *Model) moveList(delta int) {
 			return
 		}
 		m.secretIdx = clamp(m.secretIdx+delta, 0, len(idxs)-1)
+	}
+}
+
+func (m *Model) jumpListIndex(idx int) {
+	switch m.focus {
+	case focusProjects:
+		if len(m.tree) == 0 {
+			return
+		}
+		m.treeIdx = clamp(idx, 0, len(m.tree)-1)
+	case focusSecrets:
+		idxs := m.filteredIndexes()
+		if len(idxs) == 0 {
+			return
+		}
+		m.secretIdx = clamp(idx, 0, len(idxs)-1)
 	}
 }
 
@@ -852,6 +924,73 @@ func (m Model) beginRenameConfig() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) beginDeleteConfig() (tea.Model, tea.Cmd) {
+	row, ok := m.currentTreeRow()
+	if !ok || row.kind != treeConfig || row.config == "" {
+		m.errMsg = "Select a config to delete"
+		return m, nil
+	}
+	if m.configIsRoot(row.project, row.config) {
+		m.errMsg = "Cannot delete a root config"
+		return m, nil
+	}
+	m.pendingDeleteProject = row.project
+	m.pendingDeleteConfig = row.config
+	m.modalBtnIdx = 0
+	m.focus = focusDeleteConfirm
+	m.errMsg = ""
+	m.statusMsg = ""
+	return m, nil
+}
+
+func (m Model) handleDeleteConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	buttons := m.deleteConfirmButtons()
+	if delta, ok := modalCycleDelta(msg.String()); ok {
+		m.cycleModalButton(len(buttons), delta)
+		return m, nil
+	}
+	switch msg.String() {
+	case "enter":
+		return m.activateFocusedModalButton()
+	case "d":
+		return m.confirmDeleteConfig()
+	case "c", "esc", "q":
+		m.clearPendingDelete()
+		m.setFocus(focusProjects)
+		return m, nil
+	case "ctrl+c":
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
+func (m *Model) clearPendingDelete() {
+	m.pendingDeleteProject = ""
+	m.pendingDeleteConfig = ""
+}
+
+func (m Model) confirmDeleteConfig() (tea.Model, tea.Cmd) {
+	project := m.pendingDeleteProject
+	config := m.pendingDeleteConfig
+	env := m.configEnvironment(project, config)
+	stay := m.activeConfig
+	m.clearPendingDelete()
+	m.fetching = true
+	m.statusMsg = ""
+	m.errMsg = ""
+	m.setFocus(focusProjects)
+	return m, tea.Batch(m.spinner.Tick, deleteConfigCmd(m.opts, project, config, stay, env))
+}
+
+func (m Model) configIsRoot(project, name string) bool {
+	for _, c := range m.projectConfigs[project] {
+		if c.name == name {
+			return c.root
+		}
+	}
+	return false
+}
+
 // setSelectedConfigLock locks/unlocks the selected config.
 // lock == nil toggles based on current state.
 func (m Model) setSelectedConfigLock(lock *bool) (tea.Model, tea.Cmd) {
@@ -975,6 +1114,7 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if m.fetching {
 		return m, nil
 	}
+	m.motionCount = 0
 	if m.inModal() {
 		return m.handleModalMouse(msg)
 	}

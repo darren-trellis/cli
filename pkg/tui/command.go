@@ -66,6 +66,7 @@ var commandCatalog = []commandInfo{
 	{"config lock", "Lock selected config"},
 	{"config unlock", "Unlock selected config"},
 	{"config lock toggle", "Toggle lock on selected config"},
+	{"config delete", "Delete selected config"},
 	{"sidebar toggle", "Toggle projects sidebar"},
 	{"command", "Open command prompt"},
 	{"command clear", "Clear status / search"},
@@ -73,6 +74,7 @@ var commandCatalog = []commandInfo{
 
 func (m *Model) beginCommand() {
 	m.cancelYank()
+	m.motionCount = 0
 	m.commandInput.SetValue("")
 	m.statusMsg = ""
 	m.errMsg = ""
@@ -128,7 +130,7 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "config":
 		if len(args) == 0 {
-			m.errMsg = "usage: config create|rename|lock|unlock"
+			m.errMsg = "usage: config create|rename|lock|unlock|delete"
 			return m, nil
 		}
 		switch args[0] {
@@ -143,6 +145,8 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 			return m.setSelectedConfigLock(boolPtr(true))
 		case "unlock":
 			return m.setSelectedConfigLock(boolPtr(false))
+		case "delete":
+			return m.beginDeleteConfig()
 		default:
 			m.errMsg = "unknown config command"
 			return m, nil
@@ -160,6 +164,7 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 			m.errMsg = ""
 			m.clearSearch()
 			m.cancelYank()
+			m.motionCount = 0
 			return m, nil
 		}
 		if len(args) > 0 {
@@ -182,13 +187,18 @@ func (m Model) execNav(args []string) (tea.Model, tea.Cmd) {
 	}
 	switch args[0] {
 	case "up":
-		m.moveList(-1)
+		m.moveList(-m.takeMotionCount())
 	case "down":
-		m.moveList(1)
+		m.moveList(m.takeMotionCount())
 	case "top":
+		m.motionCount = 0
 		m.jumpListEdge(false)
 	case "bottom":
-		m.jumpListEdge(true)
+		if n, ok := m.takeMotionCountExplicit(); ok {
+			m.jumpListIndex(n - 1)
+		} else {
+			m.jumpListEdge(true)
+		}
 	case "page":
 		if len(args) < 2 {
 			m.errMsg = "nav page requires up or down"
@@ -196,9 +206,9 @@ func (m Model) execNav(args []string) (tea.Model, tea.Cmd) {
 		}
 		switch args[1] {
 		case "up":
-			m.moveList(-m.pageSize())
+			m.moveList(-m.pageSize() * m.takeMotionCount())
 		case "down":
-			m.moveList(m.pageSize())
+			m.moveList(m.pageSize() * m.takeMotionCount())
 		default:
 			m.errMsg = "nav page requires up or down"
 		}
@@ -267,9 +277,13 @@ func (m Model) execSearch(args []string) (tea.Model, tea.Cmd) {
 	}
 	switch args[0] {
 	case "next":
-		m.stepSearchMatch(1)
+		for i := 0; i < m.takeMotionCount(); i++ {
+			m.stepSearchMatch(1)
+		}
 	case "prev":
-		m.stepSearchMatch(-1)
+		for i := 0; i < m.takeMotionCount(); i++ {
+			m.stepSearchMatch(-1)
+		}
 	case "clear":
 		m.clearSearch()
 		m.statusMsg = ""
@@ -327,13 +341,14 @@ func (m Model) renderHelpText() string {
 		"nav up", "nav down", "nav top", "nav bottom", "nav page up", "nav page down", "nav left", "nav right",
 	})
 	writeSection("Projects:", focusProjects, []string{
-		"fold toggle", "select", "config create", "config rename", "config lock toggle",
+		"fold toggle", "select", "config create", "config rename", "config lock toggle", "config delete",
 		"yank name", "yank yaml", "yank json", "yank env",
 	})
 	writeSection("Secrets:", focusSecrets, []string{
 		"edit", "secret add", "secret delete", "secret undo", "secret yank", "paste", "secret save",
 	})
 	b.WriteString("Typing modes (search/filter/insert/create/rename) use Esc/Enter locally.\n")
+	b.WriteString("Counts: 7j / 3k / 10G (G with a count jumps to that row).\n")
 	b.WriteString("Projects yank: y then n/y/j/e (name / yaml / json / env).\n")
 	b.WriteString("Secrets paste: p imports yaml/json/env from the clipboard.\n")
 	return b.String()
