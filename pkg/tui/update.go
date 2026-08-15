@@ -36,12 +36,20 @@ func watchConfigCmd() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	mod := next.(Model)
+	mod.syncScrollOffsets()
+	return mod, cmd
+}
+
+func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		m.filterInput.Width = max(10, m.width-6)
 		m.searchInput.Width = max(10, m.width-6)
+		m.createConfigInput.Width = max(10, m.width-6)
 		m.cellInput.Width = max(10, m.width/3)
 		m.helpViewport.Width = min(60, m.width-8)
 		m.helpViewport.Height = min(24, m.height-8)
@@ -92,6 +100,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.activeProject = msg.project
 		m.activeConfig = msg.config
 		m.pendingChanges = nil
+		m.createConfigProject = ""
+		m.createConfigEnv = ""
+		if msg.config != "" {
+			for _, c := range msg.configs {
+				if c.name == msg.config && c.environment != "" {
+					for _, root := range msg.configs {
+						if root.environment == c.environment && root.root {
+							m.expandedEnvs[envKey(msg.project, root.name)] = true
+							break
+						}
+					}
+					break
+				}
+			}
+		}
 		m.rebuildTree()
 		if msg.config != "" {
 			m.treeIdx = findTreeIndex(m.tree, treeConfig, msg.project, msg.config)
@@ -162,6 +185,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleFilterKey(msg)
 	case focusSearch:
 		return m.handleSearchKey(msg)
+	case focusCreateConfig:
+		return m.handleCreateConfigKey(msg)
 	case focusSecretInsert:
 		return m.handleInsertKey(msg)
 	default:
@@ -265,7 +290,66 @@ func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 	m.searchInput, cmd = m.searchInput.Update(msg)
+	_ = m.applySearch(m.searchInput.Value(), false)
 	return m, cmd
+}
+
+func (m Model) handleCreateConfigKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.createConfigInput.SetValue("")
+		m.createConfigProject = ""
+		m.createConfigEnv = ""
+		m.setFocus(focusProjects)
+		return m, nil
+	case "enter":
+		return m.submitCreateConfig()
+	case "ctrl+c":
+		return m, tea.Quit
+	}
+
+	var cmd tea.Cmd
+	m.createConfigInput, cmd = m.createConfigInput.Update(msg)
+	return m, cmd
+}
+
+func (m Model) submitCreateConfig() (tea.Model, tea.Cmd) {
+	name := strings.TrimSpace(m.createConfigInput.Value())
+	project := m.createConfigProject
+	environment := m.createConfigEnv
+	if environment == "" {
+		environment = inferEnvironmentFromConfigName(name)
+	}
+	if project == "" {
+		m.errMsg = "Select a project first"
+		m.statusMsg = ""
+		return m, nil
+	}
+	if name == "" {
+		m.errMsg = "Config name required"
+		m.statusMsg = ""
+		return m, nil
+	}
+	if environment == "" {
+		m.errMsg = "Need environment (select a config or use env_name)"
+		m.statusMsg = ""
+		return m, nil
+	}
+
+	m.errMsg = ""
+	m.statusMsg = ""
+	m.fetching = true
+	m.createConfigInput.SetValue("")
+	m.setFocus(focusProjects)
+	return m, tea.Batch(m.spinner.Tick, createConfigCmd(m.opts, project, name, environment))
+}
+
+func inferEnvironmentFromConfigName(name string) string {
+	idx := strings.Index(name, "_")
+	if idx <= 0 {
+		return ""
+	}
+	return name[:idx]
 }
 
 func (m Model) handleInsertKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -378,6 +462,12 @@ func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "pgup":
 		m.moveList(-m.pageSize())
 		return m, nil
+	case "g":
+		m.jumpListEdge(false)
+		return m, nil
+	case "G":
+		m.jumpListEdge(true)
+		return m, nil
 	case "n":
 		m.stepSearchMatch(1)
 		return m, nil
@@ -407,6 +497,9 @@ func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.focus == focusSecrets {
 			return m.addSecret()
 		}
+		if m.focus == focusProjects {
+			return m.beginCreateConfig()
+		}
 		return m, nil
 	case "d":
 		return m.deleteSecret()
@@ -433,6 +526,30 @@ func (m *Model) moveList(delta int) {
 			return
 		}
 		m.secretIdx = clamp(m.secretIdx+delta, 0, len(idxs)-1)
+	}
+}
+
+func (m *Model) jumpListEdge(bottom bool) {
+	switch m.focus {
+	case focusProjects:
+		if len(m.tree) == 0 {
+			return
+		}
+		if bottom {
+			m.treeIdx = len(m.tree) - 1
+		} else {
+			m.treeIdx = 0
+		}
+	case focusSecrets:
+		idxs := m.filteredIndexes()
+		if len(idxs) == 0 {
+			return
+		}
+		if bottom {
+			m.secretIdx = len(idxs) - 1
+		} else {
+			m.secretIdx = 0
+		}
 	}
 }
 
@@ -541,6 +658,42 @@ func (m Model) addSecret() (tea.Model, tea.Cmd) {
 	m.noteSecretEdit(len(m.secrets) - 1)
 	m.enterInsert()
 	return m, nil
+}
+
+func (m Model) beginCreateConfig() (tea.Model, tea.Cmd) {
+	if len(m.tree) == 0 || m.treeIdx < 0 || m.treeIdx >= len(m.tree) {
+		m.errMsg = "Select a project first"
+		return m, nil
+	}
+	row := m.tree[m.treeIdx]
+	if row.project == "" {
+		m.errMsg = "Select a project first"
+		return m, nil
+	}
+
+	m.createConfigProject = row.project
+	m.createConfigEnv = ""
+	prefill := ""
+	if row.kind == treeConfig && row.config != "" {
+		m.createConfigEnv = m.configEnvironment(row.project, row.config)
+		if m.createConfigEnv != "" {
+			prefill = m.createConfigEnv + "_"
+		}
+	}
+	m.createConfigInput.SetValue(prefill)
+	m.errMsg = ""
+	m.statusMsg = ""
+	m.setFocus(focusCreateConfig)
+	return m, nil
+}
+
+func (m Model) configEnvironment(project, configName string) string {
+	for _, c := range m.projectConfigs[project] {
+		if c.name == configName {
+			return c.environment
+		}
+	}
+	return ""
 }
 
 func (m Model) deleteSecret() (tea.Model, tea.Cmd) {
@@ -653,10 +806,7 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		rel := msg.Y - layout.projects.y - 1
 		if rel >= 0 {
 			visible := max(1, layout.projects.h-m.panelChrome())
-			start := 0
-			if m.treeIdx >= visible {
-				start = m.treeIdx - visible + 1
-			}
+			start := clampScrollOffset(m.treeOffset, m.treeIdx, visible, len(m.tree))
 			idx := start + rel
 			if idx >= 0 && idx < len(m.tree) {
 				m.treeIdx = idx
@@ -668,10 +818,7 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		rel := msg.Y - layout.secrets.y - 2 // title + header
 		idxs := m.filteredIndexes()
 		visible := max(1, layout.secrets.h-m.panelChrome()-1)
-		start := 0
-		if m.secretIdx >= visible {
-			start = m.secretIdx - visible + 1
-		}
+		start := clampScrollOffset(m.secretOffset, m.secretIdx, visible, len(idxs))
 		idx := start + rel
 		if idx >= 0 && idx < len(idxs) {
 			m.secretIdx = idx
@@ -778,15 +925,18 @@ Themes & settings:
 
 Projects (with configs):
     j / k / ↑↓     Move
+    g / G          Top / bottom
     PgUp / PgDown  Page
     Space   Fold / unfold project or env
     Enter   Select project or config
+    o       Create config (status bar)
     Folded nodes still show the active
     config when it belongs under them
 
 Secrets (vim-style):
     h / l / ←→     Name / value column
     j / k / ↑↓     Move rows
+    g / G          Top / bottom
     PgUp / PgDown  Page
     i / a / Enter  Insert (edit cell)
     Esc            Normal mode
@@ -806,6 +956,13 @@ Search:
 Filter:
     f       Edit filter in status bar
     Enter / Esc / Tab  Apply and return
+
+Create config:
+    o (Projects)  Name prompt in status bar
+    Enter         Create and open
+    Esc           Cancel
+    Tip: select an env/config first, or
+    use names like env_branch (dev_personal)
 
 Save Prompt:
     Enter   Confirm

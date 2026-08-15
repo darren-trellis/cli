@@ -16,14 +16,25 @@ limitations under the License.
 package tui
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func enableTestColors(t *testing.T) {
+	t.Helper()
+	prev := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Cleanup(func() { lipgloss.SetColorProfile(prev) })
+}
 
 func TestSearchSecretsNextPrevAndClear(t *testing.T) {
 	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, ListScrollbarVertical: true, SidebarScrollbarVertical: true})
@@ -79,6 +90,77 @@ func TestSearchProjectsRegex(t *testing.T) {
 
 	err := m.compileSearch("[")
 	require.Error(t, err)
+}
+
+func TestLiveSearchHighlightsWhileTyping(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, ListScrollbarVertical: true, SidebarScrollbarVertical: true})
+	m.fetching = false
+	m.focus = focusSecrets
+	m.secrets = []secretRow{
+		newSecretRow("ALPHA", "1", "masked"),
+		newSecretRow("BETA", "2", "masked"),
+		newSecretRow("ALPACA", "4", "masked"),
+	}
+
+	m.beginSearch()
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'A'}})
+	m = next.(Model)
+	assert.Equal(t, focusSearch, m.focus)
+	require.NotNil(t, m.searchRe)
+	assert.Equal(t, []int{0, 1, 2}, m.searchMatches) // ALPHA, BETA, ALPACA
+	assert.Equal(t, 0, m.secretIdx)
+
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'L'}})
+	m = next.(Model)
+	assert.Equal(t, focusSearch, m.focus)
+	assert.Equal(t, "AL", m.searchInput.Value())
+	assert.Equal(t, []int{0, 2}, m.searchMatches)
+
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'P'}})
+	m = next.(Model)
+	assert.Equal(t, "ALP", m.searchInput.Value())
+	assert.Equal(t, []int{0, 2}, m.searchMatches)
+
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'Z'}})
+	m = next.(Model)
+	assert.Equal(t, focusSearch, m.focus)
+	assert.Empty(t, m.searchMatches)
+	assert.NotNil(t, m.searchRe)
+}
+
+func TestHighlightMatchesOnlyMatchedText(t *testing.T) {
+	enableTestColors(t)
+	re := regexp.MustCompile(`(?i)alp`)
+	base := lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
+	hit := lipgloss.NewStyle().Background(lipgloss.Color("5")).Foreground(lipgloss.Color("15"))
+	old := searchHitStyle
+	searchHitStyle = hit
+	t.Cleanup(func() { searchHitStyle = old })
+
+	out := highlightMatches("ALPHA_KEY", re, base)
+	assert.Equal(t, "ALPHA_KEY", ansi.Strip(out))
+	assert.Contains(t, out, hit.Render("ALP"))
+	assert.NotContains(t, out, hit.Render("ALPHA_KEY"))
+
+	selected := lipgloss.NewStyle().Background(lipgloss.Color("237")).Foreground(lipgloss.Color("5"))
+	selectedOut := highlightMatches("ALPHA_KEY", re, selected)
+	assert.Equal(t, "ALPHA_KEY", ansi.Strip(selectedOut))
+	assert.Contains(t, selectedOut, hit.Render("ALP"))
+	assert.Contains(t, selectedOut, selected.Render("HA_KEY"))
+}
+
+func TestHighlightNeedleInDisplay(t *testing.T) {
+	enableTestColors(t)
+	re := regexp.MustCompile(`dev`)
+	hit := lipgloss.NewStyle().Background(lipgloss.Color("5")).Foreground(lipgloss.Color("15"))
+	old := searchHitStyle
+	searchHitStyle = hit
+	t.Cleanup(func() { searchHitStyle = old })
+
+	out := highlightNeedleInDisplay("  ├─ ▾ *dev", "dev", re, baseTextStyle())
+	assert.Equal(t, "  ├─ ▾ *dev", ansi.Strip(out))
+	assert.Contains(t, out, hit.Render("dev"))
+	assert.NotContains(t, out, hit.Render("  ├─ ▾ *dev"))
 }
 
 func TestFilterKeybinding(t *testing.T) {

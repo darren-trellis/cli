@@ -175,3 +175,29 @@ func saveSecretsCmd(opts models.ScopedOptions, project, config string, changes [
 		}
 	}
 }
+
+func createConfigCmd(opts models.ScopedOptions, project, name, environment string) tea.Cmd {
+	return func() tea.Msg {
+		info, err := controllers.CreateConfig(withProject(opts, project), name, environment)
+		if err.Unwrap() != nil {
+			return errMsg{err.Unwrap()}
+		}
+
+		configInfos, listErr := controllers.GetConfigs(withProject(opts, project))
+		if listErr.Unwrap() != nil {
+			return errMsg{listErr.Unwrap()}
+		}
+
+		computed, secretsErr := controllers.GetSecrets(withProjectConfig(opts, project, info.Name))
+		if secretsErr.Unwrap() != nil {
+			return errMsg{secretsErr.Unwrap()}
+		}
+
+		return projectSelectedMsg{
+			configs: buildConfigTree(configInfos),
+			secrets: secretsFromComputed(computed),
+			project: project,
+			config:  info.Name,
+		}
+	}
+}

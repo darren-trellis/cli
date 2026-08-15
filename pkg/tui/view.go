@@ -17,6 +17,7 @@ package tui
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -131,16 +132,22 @@ func (m Model) View() string {
 }
 
 func (m Model) renderProjectTree(width, height int) string {
+	var searchRe *regexp.Regexp
+	if m.searchPane == focusProjects {
+		searchRe = m.searchRe
+	}
 	lines := make([]string, len(m.tree))
+	needles := make([]string, len(m.tree))
 	for i, row := range m.tree {
-		lines[i] = formatTreeRow(row, m.activeProject, m.activeConfig)
+		needles[i] = searchableTreeText(row)
+		line := formatTreeRow(row, m.activeProject, m.activeConfig)
+		if searchRe != nil {
+			line = highlightNeedleInDisplay(ansi.Strip(line), needles[i], searchRe, baseTextStyle())
+		}
+		lines[i] = line
 	}
 	title := fmt.Sprintf("Projects (%d)", len(m.projects))
-	hits := map[int]struct{}(nil)
-	if m.searchPane == focusProjects {
-		hits = m.searchMatchSet()
-	}
-	return m.renderLinesPanel(title, lines, m.treeIdx, m.focus == focusProjects, width, height, hits)
+	return m.renderLinesPanel(title, lines, needles, m.treeIdx, m.focus == focusProjects, width, height, searchRe)
 }
 
 func (m Model) renderSecretsTable(width, height int) string {
@@ -157,18 +164,15 @@ func (m Model) renderSecretsTable(width, height int) string {
 	sep := secretColSeparator()
 	header := dimStyle.Render(padRight("  NAME", nameW)) + sep + dimStyle.Render(padRight("VALUE", valueW))
 
-	start := 0
-	if m.secretIdx >= bodyH {
-		start = m.secretIdx - bodyH + 1
-	}
+	start := clampScrollOffset(m.secretOffset, m.secretIdx, bodyH, len(idxs))
 	end := start + bodyH
 	if end > len(idxs) {
 		end = len(idxs)
 	}
 
-	hits := map[int]struct{}(nil)
+	var searchRe *regexp.Regexp
 	if m.searchPane == focusSecrets {
-		hits = m.searchMatchSet()
+		searchRe = m.searchRe
 	}
 	secretsActive := m.focus == focusSecrets || m.focus == focusSecretInsert
 
@@ -176,7 +180,7 @@ func (m Model) renderSecretsTable(width, height int) string {
 	rows = append(rows, header)
 	for i := start; i < end; i++ {
 		s := m.secrets[idxs[i]]
-		rows = append(rows, m.renderSecretRow(s, i, nameW, valueW, secretsActive, hits))
+		rows = append(rows, m.renderSecretRow(s, i, nameW, valueW, secretsActive, searchRe))
 	}
 	for len(rows) < innerH {
 		rows = append(rows, "")
@@ -192,7 +196,7 @@ func (m Model) renderSecretsTable(width, height int) string {
 	return m.renderTitledListPanel(title, body, width, height, secretsActive)
 }
 
-func (m Model) renderSecretRow(s secretRow, listIdx, nameW, valueW int, paneActive bool, hits map[int]struct{}) string {
+func (m Model) renderSecretRow(s secretRow, listIdx, nameW, valueW int, paneActive bool, searchRe *regexp.Regexp) string {
 	marker := "  "
 	if s.shouldDelete {
 		marker = "D "
@@ -210,7 +214,6 @@ func (m Model) renderSecretRow(s secretRow, listIdx, nameW, valueW int, paneActi
 	nameActive := rowSelected && m.secretCol == colName
 	valueActive := rowSelected && m.secretCol == colValue
 	editing := m.focus == focusSecretInsert && listIdx == m.secretIdx
-	hit := hits != nil && containsHit(hits, listIdx) && !rowSelected
 
 	var nameCell, valueCell string
 	if editing && m.secretCol == colName {
@@ -220,7 +223,7 @@ func (m Model) renderSecretRow(s secretRow, listIdx, nameW, valueW int, paneActi
 		m.cellInput.Cursor.TextStyle = selectedStyle
 		nameCell = padStyledCell(marker+m.cellInput.View(), nameW, true)
 	} else {
-		nameCell = styleSecretCell(marker+nameText, nameW, nameActive, s.shouldDelete, s.isDirty(), hit)
+		nameCell = styleSecretCell(marker+nameText, nameW, nameActive, s.shouldDelete, s.isDirty(), searchRe)
 	}
 
 	if editing && m.secretCol == colValue {
@@ -230,7 +233,7 @@ func (m Model) renderSecretRow(s secretRow, listIdx, nameW, valueW int, paneActi
 		m.cellInput.Cursor.TextStyle = selectedStyle
 		valueCell = padStyledCell(m.cellInput.View(), valueW, true)
 	} else {
-		valueCell = styleSecretCell(valueText, valueW, valueActive, s.shouldDelete, s.isDirty(), hit)
+		valueCell = styleSecretCell(valueText, valueW, valueActive, s.shouldDelete, s.isDirty(), searchRe)
 	}
 
 	return nameCell + secretColSeparator() + valueCell
@@ -255,33 +258,21 @@ func (s secretRow) previewValueUnlimited() string {
 	return strings.ReplaceAll(v, "\n", " ")
 }
 
-func containsHit(hits map[int]struct{}, i int) bool {
-	_, ok := hits[i]
-	return ok
-}
-
-func styleSecretCell(text string, width int, active, del, dirty, hit bool) string {
+func styleSecretCell(text string, width int, active, del, dirty bool, re *regexp.Regexp) string {
 	plain := truncate(ansi.Strip(text), width)
-	plain = padRight(plain, width)
+	var styled string
 	switch {
 	case active:
-		return selectedStyle.Width(width).MaxWidth(width).Render(plain)
+		styled = highlightMatches(plain, re, selectedStyle)
+		return padStyledCell(styled, width, true)
 	case del:
-		return deleteStyle.Width(width).MaxWidth(width).Render(plain)
+		styled = highlightMatches(plain, re, deleteStyle)
 	case dirty:
-		return dirtyStyle.Width(width).MaxWidth(width).Render(plain)
-	case hit:
-		return searchHitStyle.Width(width).MaxWidth(width).Render(plain)
+		styled = highlightMatches(plain, re, dirtyStyle)
 	default:
-		style := lipgloss.NewStyle().Width(width).MaxWidth(width)
-		if background != "" {
-			style = style.Background(background)
-		}
-		if textColor != "" {
-			style = style.Foreground(textColor)
-		}
-		return style.Render(plain)
+		styled = highlightMatches(plain, re, baseTextStyle())
 	}
+	return padStyledCell(styled, width, false)
 }
 
 func padRight(s string, width int) string {
@@ -292,7 +283,7 @@ func padRight(s string, width int) string {
 	return s + strings.Repeat(" ", width-w)
 }
 
-func (m Model) renderLinesPanel(title string, lines []string, selected int, active bool, width, height int, hits map[int]struct{}) string {
+func (m Model) renderLinesPanel(title string, lines, needles []string, selected int, active bool, width, height int, searchRe *regexp.Regexp) string {
 	chrome := m.panelChrome()
 	innerH := max(1, height-chrome)
 	visible := innerH
@@ -302,10 +293,7 @@ func (m Model) renderLinesPanel(title string, lines []string, selected int, acti
 		innerW = max(1, innerW-1)
 	}
 
-	start := 0
-	if selected >= visible {
-		start = selected - visible + 1
-	}
+	start := clampScrollOffset(m.treeOffset, selected, visible, len(lines))
 	end := start + visible
 	if end > len(lines) {
 		end = len(lines)
@@ -313,18 +301,25 @@ func (m Model) renderLinesPanel(title string, lines []string, selected int, acti
 
 	var body []string
 	for i := start; i < end; i++ {
-		line := truncatePreserve(lines[i], innerW)
+		var line string
 		if active && i == selected {
 			plain := truncate(ansi.Strip(lines[i]), innerW)
-			line = selectedStyle.Width(innerW).MaxWidth(innerW).Render(plain)
-		} else if _, ok := hits[i]; ok {
-			plain := truncate(ansi.Strip(lines[i]), innerW)
-			line = searchHitStyle.Width(innerW).MaxWidth(innerW).Render(plain)
+			needle := ""
+			if i < len(needles) {
+				needle = needles[i]
+			}
+			if searchRe != nil {
+				line = padStyledCell(highlightNeedleInDisplay(plain, needle, searchRe, selectedStyle), innerW, true)
+			} else {
+				line = selectedStyle.Width(innerW).MaxWidth(innerW).Render(plain)
+			}
+		} else {
+			line = padStyledCell(truncatePreserve(lines[i], innerW), innerW, false)
 		}
 		body = append(body, line)
 	}
 	for len(body) < innerH {
-		body = append(body, "")
+		body = append(body, padStyledCell("", innerW, false))
 	}
 
 	content := strings.Join(body[:innerH], "\n")
@@ -338,6 +333,8 @@ func (m Model) renderStatus(width int) string {
 		left = m.spinner.View() + " Loading…"
 	} else if m.focus == focusSearch {
 		left = helpStyle.Render("search · enter apply · esc clear")
+	} else if m.focus == focusCreateConfig {
+		left = helpStyle.Render("new config · enter create · esc cancel")
 	} else if m.focus == focusFilter {
 		left = helpStyle.Render("filter · enter/esc apply")
 	} else if m.focus == focusSecretInsert {
@@ -347,7 +344,7 @@ func (m Model) renderStatus(width int) string {
 	} else if m.statusMsg != "" {
 		left = statusStyle.Render(m.statusMsg)
 	} else {
-		left = helpStyle.Render("tab cycle · hjkl move · i edit · / search · ? help")
+		left = helpStyle.Render("tab cycle · hjkl move · i edit · o add · / search · ? help")
 	}
 
 	var right string
@@ -362,6 +359,11 @@ func (m Model) renderStatus(width int) string {
 		m.searchInput.TextStyle = inputTextStyle
 		m.searchInput.PromptStyle = helpStyle
 		right = m.searchInput.View()
+	case m.focus == focusCreateConfig:
+		m.createConfigInput.Width = max(8, rightW-2)
+		m.createConfigInput.TextStyle = inputTextStyle
+		m.createConfigInput.PromptStyle = helpStyle
+		right = m.createConfigInput.View()
 	case m.focus == focusFilter:
 		m.filterInput.Width = max(8, rightW-2)
 		m.filterInput.TextStyle = inputTextStyle

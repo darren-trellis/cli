@@ -32,19 +32,21 @@ const defaultThemeName = "default"
 var embeddedThemeFS embed.FS
 
 type Theme struct {
-	Name        string
-	Background  lipgloss.Color
-	Accent      lipgloss.Color
-	ActiveEnv   lipgloss.Color
-	Border      lipgloss.Color
-	Title       lipgloss.Color
-	Dim         lipgloss.Color
-	Dirty       lipgloss.Color
-	Delete      lipgloss.Color
-	Error       lipgloss.Color
-	Text        lipgloss.Color
-	SelectionBg lipgloss.Color
-	SelectionFg lipgloss.Color
+	Name          string
+	Background    lipgloss.Color
+	Accent        lipgloss.Color
+	ActiveEnv     lipgloss.Color
+	Border        lipgloss.Color
+	Title         lipgloss.Color
+	Dim           lipgloss.Color
+	Dirty         lipgloss.Color
+	Delete        lipgloss.Color
+	Error         lipgloss.Color
+	Text          lipgloss.Color
+	SelectionBg   lipgloss.Color
+	SelectionFg   lipgloss.Color
+	SearchMatchFg lipgloss.Color
+	SearchMatchBg lipgloss.Color
 }
 
 type themeFile struct {
@@ -63,6 +65,7 @@ type themeFileColors struct {
 	WindowFocusBorder any    `toml:"window_focus_border"`
 	ActiveEnv         any    `toml:"active_env"`
 	Dim               any    `toml:"dim"`
+	SearchMatch       any    `toml:"search_match"`
 }
 
 type themeFileLevels struct {
@@ -184,21 +187,24 @@ func parseTeleminatorTheme(data []byte) (Theme, error) {
 		selFg = fg
 	}
 	bg := strings.TrimSpace(file.Colors.Background)
+	searchFg, searchBg := colorPairFromAny(file.Colors.SearchMatch, bg, accent)
 
 	return Theme{
-		Name:        name,
-		Background:  lipgloss.Color(bg),
-		Accent:      lipgloss.Color(accent),
-		ActiveEnv:   lipgloss.Color(activeEnv),
-		Border:      lipgloss.Color(border),
-		Title:       lipgloss.Color(fg),
-		Dim:         lipgloss.Color(dim),
-		Dirty:       lipgloss.Color(warn),
-		Delete:      lipgloss.Color(errColor),
-		Error:       lipgloss.Color(errColor),
-		Text:        lipgloss.Color(fg),
-		SelectionBg: lipgloss.Color(selBg),
-		SelectionFg: lipgloss.Color(selFg),
+		Name:          name,
+		Background:    lipgloss.Color(bg),
+		Accent:        lipgloss.Color(accent),
+		ActiveEnv:     lipgloss.Color(activeEnv),
+		Border:        lipgloss.Color(border),
+		Title:         lipgloss.Color(fg),
+		Dim:           lipgloss.Color(dim),
+		Dirty:         lipgloss.Color(warn),
+		Delete:        lipgloss.Color(errColor),
+		Error:         lipgloss.Color(errColor),
+		Text:          lipgloss.Color(fg),
+		SelectionBg:   lipgloss.Color(selBg),
+		SelectionFg:   lipgloss.Color(selFg),
+		SearchMatchFg: lipgloss.Color(searchFg),
+		SearchMatchBg: lipgloss.Color(searchBg),
 	}, nil
 }
 
@@ -214,6 +220,24 @@ func colorFromAny(v any, fallback string) string {
 		}
 	}
 	return fallback
+}
+
+func colorPairFromAny(v any, fallbackFg, fallbackBg string) (string, string) {
+	fg, bg := fallbackFg, fallbackBg
+	switch t := v.(type) {
+	case string:
+		if strings.TrimSpace(t) != "" {
+			bg = strings.TrimSpace(t)
+		}
+	case map[string]any:
+		if f, ok := t["fg"].(string); ok && strings.TrimSpace(f) != "" {
+			fg = strings.TrimSpace(f)
+		}
+		if b, ok := t["bg"].(string); ok && strings.TrimSpace(b) != "" {
+			bg = strings.TrimSpace(b)
+		}
+	}
+	return fg, bg
 }
 
 func themeNames() []string {

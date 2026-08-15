@@ -32,6 +32,16 @@ func GetConfigs(config models.ScopedOptions) ([]models.ConfigInfo, Error) {
 	return configs, Error{}
 }
 
+func CreateConfig(config models.ScopedOptions, name, environment string) (models.ConfigInfo, Error) {
+	utils.RequireValue("token", config.Token.Value)
+
+	info, err := http.CreateConfig(config.APIHost.Value, utils.GetBool(config.VerifyTLS.Value, true), config.Token.Value, config.EnclaveProject.Value, name, environment)
+	if !err.IsNil() {
+		return models.ConfigInfo{}, Error{Err: err.Unwrap(), Message: err.Message}
+	}
+	return info, Error{}
+}
+
 func GetConfigNames(config models.ScopedOptions) ([]string, Error) {
 	configs, err := GetConfigs(config)
 	if !err.IsNil() {

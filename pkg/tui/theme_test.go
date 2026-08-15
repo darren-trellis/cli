@@ -46,6 +46,8 @@ func TestTeleminatorThemesLoaded(t *testing.T) {
 	require.NoError(t, applyTheme("catppuccin"))
 	assert.Equal(t, themes["catppuccin"].Accent, accent)
 	assert.Equal(t, themes["catppuccin"].Background, background)
+	assert.Equal(t, lipgloss.Color("#1e1e2e"), themes["catppuccin"].SearchMatchFg)
+	assert.Equal(t, lipgloss.Color("#f9e2af"), themes["catppuccin"].SearchMatchBg)
 
 	require.NoError(t, applyTheme("tokyo-night"))
 	assert.Equal(t, themes["tokyo-night"].Accent, accent)
@@ -62,6 +64,7 @@ selection_fg = "#ffffff"
 border = "#333333"
 window_focus_border = "#ffcc00"
 dim = "#666666"
+search_match = { fg = "#111111", bg = "#ffcc00" }
 [levels]
 info = "#00ff00"
 warn = "#f0c000"
@@ -73,6 +76,8 @@ error = { fg = "#ff0000", bg = "#200000" }
 	assert.Equal(t, lipgloss.Color("#00ff00"), theme.ActiveEnv)
 	assert.Equal(t, lipgloss.Color("#ff0000"), theme.Error)
 	assert.Equal(t, lipgloss.Color("#f0c000"), theme.Dirty)
+	assert.Equal(t, lipgloss.Color("#111111"), theme.SearchMatchFg)
+	assert.Equal(t, lipgloss.Color("#ffcc00"), theme.SearchMatchBg)
 
 	theme, err = parseTeleminatorTheme([]byte(`
 name = "override"

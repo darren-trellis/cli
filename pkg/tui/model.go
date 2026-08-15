@@ -37,6 +37,7 @@ const (
 	focusSecretInsert
 	focusFilter
 	focusSearch
+	focusCreateConfig
 	focusIntro
 	focusHelp
 	focusSave
@@ -64,11 +65,13 @@ type Model struct {
 	expandedEnvs   map[string]bool
 	tree           []treeRow
 	treeIdx        int
+	treeOffset     int
 
-	secrets   []secretRow
-	secretIdx int // index into filteredIndexes()
-	secretCol secretCol
-	undoStack []int // secret store indexes, most recent last
+	secrets      []secretRow
+	secretIdx    int // index into filteredIndexes()
+	secretOffset int
+	secretCol    secretCol
+	undoStack    []int // secret store indexes, most recent last
 
 	filter      string
 	filterInput textinput.Model
@@ -79,6 +82,10 @@ type Model struct {
 	searchPane     focusArea
 	searchMatches  []int
 	searchMatchIdx int
+
+	createConfigInput   textinput.Model
+	createConfigProject string
+	createConfigEnv     string
 
 	cellInput textinput.Model
 
@@ -109,6 +116,11 @@ func newModel(opts models.ScopedOptions, cfg configuration.TUISettings) Model {
 	si.CharLimit = 256
 	si.Prompt = "/ "
 
+	cci := textinput.New()
+	cci.Placeholder = "New config (e.g. dev_personal)…"
+	cci.CharLimit = 128
+	cci.Prompt = "+ "
+
 	ci := textinput.New()
 	ci.CharLimit = 4096
 	ci.Prompt = ""
@@ -119,19 +131,20 @@ func newModel(opts models.ScopedOptions, cfg configuration.TUISettings) Model {
 	sp.Spinner = spinner.Dot
 
 	m := Model{
-		opts:           opts,
-		cfg:            cfg,
-		focus:          focusSecrets,
-		filterInput:    fi,
-		searchInput:    si,
-		searchPane:     focusSecrets,
-		cellInput:      ci,
-		secretCol:      colName,
-		spinner:        sp,
-		fetching:       true,
-		projectConfigs: map[string][]configRow{},
-		expanded:       map[string]bool{},
-		expandedEnvs:   map[string]bool{},
+		opts:              opts,
+		cfg:               cfg,
+		focus:             focusSecrets,
+		filterInput:       fi,
+		searchInput:       si,
+		searchPane:        focusSecrets,
+		createConfigInput: cci,
+		cellInput:         ci,
+		secretCol:         colName,
+		spinner:           sp,
+		fetching:          true,
+		projectConfigs:    map[string][]configRow{},
+		expanded:          map[string]bool{},
+		expandedEnvs:      map[string]bool{},
 	}
 
 	if configuration.TUIShouldShowIntro() {
@@ -158,6 +171,44 @@ func (m Model) panelChrome() int {
 		return 2
 	}
 	return 1 // title row without pane border
+}
+
+func (m Model) projectsVisibleRows() int {
+	if m.width == 0 || m.height == 0 || !m.cfg.Sidebar {
+		return 1
+	}
+	return max(1, m.computeLayout().projects.h-m.panelChrome())
+}
+
+func (m Model) secretsVisibleRows() int {
+	if m.width == 0 || m.height == 0 {
+		return 1
+	}
+	return max(1, m.computeLayout().secrets.h-m.panelChrome()-1)
+}
+
+func clampScrollOffset(offset, selected, visible, total int) int {
+	if visible <= 0 || total <= visible {
+		return 0
+	}
+	maxOffset := total - visible
+	if selected < offset {
+		offset = selected
+	} else if selected >= offset+visible {
+		offset = selected - visible + 1
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > maxOffset {
+		offset = maxOffset
+	}
+	return offset
+}
+
+func (m *Model) syncScrollOffsets() {
+	m.treeOffset = clampScrollOffset(m.treeOffset, m.treeIdx, m.projectsVisibleRows(), len(m.tree))
+	m.secretOffset = clampScrollOffset(m.secretOffset, m.secretIdx, m.secretsVisibleRows(), len(m.filteredIndexes()))
 }
 
 func (m Model) selectedSecretIndex() (int, bool) {
@@ -327,6 +378,7 @@ func (m *Model) setFocus(f focusArea) {
 	m.cellInput.Blur()
 	m.filterInput.Blur()
 	m.searchInput.Blur()
+	m.createConfigInput.Blur()
 
 	m.focus = f
 	switch f {
@@ -345,6 +397,9 @@ func (m *Model) setFocus(f focusArea) {
 		m.searchInput.SetValue(m.searchQuery)
 		m.searchInput.CursorEnd()
 		m.searchInput.Focus()
+	case focusCreateConfig:
+		m.createConfigInput.Focus()
+		m.createConfigInput.CursorEnd()
 	}
 }
 

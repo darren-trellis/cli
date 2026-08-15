@@ -18,6 +18,9 @@ package tui
 import (
 	"fmt"
 	"regexp"
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 func searchableTreeText(row treeRow) string {
@@ -47,6 +50,10 @@ func (m *Model) beginSearch() {
 }
 
 func (m *Model) compileSearch(query string) error {
+	return m.applySearch(query, true)
+}
+
+func (m *Model) applySearch(query string, jump bool) error {
 	if query == "" {
 		m.clearSearch()
 		return nil
@@ -57,6 +64,10 @@ func (m *Model) compileSearch(query string) error {
 	}
 	re, err := regexp.Compile(pattern)
 	if err != nil {
+		m.searchQuery = query
+		m.searchRe = nil
+		m.searchMatches = nil
+		m.searchMatchIdx = 0
 		return err
 	}
 	m.searchQuery = query
@@ -64,12 +75,20 @@ func (m *Model) compileSearch(query string) error {
 	m.refreshSearchMatches()
 	if len(m.searchMatches) == 0 {
 		m.searchMatchIdx = 0
-		m.statusMsg = "No matches"
+		if jump {
+			m.statusMsg = "No matches"
+		} else {
+			m.statusMsg = ""
+		}
 		return nil
 	}
 	m.statusMsg = ""
 	m.searchMatchIdx = 0
-	m.jumpToSearchMatch(0)
+	if jump {
+		m.jumpToSearchMatch(0)
+	} else {
+		m.selectSearchMatch(0)
+	}
 	return nil
 }
 
@@ -106,7 +125,7 @@ func (m *Model) refreshSearchMatches() {
 	}
 }
 
-func (m *Model) jumpToSearchMatch(matchPos int) {
+func (m *Model) selectSearchMatch(matchPos int) {
 	if matchPos < 0 || matchPos >= len(m.searchMatches) {
 		return
 	}
@@ -114,9 +133,17 @@ func (m *Model) jumpToSearchMatch(matchPos int) {
 	switch m.searchPane {
 	case focusProjects:
 		m.treeIdx = idx
-		m.focus = focusProjects
 	case focusSecrets:
 		m.secretIdx = idx
+	}
+}
+
+func (m *Model) jumpToSearchMatch(matchPos int) {
+	m.selectSearchMatch(matchPos)
+	switch m.searchPane {
+	case focusProjects:
+		m.focus = focusProjects
+	case focusSecrets:
 		m.focus = focusSecrets
 	}
 }
@@ -136,17 +163,6 @@ func (m *Model) stepSearchMatch(delta int) {
 	m.statusMsg = fmt.Sprintf("Match %d/%d", m.searchMatchIdx+1, n)
 }
 
-func (m Model) searchMatchSet() map[int]struct{} {
-	if m.searchRe == nil || len(m.searchMatches) == 0 {
-		return nil
-	}
-	set := make(map[int]struct{}, len(m.searchMatches))
-	for _, idx := range m.searchMatches {
-		set[idx] = struct{}{}
-	}
-	return set
-}
-
 func (m Model) searchStatusLabel() string {
 	if m.searchQuery == "" {
 		return ""
@@ -155,4 +171,73 @@ func (m Model) searchStatusLabel() string {
 		return "/ " + m.searchQuery + " (0)"
 	}
 	return fmt.Sprintf("%d/%d / %s", m.searchMatchIdx+1, len(m.searchMatches), m.searchQuery)
+}
+
+func baseTextStyle() lipgloss.Style {
+	style := lipgloss.NewStyle()
+	if background != "" {
+		style = style.Background(background)
+	}
+	if textColor != "" {
+		style = style.Foreground(textColor)
+	}
+	return style
+}
+
+func highlightMatches(text string, re *regexp.Regexp, base lipgloss.Style) string {
+	if re == nil || text == "" {
+		return base.Render(text)
+	}
+	matches := re.FindAllStringIndex(text, -1)
+	if len(matches) == 0 {
+		return base.Render(text)
+	}
+	var b strings.Builder
+	last := 0
+	for _, m := range matches {
+		if m[0] < last || m[0] >= m[1] {
+			continue
+		}
+		if m[0] > last {
+			b.WriteString(base.Render(text[last:m[0]]))
+		}
+		b.WriteString(searchHitStyle.Render(text[m[0]:m[1]]))
+		last = m[1]
+	}
+	if last < len(text) {
+		b.WriteString(base.Render(text[last:]))
+	}
+	return b.String()
+}
+
+func highlightNeedleInDisplay(display, needle string, re *regexp.Regexp, base lipgloss.Style) string {
+	if re == nil || needle == "" {
+		return base.Render(display)
+	}
+	offset := strings.LastIndex(display, needle)
+	if offset < 0 {
+		return base.Render(display)
+	}
+	matches := re.FindAllStringIndex(needle, -1)
+	if len(matches) == 0 {
+		return base.Render(display)
+	}
+	var b strings.Builder
+	last := 0
+	for _, m := range matches {
+		start := offset + m[0]
+		end := offset + m[1]
+		if start < last || start >= end {
+			continue
+		}
+		if start > last {
+			b.WriteString(base.Render(display[last:start]))
+		}
+		b.WriteString(searchHitStyle.Render(display[start:end]))
+		last = end
+	}
+	if last < len(display) {
+		b.WriteString(base.Render(display[last:]))
+	}
+	return b.String()
 }

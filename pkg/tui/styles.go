@@ -84,7 +84,18 @@ func rebuildStyles(theme Theme) {
 		activeEnv = theme.Accent
 	}
 	activeEnvStyle = lipgloss.NewStyle().Foreground(activeEnv).Bold(true)
-	searchHitStyle = lipgloss.NewStyle().Foreground(theme.Accent).Underline(true)
+	hitBg := theme.SearchMatchBg
+	if hitBg == "" {
+		hitBg = theme.Accent
+	}
+	hitFg := theme.SearchMatchFg
+	if hitFg == "" {
+		hitFg = theme.SelectionFg
+	}
+	if hitFg == "" {
+		hitFg = theme.Text
+	}
+	searchHitStyle = lipgloss.NewStyle().Background(hitBg).Foreground(hitFg)
 
 	dimStyle = lipgloss.NewStyle().Foreground(theme.Dim)
 	dirtyStyle = lipgloss.NewStyle().Foreground(theme.Dirty)
@@ -116,7 +127,6 @@ func rebuildStyles(theme Theme) {
 		dimStyle = dimStyle.Background(bg)
 		dirtyStyle = dirtyStyle.Background(bg)
 		deleteStyle = deleteStyle.Background(bg)
-		searchHitStyle = searchHitStyle.Background(bg)
 		activeEnvStyle = activeEnvStyle.Background(bg)
 		titleStyle = titleStyle.Background(bg)
 		activeTitleStyle = activeTitleStyle.Background(bg)

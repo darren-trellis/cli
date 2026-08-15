@@ -22,6 +22,7 @@ import (
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -221,11 +222,104 @@ func TestSidebarToggle(t *testing.T) {
 	assert.True(t, mod.cfg.Sidebar)
 }
 
+func TestJumpListEdge(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusSecrets
+	m.width = 80
+	m.height = 24
+	m.secrets = make([]secretRow, 20)
+	for i := range m.secrets {
+		m.secrets[i] = newSecretRow(string(rune('A'+i%26)), "1", "masked")
+	}
+	m.secretIdx = 5
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	mod := next.(Model)
+	assert.Equal(t, 0, mod.secretIdx)
+
+	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	mod = next.(Model)
+	assert.Equal(t, 19, mod.secretIdx)
+}
+
+func TestClampScrollOffsetStableWithinWindow(t *testing.T) {
+	// scrolled so items 5..14 are visible (offset 5), selected at bottom (14)
+	assert.Equal(t, 5, clampScrollOffset(5, 14, 10, 30))
+	// move up within window — offset stays
+	assert.Equal(t, 5, clampScrollOffset(5, 13, 10, 30))
+	assert.Equal(t, 5, clampScrollOffset(5, 5, 10, 30))
+	// move above window — scroll up
+	assert.Equal(t, 4, clampScrollOffset(5, 4, 10, 30))
+	// move below window — scroll down
+	assert.Equal(t, 6, clampScrollOffset(5, 15, 10, 30))
+	// short list — no scroll
+	assert.Equal(t, 0, clampScrollOffset(3, 2, 10, 5))
+}
+
+func TestSidebarScrollOffsetStableOnMoveUp(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, SidebarScrollbarVertical: true})
+	m.fetching = false
+	m.focus = focusProjects
+	m.width = 80
+	m.height = 14
+	m.projects = make([]string, 40)
+	for i := range m.projects {
+		m.projects[i] = "p" + string(rune('a'+i%26))
+	}
+	m.rebuildTree()
+
+	visible := m.projectsVisibleRows()
+	require.Greater(t, len(m.tree), visible)
+
+	// move to bottom of first window then one past so we scroll
+	m.treeIdx = visible
+	m.syncScrollOffsets()
+	assert.Equal(t, 1, m.treeOffset)
+	bottom := m.treeOffset + visible - 1
+	assert.Equal(t, bottom, m.treeIdx)
+
+	m.treeIdx = bottom - 1
+	m.syncScrollOffsets()
+	assert.Equal(t, 1, m.treeOffset, "moving up from bottom row should not change scroll")
+}
+
 func TestVerticalScrollbar(t *testing.T) {
 	assert.Equal(t, "", renderVerticalScrollbar(10, 5, 0, 10))
 	bar := renderVerticalScrollbar(10, 100, 0, 10)
 	assert.Equal(t, 10, strings.Count(bar, "\n")+1)
 	assert.Contains(t, bar, "▐")
+}
+
+func TestSidebarScrollbarRightAlignedWhenUnfocused(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{
+		Border: true, Sidebar: true, SidebarWidth: 28, SidebarScrollbarVertical: true,
+	})
+	m.fetching = false
+	m.focus = focusSecrets
+	m.width = 100
+	m.height = 20
+	m.projects = make([]string, 40)
+	for i := range m.projects {
+		m.projects[i] = "p" + string(rune('a'+i%26))
+	}
+	m.rebuildTree()
+
+	out := m.renderProjectTree(28, 18)
+	plain := ansi.Strip(out)
+	lines := strings.Split(plain, "\n")
+	require.Greater(t, len(lines), 3)
+	body := lines[1 : len(lines)-1] // skip top/bottom border
+	width := lipgloss.Width(body[0])
+	assert.Equal(t, 28, width) // full panel width including borders
+	for i, line := range body {
+		assert.Equal(t, width, lipgloss.Width(line), "line %d", i)
+		runes := []rune(line)
+		require.Len(t, runes, width, "line %d", i)
+		// left border + content + scrollbar + right border
+		sb := runes[width-2]
+		assert.True(t, sb == '│' || sb == '▐', "line %d scrollbar col: %q", i, string(sb))
+	}
 }
 
 func TestPageLinesConfig(t *testing.T) {
