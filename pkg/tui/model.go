@@ -89,6 +89,7 @@ type Model struct {
 	createConfigEnv     string
 
 	commandInput textinput.Model
+	completions  CompletionState
 	keys         KeysConfig
 
 	cellInput textinput.Model

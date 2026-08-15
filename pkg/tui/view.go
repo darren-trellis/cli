@@ -37,6 +37,7 @@ func (r rect) contains(x, y int) bool {
 type layoutRegions struct {
 	projects rect
 	secrets  rect
+	suggest  rect
 	status   rect
 }
 
@@ -45,9 +46,16 @@ func (m Model) computeLayout() layoutRegions {
 	h := max(12, m.height)
 
 	statusH := 1
-	topH := h - statusH
+	suggestH := 0
+	if m.focus == focusCommand {
+		suggestH = m.completions.DesiredHeight(max(0, h-statusH-4))
+	}
+	topH := h - statusH - suggestH
 	layout := layoutRegions{
-		status: rect{0, topH, w, statusH},
+		status: rect{0, topH + suggestH, w, statusH},
+	}
+	if suggestH > 0 {
+		layout.suggest = rect{0, topH, w, suggestH}
 	}
 	if !m.cfg.Sidebar {
 		layout.secrets = rect{0, 0, w, topH}
@@ -119,7 +127,13 @@ func (m Model) View() string {
 	}
 	status := m.renderStatus(layout.status.w)
 
-	base := lipgloss.JoinVertical(lipgloss.Left, main, status)
+	var base string
+	if layout.suggest.h > 0 {
+		suggest := m.renderCompletions(layout.suggest.w, layout.suggest.h)
+		base = lipgloss.JoinVertical(lipgloss.Left, main, suggest, status)
+	} else {
+		base = lipgloss.JoinVertical(lipgloss.Left, main, status)
+	}
 
 	switch m.focus {
 	case focusIntro:
@@ -413,6 +427,60 @@ func renderStatusInput(ti *textinput.Model, width int) string {
 		view = lipgloss.NewStyle().MaxWidth(width).Render(view)
 	}
 	return statusBarStyle.Width(width).MaxWidth(width).Render(view)
+}
+
+func (m Model) renderCompletions(width, height int) string {
+	if height < 2 || len(m.completions.Items) == 0 {
+		return ""
+	}
+	innerH := max(1, height-2)
+	m.completions.ViewportH = innerH
+	m.completions.EnsureVisible()
+
+	title := " completions · Tab cycle · ↑↓ then Tab/Enter "
+	boxStyle := lipgloss.NewStyle().
+		Border(roundedBorder).
+		BorderForeground(accent).
+		Width(max(1, width-2)).
+		Height(innerH)
+	if background != "" {
+		boxStyle = boxStyle.Background(background).BorderBackground(background)
+	}
+
+	start := m.completions.Scroll
+	end := min(start+innerH, len(m.completions.Items))
+	var lines []string
+	for i := start; i < end; i++ {
+		item := m.completions.Items[i]
+		selected := m.completions.Selected != nil && *m.completions.Selected == i
+		marker := "  "
+		if selected {
+			marker = "▸ "
+		}
+		label := marker + padRight(item.Label, 18)
+		helpBudget := max(0, width-4-lipgloss.Width(label)-1)
+		help := truncate(item.Help, helpBudget)
+		row := label + " " + help
+		if selected {
+			lines = append(lines, selectedStyle.Width(max(1, width-4)).Render(padRight(row, max(1, width-4))))
+		} else {
+			helpPart := helpStyle.Render(help)
+			labelPart := statusStyle.Bold(true).Render(label)
+			pad := max(0, width-4-lipgloss.Width(label)-1-lipgloss.Width(help))
+			padStyle := lipgloss.NewStyle()
+			if background != "" {
+				padStyle = padStyle.Background(background)
+			}
+			lines = append(lines, labelPart+" "+helpPart+padStyle.Render(strings.Repeat(" ", pad)))
+		}
+	}
+	body := strings.Join(lines, "\n")
+	rendered := boxStyle.Render(body)
+	outLines := strings.Split(rendered, "\n")
+	if len(outLines) > 0 {
+		outLines[0] = titledTopBorder(title, width, true)
+	}
+	return strings.Join(outLines, "\n")
 }
 
 func (m Model) renderTitledPanel(title, content string, width, height int, active bool) string {

@@ -58,11 +58,15 @@ var commandCatalog = []commandInfo{
 	{"config create", "Create a config"},
 	{"sidebar toggle", "Toggle projects sidebar"},
 	{"command", "Open command prompt"},
+	{"command clear", "Clear status / search"},
 }
 
 func (m *Model) beginCommand() {
 	m.commandInput.SetValue("")
+	m.statusMsg = ""
+	m.errMsg = ""
 	m.setFocus(focusCommand)
+	m.refreshCompletions()
 }
 
 func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
@@ -120,6 +124,16 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 		m.errMsg = "unknown sidebar command"
 		return m, nil
 	case "command":
+		if len(args) > 0 && args[0] == "clear" {
+			m.statusMsg = ""
+			m.errMsg = ""
+			m.clearSearch()
+			return m, nil
+		}
+		if len(args) > 0 {
+			m.errMsg = "unknown command subcommand"
+			return m, nil
+		}
 		m.beginCommand()
 		return m, nil
 	default:
@@ -226,6 +240,8 @@ func (m Model) execSearch(args []string) (tea.Model, tea.Cmd) {
 		m.stepSearchMatch(-1)
 	case "clear":
 		m.clearSearch()
+		m.statusMsg = ""
+		m.errMsg = ""
 	default:
 		m.errMsg = "unknown search command"
 	}
@@ -272,7 +288,7 @@ func (m Model) renderHelpText() string {
 	}
 
 	writeSection("Global:", focusSecrets, []string{
-		"quit", "help", "command", "search", "search next", "search prev", "search clear",
+		"quit", "help", "command", "command clear", "search", "search next", "search prev", "search clear",
 		"filter", "sidebar toggle", "focus cycle", "focus prev", "focus projects", "focus secrets",
 	})
 	writeSection("Navigation:", focusSecrets, []string{

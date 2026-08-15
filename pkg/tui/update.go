@@ -427,18 +427,46 @@ func (m Model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.commandInput.SetValue("")
+		m.completions.Clear()
 		m.setFocus(focusSecrets)
 		return m, nil
 	case "enter":
+		if m.completions.Browsed && m.completions.SelectedItem() != nil {
+			m.applySelectedCompletion()
+			return m, nil
+		}
 		line := m.commandInput.Value()
 		m.commandInput.SetValue("")
+		m.completions.Clear()
 		m.setFocus(focusSecrets)
 		return m.executeCommand(line)
+	case "tab":
+		m.tabComplete(true)
+		return m, nil
+	case "shift+tab":
+		m.tabComplete(false)
+		return m, nil
+	case "down":
+		if len(m.completions.Items) > 0 {
+			m.completions.SelectNext()
+			m.completions.Browsed = true
+			return m, nil
+		}
+	case "up":
+		if len(m.completions.Items) > 0 {
+			m.completions.SelectPrev()
+			m.completions.Browsed = true
+			return m, nil
+		}
 	case "ctrl+c":
 		return m, tea.Quit
 	}
+	if m.completions.SelectedItem() != nil && !m.selectionApplied() {
+		m.applySelectedCompletion()
+	}
 	var cmd tea.Cmd
 	m.commandInput, cmd = m.commandInput.Update(msg)
+	m.refreshCompletions()
 	return m, cmd
 }
 
