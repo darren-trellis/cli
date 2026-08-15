@@ -437,11 +437,12 @@ func (m Model) renderCompletions(width, height int) string {
 	m.completions.ViewportH = innerH
 	m.completions.EnsureVisible()
 
-	title := " completions · Tab cycle · ↑↓ then Tab/Enter "
+	title := "suggestions"
+	innerW := max(1, width-2)
 	boxStyle := lipgloss.NewStyle().
 		Border(roundedBorder).
 		BorderForeground(accent).
-		Width(max(1, width-2)).
+		Width(innerW).
 		Height(innerH)
 	if background != "" {
 		boxStyle = boxStyle.Background(background).BorderBackground(background)
@@ -453,26 +454,7 @@ func (m Model) renderCompletions(width, height int) string {
 	for i := start; i < end; i++ {
 		item := m.completions.Items[i]
 		selected := m.completions.Selected != nil && *m.completions.Selected == i
-		marker := "  "
-		if selected {
-			marker = "▸ "
-		}
-		label := marker + padRight(item.Label, 18)
-		helpBudget := max(0, width-4-lipgloss.Width(label)-1)
-		help := truncate(item.Help, helpBudget)
-		row := label + " " + help
-		if selected {
-			lines = append(lines, selectedStyle.Width(max(1, width-4)).Render(padRight(row, max(1, width-4))))
-		} else {
-			helpPart := helpStyle.Render(help)
-			labelPart := statusStyle.Bold(true).Render(label)
-			pad := max(0, width-4-lipgloss.Width(label)-1-lipgloss.Width(help))
-			padStyle := lipgloss.NewStyle()
-			if background != "" {
-				padStyle = padStyle.Background(background)
-			}
-			lines = append(lines, labelPart+" "+helpPart+padStyle.Render(strings.Repeat(" ", pad)))
-		}
+		lines = append(lines, renderCompletionRow(item, selected, innerW))
 	}
 	body := strings.Join(lines, "\n")
 	rendered := boxStyle.Render(body)
@@ -481,6 +463,29 @@ func (m Model) renderCompletions(width, height int) string {
 		outLines[0] = titledTopBorder(title, width, true)
 	}
 	return strings.Join(outLines, "\n")
+}
+
+func renderCompletionRow(item Suggestion, selected bool, width int) string {
+	inner := max(1, width)
+	marker := "  "
+	if selected {
+		marker = "▸ "
+	}
+	label := marker + padRight(item.Label, 18)
+	helpBudget := max(0, inner-lipgloss.Width(label)-1)
+	help := truncate(item.Help, helpBudget)
+	if selected {
+		return selectedStyle.Width(inner).MaxWidth(inner).Render(padRight(label+" "+help, inner))
+	}
+	bg := lipgloss.NewStyle()
+	if background != "" {
+		bg = bg.Background(background)
+	}
+	pad := max(0, inner-lipgloss.Width(label)-1-lipgloss.Width(help))
+	return statusStyle.Bold(true).Render(label) +
+		bg.Render(" ") +
+		helpStyle.Render(help) +
+		bg.Render(strings.Repeat(" ", pad))
 }
 
 func (m Model) renderTitledPanel(title, content string, width, height int, active bool) string {

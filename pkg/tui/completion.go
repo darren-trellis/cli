@@ -233,26 +233,49 @@ func commandPrefixSuggestions(prefix string, replaceFrom int) []Suggestion {
 		})
 	}
 
-	for _, c := range commandCatalog {
-		if c.name == "command" {
+	for _, parent := range parentCommandNames() {
+		if parent == "command" {
 			continue
 		}
-		nameL := strings.ToLower(c.name)
-		if prefixL == "" || strings.HasPrefix(nameL, prefixL) {
-			add(c.name, c.help)
+		parentL := strings.ToLower(parent)
+		if prefixL == "" || strings.HasPrefix(parentL, prefixL) {
+			add(parent, parentCommandHelp(parent))
 		}
 	}
 	if len(items) == 0 && prefixL != "" {
-		for _, c := range commandCatalog {
-			if c.name == "command" {
+		for _, parent := range parentCommandNames() {
+			if parent == "command" {
 				continue
 			}
-			if strings.Contains(strings.ToLower(c.name), prefixL) {
-				add(c.name, c.help)
+			if strings.Contains(strings.ToLower(parent), prefixL) {
+				add(parent, parentCommandHelp(parent))
 			}
 		}
 	}
 	return items
+}
+
+func parentCommandNames() []string {
+	seen := map[string]bool{}
+	var names []string
+	for _, c := range commandCatalog {
+		fields := strings.Fields(c.name)
+		if len(fields) == 0 || seen[fields[0]] {
+			continue
+		}
+		seen[fields[0]] = true
+		names = append(names, fields[0])
+	}
+	return names
+}
+
+func parentCommandHelp(parent string) string {
+	for _, c := range commandCatalog {
+		if strings.EqualFold(c.name, parent) {
+			return c.help
+		}
+	}
+	return parent + " commands"
 }
 
 func subcommandSuggestions(cmd, rest string, restFrom int) []Suggestion {

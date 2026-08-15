@@ -57,15 +57,34 @@ func TestSuggestionsPrefixAndSubcommand(t *testing.T) {
 	require.NotEmpty(t, items)
 	assert.Equal(t, "help", items[0].Text)
 
+	items = suggestionsFor("n")
+	texts := suggestionTexts(items)
+	assert.True(t, texts["nav"])
+	assert.False(t, texts["up"])
+	assert.False(t, texts["nav up"])
+
+	items = suggestionsFor("")
+	texts = suggestionTexts(items)
+	assert.True(t, texts["nav"])
+	assert.True(t, texts["config"])
+	assert.False(t, texts["up"])
+	assert.False(t, texts["lock"])
+	assert.False(t, texts["create"])
+
 	items = suggestionsFor("nav ")
 	require.NotEmpty(t, items)
+	texts = suggestionTexts(items)
+	assert.True(t, texts["up"])
+	assert.True(t, texts["down"])
+	assert.True(t, texts["top"])
+}
+
+func suggestionTexts(items []Suggestion) map[string]bool {
 	texts := map[string]bool{}
 	for _, s := range items {
 		texts[s.Text] = true
 	}
-	assert.True(t, texts["up"])
-	assert.True(t, texts["down"])
-	assert.True(t, texts["top"])
+	return texts
 }
 
 func TestTabCompleteAppliesSuggestion(t *testing.T) {
@@ -88,5 +107,6 @@ func TestCommandModeShowsCompletions(t *testing.T) {
 	assert.Greater(t, m.completions.DesiredHeight(20), 0)
 
 	view := m.View()
-	assert.Contains(t, view, "completions")
+	assert.Contains(t, view, "suggestions")
+	assert.NotContains(t, view, "nav up")
 }
