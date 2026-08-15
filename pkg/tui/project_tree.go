@@ -34,6 +34,8 @@ type treeRow struct {
 	hasChildren     bool
 	locked          bool
 	foldRoot        string // root config name for env fold target
+	cached          bool
+	dirty           bool
 }
 
 func envKey(project, rootConfig string) string {
@@ -198,7 +200,7 @@ func findTreeIndex(tree []treeRow, kind treeKind, project, config string) int {
 	return 0
 }
 
-func formatTreeRow(row treeRow, activeProject, activeConfig string, secretsDirty bool) string {
+func formatTreeRow(row treeRow, activeProject, activeConfig string) string {
 	if row.kind == treeProject {
 		icon := "▾ "
 		if row.folded {
@@ -209,10 +211,13 @@ func formatTreeRow(row treeRow, activeProject, activeConfig string, secretsDirty
 
 	active := row.project == activeProject && row.config == activeConfig
 	label := row.config
+	if row.cached {
+		label = label + " ·"
+	}
 	if row.locked {
 		label = label + " 🔒"
 	}
-	if active && secretsDirty {
+	if row.dirty {
 		label = label + " +"
 	}
 	name := label

@@ -158,7 +158,7 @@ func (m Model) renderProjectTree(width, height int) string {
 	needles := make([]string, len(m.tree))
 	for i, row := range m.tree {
 		needles[i] = searchableTreeText(row)
-		line := formatTreeRow(row, m.activeProject, m.activeConfig, m.hasDirtySecrets())
+		line := formatTreeRow(row, m.activeProject, m.activeConfig)
 		if searchRe != nil {
 			line = highlightNeedleInDisplay(ansi.Strip(line), needles[i], searchRe, baseTextStyle())
 		}
@@ -651,7 +651,15 @@ func (m Model) renderSwitchConfirmModal() string {
 	width := min(60, max(24, m.width-4))
 	inner := m.modalInnerWidth(width)
 	var lines []string
-	if len(m.pendingChanges) > 0 {
+	if len(m.quitDirty) > 0 {
+		lines = append(lines, "Modified:")
+		for _, g := range m.quitDirty {
+			lines = append(lines, g.project+" / "+g.config)
+			for _, c := range g.changes {
+				lines = append(lines, "● "+fmt.Sprint(c.Name))
+			}
+		}
+	} else if len(m.pendingChanges) > 0 {
 		lines = append(lines, "Modified:")
 		for _, c := range m.pendingChanges {
 			lines = append(lines, "● "+fmt.Sprint(c.Name))

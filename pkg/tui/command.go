@@ -57,8 +57,8 @@ var commandCatalog = []commandInfo{
 	{"paste", "Paste secrets from clipboard"},
 	{"secret save", "Open save prompt"},
 	{"search", "Open search"},
-	{"search next", "Next search match"},
-	{"search prev", "Previous search match"},
+	{"search next", "Next search match (or next cached config)"},
+	{"search prev", "Previous search match (or previous cached config)"},
 	{"search clear", "Clear search"},
 	{"filter", "Open secrets filter"},
 	{"config create", "Create a config"},
@@ -93,7 +93,7 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 
 	switch verb {
 	case "quit":
-		return m, tea.Quit
+		return m.requestQuit()
 	case "help":
 		m.focus = focusHelp
 		m.modalBtnIdx = 0
@@ -277,10 +277,22 @@ func (m Model) execSearch(args []string) (tea.Model, tea.Cmd) {
 	}
 	switch args[0] {
 	case "next":
+		if m.searchQuery == "" {
+			for i := 0; i < m.takeMotionCount(); i++ {
+				m.stepCachedConfig(1)
+			}
+			return m, nil
+		}
 		for i := 0; i < m.takeMotionCount(); i++ {
 			m.stepSearchMatch(1)
 		}
 	case "prev":
+		if m.searchQuery == "" {
+			for i := 0; i < m.takeMotionCount(); i++ {
+				m.stepCachedConfig(-1)
+			}
+			return m, nil
+		}
 		for i := 0; i < m.takeMotionCount(); i++ {
 			m.stepSearchMatch(-1)
 		}
@@ -349,6 +361,7 @@ func (m Model) renderHelpText() string {
 	})
 	b.WriteString("Typing modes (search/filter/insert/create/rename) use Esc/Enter locally.\n")
 	b.WriteString("Counts: 7j / 3k / 10G (G with a count jumps to that row).\n")
+	b.WriteString("Cached configs show · ; highlighting one shows its secrets. n/N hops cached configs when not searching.\n")
 	b.WriteString("Projects yank: y then n/y/j/e (name / yaml / json / env).\n")
 	b.WriteString("Secrets yank: y[j|e] then motion (yy line, yn cell, y5↓ 5 yaml pairs, yjy json line).\n")
 	b.WriteString("Secrets paste: p imports yaml/json/env from the clipboard.\n")

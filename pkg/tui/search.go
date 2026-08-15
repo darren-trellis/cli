@@ -143,6 +143,7 @@ func (m *Model) jumpToSearchMatch(matchPos int) {
 	switch m.searchPane {
 	case focusProjects:
 		m.focus = focusProjects
+		m.revealHighlightedConfig()
 	case focusSecrets:
 		m.focus = focusSecrets
 	}

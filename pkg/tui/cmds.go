@@ -195,31 +195,20 @@ func saveSecretsCmd(opts models.ScopedOptions, project, config string, changes [
 	}
 }
 
-func saveAndNavigateCmd(
-	opts models.ScopedOptions,
-	fromProject, fromConfig string,
-	changes []models.ChangeRequest,
-	toProject, toConfig string,
-) tea.Cmd {
+type quitNowMsg struct{}
+
+func saveAllDirtyCmd(opts models.ScopedOptions, groups []dirtyGroup) tea.Cmd {
 	return func() tea.Msg {
-		if len(changes) > 0 {
-			_, err := controllers.SetSecrets(withProjectConfig(opts, fromProject, fromConfig), changes)
+		for _, g := range groups {
+			if len(g.changes) == 0 {
+				continue
+			}
+			_, err := controllers.SetSecrets(withProjectConfig(opts, g.project, g.config), g.changes)
 			if err.Unwrap() != nil {
 				return errMsg{err.Unwrap()}
 			}
 		}
-		if toConfig != "" {
-			computed, err := controllers.GetSecrets(withProjectConfig(opts, toProject, toConfig))
-			if err.Unwrap() != nil {
-				return errMsg{err.Unwrap()}
-			}
-			return secretsLoadedMsg{
-				secrets:       secretsFromComputed(computed),
-				activeProject: toProject,
-				activeConfig:  toConfig,
-			}
-		}
-		return selectProjectCmd(opts, toProject, fromConfig)()
+		return quitNowMsg{}
 	}
 }
 

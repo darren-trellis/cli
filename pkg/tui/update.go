@@ -85,6 +85,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.undoStack = nil
 		m.activeProject = msg.activeProject
 		m.activeConfig = msg.activeConfig
+		m.rememberLoadedSecrets(msg.activeProject, msg.activeConfig, msg.secrets)
 		m.rebuildTree()
 		m.treeIdx = findTreeIndex(m.tree, treeConfig, msg.activeProject, msg.activeConfig)
 		m.persistSession()
@@ -93,7 +94,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case projectSelectedMsg:
 		m.fetching = false
 		m.errMsg = ""
-		m.clearPendingSwitch()
+		m.clearUnsavedConfirm()
 		m.projectConfigs[msg.project] = msg.configs
 		m.expanded[msg.project] = true
 		m.secrets = msg.secrets
@@ -102,6 +103,10 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.undoStack = nil
 		m.activeProject = msg.project
 		m.activeConfig = msg.config
+		if msg.config != "" {
+			m.rememberLoadedSecrets(msg.project, msg.config, msg.secrets)
+		}
+		m.pruneSecretsCache()
 		m.createConfigProject = ""
 		m.createConfigEnv = ""
 		m.renameFromConfig = ""
@@ -159,13 +164,14 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case secretsLoadedMsg:
 		m.fetching = false
 		m.errMsg = ""
-		m.clearPendingSwitch()
+		m.clearUnsavedConfirm()
 		m.secrets = msg.secrets
 		m.secretIdx = 0
 		m.secretCol = colName
 		m.undoStack = nil
 		m.activeProject = msg.activeProject
 		m.activeConfig = msg.activeConfig
+		m.rememberLoadedSecrets(msg.activeProject, msg.activeConfig, msg.secrets)
 		if _, ok := m.projectConfigs[msg.activeProject]; ok {
 			m.expanded[msg.activeProject] = true
 		}
@@ -174,6 +180,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.setFocus(focusSecrets)
 		m.persistSession()
 		return m, nil
+
+	case quitNowMsg:
+		return m, tea.Quit
 
 	case tea.MouseMsg:
 		return m.handleMouse(msg)
@@ -275,8 +284,8 @@ func (m Model) handleSwitchConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.confirmSwitchSave()
 	case "d":
 		return m.confirmSwitchDiscard()
-	case "c", "esc", "q":
-		m.clearPendingSwitch()
+		case "c", "esc", "q":
+		m.clearUnsavedConfirm()
 		m.setFocus(focusSecrets)
 		return m, nil
 	case "ctrl+c":
@@ -306,7 +315,7 @@ func (m Model) activateFocusedModalButton() (tea.Model, tea.Cmd) {
 		case 1:
 			return m.confirmSwitchDiscard()
 		case 2:
-			m.clearPendingSwitch()
+			m.clearUnsavedConfirm()
 			m.setFocus(focusSecrets)
 			return m, nil
 		default:
@@ -324,55 +333,56 @@ func (m Model) activateFocusedModalButton() (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m *Model) clearPendingSwitch() {
-	m.pendingSwitchProject = ""
-	m.pendingSwitchConfig = ""
+func (m *Model) clearUnsavedConfirm() {
 	m.pendingChanges = nil
+	m.pendingQuit = false
+	m.quitDirty = nil
 }
 
 func (m Model) confirmSwitchSave() (tea.Model, tea.Cmd) {
-	changes := m.pendingChanges
-	if len(changes) == 0 {
-		changes = collectChanges(m.secrets)
+	if !m.pendingQuit {
+		m.clearUnsavedConfirm()
+		m.setFocus(focusSecrets)
+		return m, nil
 	}
-	toProject := m.pendingSwitchProject
-	toConfig := m.pendingSwitchConfig
-	fromProject := m.activeProject
-	fromConfig := m.activeConfig
-	m.clearPendingSwitch()
+	groups := m.quitDirty
+	if len(groups) == 0 {
+		groups = m.dirtyGroups()
+	}
+	m.clearUnsavedConfirm()
 	m.fetching = true
 	m.statusMsg = ""
 	m.errMsg = ""
 	m.setFocus(focusSecrets)
-	return m, tea.Batch(m.spinner.Tick, saveAndNavigateCmd(m.opts, fromProject, fromConfig, changes, toProject, toConfig))
+	return m, tea.Batch(m.spinner.Tick, saveAllDirtyCmd(m.opts, groups))
 }
 
 func (m Model) confirmSwitchDiscard() (tea.Model, tea.Cmd) {
-	toProject := m.pendingSwitchProject
-	toConfig := m.pendingSwitchConfig
-	m.clearPendingSwitch()
-	m.fetching = true
-	m.statusMsg = ""
-	m.errMsg = ""
-	m.setFocus(focusProjects)
-	if toConfig != "" {
-		return m, tea.Batch(m.spinner.Tick, selectConfigCmd(m.opts, toProject, toConfig))
-	}
-	return m, tea.Batch(m.spinner.Tick, selectProjectCmd(m.opts, toProject, m.activeConfig))
+	m.clearUnsavedConfirm()
+	return m, tea.Quit
 }
 
-func (m Model) openSwitchConfirm(project, config string) (tea.Model, tea.Cmd) {
+func (m Model) openQuitConfirm() (tea.Model, tea.Cmd) {
 	if m.inSecretInsert() {
 		m.applyCellToSelection()
 	}
-	m.pendingSwitchProject = project
-	m.pendingSwitchConfig = config
-	m.pendingChanges = collectChanges(m.secrets)
+	m.stashCurrentSecrets()
+	m.pendingQuit = true
+	m.quitDirty = m.dirtyGroups()
+	m.pendingChanges = nil
 	m.modalBtnIdx = 0
 	m.focus = focusSwitchConfirm
 	m.errMsg = ""
 	m.statusMsg = ""
 	return m, nil
+}
+
+func (m Model) requestQuit() (tea.Model, tea.Cmd) {
+	m.stashCurrentSecrets()
+	if !m.hasDirtySecrets() {
+		return m, tea.Quit
+	}
+	return m.openQuitConfirm()
 }
 
 func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -694,6 +704,7 @@ func (m *Model) moveList(delta int) {
 			return
 		}
 		m.treeIdx = clamp(m.treeIdx+delta, 0, len(m.tree)-1)
+		m.revealHighlightedConfig()
 	case focusSecrets:
 		idxs := m.filteredIndexes()
 		if len(idxs) == 0 {
@@ -710,6 +721,7 @@ func (m *Model) jumpListIndex(idx int) {
 			return
 		}
 		m.treeIdx = clamp(idx, 0, len(m.tree)-1)
+		m.revealHighlightedConfig()
 	case focusSecrets:
 		idxs := m.filteredIndexes()
 		if len(idxs) == 0 {
@@ -730,6 +742,7 @@ func (m *Model) jumpListEdge(bottom bool) {
 		} else {
 			m.treeIdx = 0
 		}
+		m.revealHighlightedConfig()
 	case focusSecrets:
 		idxs := m.filteredIndexes()
 		if len(idxs) == 0 {
@@ -828,8 +841,10 @@ func (m Model) activateSelection() (tea.Model, tea.Cmd) {
 			m.setFocus(focusSecrets)
 			return m, nil
 		}
-		if m.hasDirtySecrets() {
-			return m.openSwitchConfirm(row.project, row.config)
+		m.stashCurrentSecrets()
+		if m.applyCachedSecrets(row.project, row.config) {
+			m.setFocus(focusSecrets)
+			return m, nil
 		}
 		m.fetching = true
 		m.errMsg = ""
@@ -846,8 +861,19 @@ func (m Model) activateSelection() (tea.Model, tea.Cmd) {
 		m.rebuildTree()
 		return m, nil
 	}
-	if m.hasDirtySecrets() {
-		return m.openSwitchConfirm(row.project, "")
+	m.stashCurrentSecrets()
+	if configs, ok := m.projectConfigs[row.project]; ok && len(configs) > 0 {
+		preferred := configs[indexOfConfig(configs, m.activeConfig)].name
+		if m.applyCachedSecrets(row.project, preferred) {
+			m.expanded[row.project] = true
+			m.rebuildTree()
+			m.treeIdx = findTreeIndex(m.tree, treeConfig, row.project, preferred)
+			m.setFocus(focusSecrets)
+			return m, nil
+		}
+		m.fetching = true
+		m.errMsg = ""
+		return m, tea.Batch(m.spinner.Tick, selectConfigCmd(m.opts, row.project, preferred))
 	}
 	m.fetching = true
 	m.errMsg = ""

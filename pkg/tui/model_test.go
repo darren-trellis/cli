@@ -463,11 +463,15 @@ func TestBuildConfigTree(t *testing.T) {
 
 func TestFormatTreeRowShowsLock(t *testing.T) {
 	row := treeRow{kind: treeConfig, project: "api", config: "prd", depth: 1, lastSibling: true, locked: true}
-	assert.Equal(t, "  └─ prd 🔒", ansi.Strip(formatTreeRow(row, "api", "dev", false)))
+	assert.Equal(t, "  └─ prd 🔒", ansi.Strip(formatTreeRow(row, "api", "dev")))
 
 	active := treeRow{kind: treeConfig, project: "api", config: "prd", depth: 1, lastSibling: true, locked: true}
-	assert.Equal(t, "  └─ *prd 🔒", ansi.Strip(formatTreeRow(active, "api", "prd", false)))
-	assert.Equal(t, "  └─ *prd 🔒 +", ansi.Strip(formatTreeRow(active, "api", "prd", true)))
+	assert.Equal(t, "  └─ *prd 🔒", ansi.Strip(formatTreeRow(active, "api", "prd")))
+	active.dirty = true
+	assert.Equal(t, "  └─ *prd 🔒 +", ansi.Strip(formatTreeRow(active, "api", "prd")))
+	active.dirty = false
+	active.cached = true
+	assert.Equal(t, "  └─ *prd · 🔒", ansi.Strip(formatTreeRow(active, "api", "prd")))
 }
 
 func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
@@ -490,18 +494,18 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 	assert.Equal(t, 2, tree[2].depth)
 	assert.True(t, tree[2].parentContinues)
 	assert.True(t, tree[3].lastSibling)
-	assert.Equal(t, "▾ api", ansi.Strip(formatTreeRow(tree[0], "api", "dev", false)))
-	assert.Equal(t, "  ├─ ▾ *dev", ansi.Strip(formatTreeRow(tree[1], "api", "dev", false)))
-	assert.Equal(t, "  │  └─ dev_personal", ansi.Strip(formatTreeRow(tree[2], "api", "dev", false)))
-	assert.Equal(t, "  └─ prd", ansi.Strip(formatTreeRow(tree[3], "api", "dev", false)))
+	assert.Equal(t, "▾ api", ansi.Strip(formatTreeRow(tree[0], "api", "dev")))
+	assert.Equal(t, "  ├─ ▾ *dev", ansi.Strip(formatTreeRow(tree[1], "api", "dev")))
+	assert.Equal(t, "  │  └─ dev_personal", ansi.Strip(formatTreeRow(tree[2], "api", "dev")))
+	assert.Equal(t, "  └─ prd", ansi.Strip(formatTreeRow(tree[3], "api", "dev")))
 
 	expandedEnvs := map[string]bool{envKey("api", "dev"): false}
 	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, expandedEnvs, "api", "dev_personal")
 	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd", "web"}, treeLabels(tree))
 	assert.True(t, tree[1].folded)
 	assert.True(t, tree[2].pinned)
-	assert.Equal(t, "  ├─ ▸ dev", ansi.Strip(formatTreeRow(tree[1], "api", "dev_personal", false)))
-	assert.Equal(t, "  │  └─ *dev_personal", ansi.Strip(formatTreeRow(tree[2], "api", "dev_personal", false)))
+	assert.Equal(t, "  ├─ ▸ dev", ansi.Strip(formatTreeRow(tree[1], "api", "dev_personal")))
+	assert.Equal(t, "  │  └─ *dev_personal", ansi.Strip(formatTreeRow(tree[2], "api", "dev_personal")))
 
 	expanded["api"] = false
 	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, nil, "api", "dev")
@@ -510,7 +514,7 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 	assert.Equal(t, treeConfig, tree[1].kind)
 	assert.Equal(t, "dev", tree[1].config)
 	assert.True(t, tree[1].pinned)
-	assert.Equal(t, "  └─ *dev", ansi.Strip(formatTreeRow(tree[1], "api", "dev", false)))
+	assert.Equal(t, "  └─ *dev", ansi.Strip(formatTreeRow(tree[1], "api", "dev")))
 	assert.Equal(t, "web", tree[2].project)
 }
 

@@ -1,0 +1,140 @@
+/*
+Copyright © 2023 Doppler <support@doppler.com>
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+package tui
+
+import (
+	"testing"
+
+	"github.com/DopplerHQ/cli/pkg/configuration"
+	"github.com/DopplerHQ/cli/pkg/models"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func cachedSidebarModel() Model {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusProjects
+	m.activeProject = "api"
+	m.activeConfig = "dev"
+	m.projects = []string{"api"}
+	m.projectConfigs["api"] = buildConfigTree([]models.ConfigInfo{
+		{Name: "dev", Environment: "dev", Root: true},
+		{Name: "dev_personal", Environment: "dev", Root: false},
+		{Name: "prd", Environment: "prd", Root: true},
+	})
+	m.expanded["api"] = true
+	m.secrets = []secretRow{newSecretRow("DEV", "1", "masked")}
+	m.rememberLoadedSecrets("api", "dev", m.secrets)
+	m.putSecretsCache("api", "prd", secretsCacheEntry{
+		secrets: []secretRow{newSecretRow("PRD", "9", "masked")},
+	})
+	m.rebuildTree()
+	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
+	return m
+}
+
+func TestHighlightCachedConfigShowsSecrets(t *testing.T) {
+	m := cachedSidebarModel()
+	m.moveList(findTreeIndex(m.tree, treeConfig, "api", "prd") - m.treeIdx)
+
+	assert.Equal(t, "prd", m.activeConfig)
+	require.Len(t, m.secrets, 1)
+	assert.Equal(t, "PRD", m.secrets[0].name)
+	assert.True(t, m.configIsCached("api", "dev"))
+}
+
+func TestHighlightUncachedConfigKeepsCurrentSecrets(t *testing.T) {
+	m := cachedSidebarModel()
+	m.moveList(findTreeIndex(m.tree, treeConfig, "api", "dev_personal") - m.treeIdx)
+
+	assert.Equal(t, "dev", m.activeConfig)
+	require.Len(t, m.secrets, 1)
+	assert.Equal(t, "DEV", m.secrets[0].name)
+	assert.False(t, m.configIsCached("api", "dev_personal"))
+}
+
+func TestActivateCachedConfigDoesNotFetch(t *testing.T) {
+	m := cachedSidebarModel()
+	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "prd")
+
+	next, cmd := m.activateSelection()
+	mod := next.(Model)
+	assert.Nil(t, cmd)
+	assert.Equal(t, focusSecrets, mod.focus)
+	assert.Equal(t, "prd", mod.activeConfig)
+	assert.Equal(t, "PRD", mod.secrets[0].name)
+}
+
+func TestStepCachedConfigSkipsUncached(t *testing.T) {
+	m := cachedSidebarModel()
+	m.stepCachedConfig(1)
+	assert.Equal(t, "prd", m.activeConfig)
+	assert.Equal(t, "PRD", m.secrets[0].name)
+
+	m.stepCachedConfig(1)
+	assert.Equal(t, "dev", m.activeConfig)
+	assert.Equal(t, "DEV", m.secrets[0].name)
+}
+
+func TestSearchNextWithoutQueryHopsCached(t *testing.T) {
+	m := cachedSidebarModel()
+	next, _ := m.executeCommand("search next")
+	mod := next.(Model)
+	assert.Equal(t, "prd", mod.activeConfig)
+}
+
+func TestSearchNextWithQueryKeepsMatches(t *testing.T) {
+	m := cachedSidebarModel()
+	m.focus = focusSecrets
+	m.searchPane = focusSecrets
+	require.NoError(t, m.applySearch("DEV", true))
+
+	next, _ := m.executeCommand("search next")
+	mod := next.(Model)
+	assert.Equal(t, "dev", mod.activeConfig)
+	assert.Contains(t, mod.statusMsg, "Match")
+}
+
+func TestDirtyCacheSurvivesSwitch(t *testing.T) {
+	m := cachedSidebarModel()
+	m.secrets[0].value = "changed"
+	m.stashCurrentSecrets()
+	require.True(t, m.applyCachedSecrets("api", "prd"))
+	assert.Equal(t, "PRD", m.secrets[0].name)
+	assert.True(t, m.configIsDirty("api", "dev"))
+	assert.False(t, m.configIsDirty("api", "prd"))
+	assert.True(t, m.hasDirtySecrets())
+}
+
+func TestSidebarMarksCachedConfigs(t *testing.T) {
+	m := cachedSidebarModel()
+	m.width = 80
+	m.height = 24
+	out := ansi.Strip(m.renderProjectTree(40, 20))
+	assert.Contains(t, out, "dev ·")
+	assert.Contains(t, out, "prd ·")
+	assert.NotContains(t, out, "dev_personal ·")
+}
+
+func TestNKeyHopsCachedWhenNotSearching(t *testing.T) {
+	m := cachedSidebarModel()
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	mod := next.(Model)
+	assert.Equal(t, "prd", mod.activeConfig)
+}

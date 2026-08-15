@@ -77,6 +77,7 @@ type Model struct {
 	treeOffset     int
 
 	secrets      []secretRow
+	secretsCache map[string]secretsCacheEntry
 	secretIdx    int // index into filteredIndexes()
 	secretOffset int
 	secretCol    secretCol
@@ -117,9 +118,8 @@ type Model struct {
 	activeConfig  string
 
 	pendingChanges []models.ChangeRequest
-
-	pendingSwitchProject string
-	pendingSwitchConfig  string
+	pendingQuit    bool
+	quitDirty      []dirtyGroup
 
 	pendingDeleteProject string
 	pendingDeleteConfig  string
@@ -179,6 +179,7 @@ func newModel(opts models.ScopedOptions, cfg configuration.TUISettings) Model {
 		spinner:           sp,
 		fetching:          true,
 		projectConfigs:    map[string][]configRow{},
+		secretsCache:      map[string]secretsCacheEntry{},
 		expanded:          map[string]bool{},
 		expandedEnvs:      map[string]bool{},
 	}
@@ -390,6 +391,7 @@ func (m *Model) rebuildTree() {
 	}
 
 	m.tree = buildProjectTree(m.projects, m.projectConfigs, m.expanded, m.expandedEnvs, m.activeProject, m.activeConfig)
+	m.annotateTreeCache()
 	m.treeIdx = findTreeIndex(m.tree, kind, project, config)
 	if m.treeIdx >= len(m.tree) {
 		m.treeIdx = max(0, len(m.tree)-1)
@@ -403,8 +405,31 @@ func (m Model) inModal() bool {
 	return m.focus == focusHelp || m.focus == focusSave || m.focus == focusSwitchConfirm || m.focus == focusDeleteConfirm
 }
 
+func (m *Model) annotateTreeCache() {
+	for i := range m.tree {
+		row := &m.tree[i]
+		if row.kind != treeConfig || row.config == "" {
+			continue
+		}
+		row.cached = m.configIsCached(row.project, row.config)
+		row.dirty = m.configIsDirty(row.project, row.config)
+	}
+}
+
 func (m Model) hasDirtySecrets() bool {
-	return len(collectChanges(m.secrets)) > 0
+	if len(collectChanges(m.secrets)) > 0 {
+		return true
+	}
+	current := secretsCacheKey(m.activeProject, m.activeConfig)
+	for k, e := range m.secretsCache {
+		if k == current {
+			continue
+		}
+		if len(collectChanges(e.secrets)) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (m Model) inSecretInsert() bool {
