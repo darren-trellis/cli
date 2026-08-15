@@ -69,6 +69,35 @@ func (c *CompletionState) DesiredHeight(maxH int) int {
 	return h
 }
 
+func (c *CompletionState) Step(delta int) {
+	if len(c.Items) == 0 {
+		c.Selected = nil
+		c.Browsed = false
+		return
+	}
+	if !c.Browsed || c.Selected == nil {
+		if delta > 0 {
+			z := 0
+			c.Selected = &z
+			c.Browsed = true
+			c.centerOnSelection()
+		}
+		return
+	}
+	next := *c.Selected + delta
+	if next < 0 {
+		c.Selected = nil
+		c.Browsed = false
+		return
+	}
+	if next >= len(c.Items) {
+		next = len(c.Items) - 1
+	}
+	c.Selected = &next
+	c.Browsed = true
+	c.centerOnSelection()
+}
+
 func (c *CompletionState) SelectNext() {
 	if len(c.Items) == 0 {
 		return

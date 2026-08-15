@@ -88,6 +88,41 @@ func TestCommandHistoryUpDown(t *testing.T) {
 	assert.Equal(t, "", mod.commandInput.Value())
 }
 
+func TestCommandDownFocusesSuggestions(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.commandHistory = newInputHistory([]string{"help"})
+	m.beginCommand()
+	require.NotEmpty(t, m.completions.Items)
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	mod := next.(Model)
+	assert.True(t, mod.completions.Browsed)
+	require.NotNil(t, mod.completions.Selected)
+	assert.Equal(t, 0, *mod.completions.Selected)
+	assert.Equal(t, "", mod.commandInput.Value())
+
+	first := *mod.completions.Selected
+	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyDown})
+	mod = next.(Model)
+	require.NotNil(t, mod.completions.Selected)
+	assert.Equal(t, first+1, *mod.completions.Selected)
+
+	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyUp})
+	mod = next.(Model)
+	require.NotNil(t, mod.completions.Selected)
+	assert.Equal(t, first, *mod.completions.Selected)
+
+	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyUp})
+	mod = next.(Model)
+	assert.False(t, mod.completions.Browsed)
+	assert.Nil(t, mod.completions.Selected)
+
+	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyUp})
+	mod = next.(Model)
+	assert.Equal(t, "help", mod.commandInput.Value())
+}
+
 func TestSearchHistoryUpAppliesQuery(t *testing.T) {
 	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
 	m.fetching = false

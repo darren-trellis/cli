@@ -687,14 +687,19 @@ func (m Model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.executeCommand(line)
 	case "tab":
 		m.tabComplete(true)
+		m.completions.Browsed = len(m.completions.Items) > 0
 		return m, nil
 	case "shift+tab":
 		m.tabComplete(false)
+		m.completions.Browsed = len(m.completions.Items) > 0
 		return m, nil
 	case "ctrl+c":
 		return m, tea.Quit
 	}
 	if step := historyStep(msg.String()); step != 0 {
+		if m.stepCommandCompletions(step) {
+			return m, nil
+		}
 		current := m.commandInput.Value()
 		next := current
 		ok := false
@@ -717,6 +722,21 @@ func (m Model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.commandInput, cmd = m.commandInput.Update(msg)
 	m.refreshCompletions()
 	return m, cmd
+}
+
+func (m *Model) stepCommandCompletions(step int) bool {
+	if len(m.completions.Items) == 0 {
+		return false
+	}
+	if m.completions.Browsed {
+		m.completions.Step(step)
+		return true
+	}
+	if step > 0 && !m.commandHistory.Browsing() {
+		m.completions.Step(1)
+		return true
+	}
+	return false
 }
 
 func (m *Model) moveList(delta int) {

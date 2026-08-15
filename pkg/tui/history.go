@@ -50,6 +50,10 @@ func (h inputHistory) Items() []string {
 	return append([]string(nil), h.items...)
 }
 
+func (h inputHistory) Browsing() bool {
+	return h.browsing
+}
+
 func (h *inputHistory) Reset() {
 	h.draft = ""
 	h.matchIdx = -1
