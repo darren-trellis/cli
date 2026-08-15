@@ -29,9 +29,10 @@ var (
 	activeListPanelStyle lipgloss.Style
 	titleStyle           lipgloss.Style
 	activeTitleStyle     lipgloss.Style
-	selectedStyle    lipgloss.Style
-	searchHitStyle   lipgloss.Style
-	activeEnvStyle   lipgloss.Style
+	selectedStyle       lipgloss.Style
+	selectedActiveStyle lipgloss.Style
+	searchHitStyle      lipgloss.Style
+	activeEnvStyle      lipgloss.Style
 	dimStyle         lipgloss.Style
 	dirtyStyle       lipgloss.Style
 	deleteStyle      lipgloss.Style
@@ -86,6 +87,10 @@ func rebuildStyles(theme Theme) {
 		activeEnv = theme.Accent
 	}
 	activeEnvStyle = lipgloss.NewStyle().Foreground(activeEnv).Bold(true)
+	selectedActiveStyle = lipgloss.NewStyle().
+		Foreground(activeEnv).
+		Bold(true).
+		Background(selectionBg)
 	hitBg := theme.SearchMatchBg
 	if hitBg == "" {
 		hitBg = theme.Accent

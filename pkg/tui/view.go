@@ -163,7 +163,11 @@ func (m Model) renderProjectTree(width, height int) string {
 		lines[i] = line
 	}
 	title := fmt.Sprintf("Projects (%d)", len(m.projects))
-	return m.renderLinesPanel(title, lines, needles, m.treeIdx, m.focus == focusProjects, width, height, searchRe)
+	selStyle := selectedStyle
+	if row, ok := m.currentTreeRow(); ok && row.kind == treeConfig && row.project == m.activeProject && row.config == m.activeConfig {
+		selStyle = selectedActiveStyle
+	}
+	return m.renderLinesPanel(title, lines, needles, m.treeIdx, m.focus == focusProjects, width, height, searchRe, selStyle)
 }
 
 func (m Model) renderSecretsTable(width, height int) string {
@@ -256,17 +260,22 @@ func (m Model) renderSecretRow(s secretRow, listIdx, nameW, valueW int, paneActi
 }
 
 func padStyledCell(styled string, width int, selected bool) string {
+	if selected {
+		return padWithStyle(styled, width, selectedStyle)
+	}
+	fill := lipgloss.NewStyle()
+	if background != "" {
+		fill = fill.Background(background)
+	}
+	return padWithStyle(styled, width, fill)
+}
+
+func padWithStyle(styled string, width int, fill lipgloss.Style) string {
 	w := lipgloss.Width(styled)
 	if w > width {
 		return lipgloss.NewStyle().MaxWidth(width).Render(styled)
 	}
-	pad := strings.Repeat(" ", width-w)
-	if selected {
-		pad = selectedStyle.Render(pad)
-	} else if background != "" {
-		pad = lipgloss.NewStyle().Background(background).Render(pad)
-	}
-	return styled + pad
+	return styled + fill.Render(strings.Repeat(" ", width-w))
 }
 
 func (s secretRow) previewValueUnlimited() string {
@@ -299,7 +308,7 @@ func padRight(s string, width int) string {
 	return s + strings.Repeat(" ", width-w)
 }
 
-func (m Model) renderLinesPanel(title string, lines, needles []string, selected int, active bool, width, height int, searchRe *regexp.Regexp) string {
+func (m Model) renderLinesPanel(title string, lines, needles []string, selected int, active bool, width, height int, searchRe *regexp.Regexp, selStyle lipgloss.Style) string {
 	chrome := m.panelChrome()
 	innerH := max(1, height-chrome)
 	visible := innerH
@@ -325,9 +334,9 @@ func (m Model) renderLinesPanel(title string, lines, needles []string, selected 
 				needle = needles[i]
 			}
 			if searchRe != nil {
-				line = padStyledCell(highlightNeedleInDisplay(plain, needle, searchRe, selectedStyle), innerW, true)
+				line = padWithStyle(highlightNeedleInDisplay(plain, needle, searchRe, selStyle), innerW, selStyle)
 			} else {
-				line = selectedStyle.Width(innerW).MaxWidth(innerW).Render(plain)
+				line = selStyle.Width(innerW).MaxWidth(innerW).Render(plain)
 			}
 		} else {
 			line = padStyledCell(truncatePreserve(lines[i], innerW), innerW, false)
