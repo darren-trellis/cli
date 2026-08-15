@@ -578,27 +578,43 @@ func titledTopBorder(title string, width int, active bool) string {
 		borderStyle.Render(roundedBorder.TopRight)
 }
 
-func (m Model) helpModalButtons() []string {
-	return []string{"Close"}
+func (m Model) helpModalButtons() []modalButton {
+	return []modalButton{{Label: "Close", Key: "esc"}}
 }
 
-func (m Model) saveModalButtons() []string {
+func (m Model) saveModalButtons() []modalButton {
 	if len(m.pendingChanges) == 0 {
-		return []string{"Close"}
+		return []modalButton{{Label: "Close", Key: "esc"}}
 	}
-	return []string{"Confirm", "Cancel"}
+	return []modalButton{
+		{Label: "Confirm", Key: "enter"},
+		{Label: "Cancel", Key: "esc"},
+	}
 }
 
-func (m Model) switchConfirmButtons() []string {
-	return []string{"Save & Switch", "Discard", "Cancel"}
+func (m Model) switchConfirmButtons() []modalButton {
+	return []modalButton{
+		{Label: "Save", Key: "enter"},
+		{Label: "Discard", Key: "d"},
+		{Label: "Cancel", Key: "esc"},
+	}
+}
+
+func (m Model) modalInnerWidth(width int) int {
+	if m.cfg.Border {
+		return max(1, width-4)
+	}
+	return max(1, width-2)
 }
 
 func (m Model) renderHelpModal() string {
-	body := m.helpViewport.View() + "\n\n" + m.renderModalButtons(m.helpModalButtons())
-	return m.renderTitledPanel("Help", body, min(64, m.width-4), min(28, m.height-4), true)
+	width := min(64, m.width-4)
+	body := m.helpViewport.View() + "\n\n" + m.renderModalButtons(m.helpModalButtons(), m.modalInnerWidth(width))
+	return m.renderTitledPanel("Help", body, width, min(28, m.height-4), true)
 }
 
 func (m Model) renderSaveModal() string {
+	width := min(60, m.width-4)
 	var body string
 	if len(m.pendingChanges) == 0 {
 		body = "There are no changes to save\n\n"
@@ -609,28 +625,25 @@ func (m Model) renderSaveModal() string {
 		}
 		body += "\n"
 	}
-	body += m.renderModalButtons(m.saveModalButtons())
-	return m.renderTitledPanel("Confirm Changes", body, min(60, m.width-4), min(20, m.height-4), true)
+	body += m.renderModalButtons(m.saveModalButtons(), m.modalInnerWidth(width))
+	return m.renderTitledPanel("Confirm Changes", body, width, min(20, m.height-4), true)
 }
 
 func (m Model) renderSwitchConfirmModal() string {
-	target := m.pendingSwitchConfig
-	if target == "" {
-		target = m.pendingSwitchProject
-	}
-	body := "You have unsaved secret changes.\n\n"
-	if target != "" {
-		body += "Switch to " + target + "?\n\n"
-	}
+	width := min(60, max(24, m.width-4))
+	inner := m.modalInnerWidth(width)
+	var lines []string
 	if len(m.pendingChanges) > 0 {
-		body += "Modified:\n"
+		lines = append(lines, "Modified:")
 		for _, c := range m.pendingChanges {
-			body += "● " + fmt.Sprint(c.Name) + "\n"
+			lines = append(lines, "● "+fmt.Sprint(c.Name))
 		}
-		body += "\n"
+	} else {
+		lines = append(lines, "No modifications")
 	}
-	body += m.renderModalButtons(m.switchConfirmButtons())
-	return m.renderTitledPanel("Unsaved Changes", body, min(60, m.width-4), min(22, m.height-4), true)
+	body := strings.Join(lines, "\n") + "\n\n" + m.renderModalButtons(m.switchConfirmButtons(), inner)
+	height := min(lipgloss.Height(body)+m.panelChrome(), max(4, m.height-2))
+	return m.renderTitledPanel("Unsaved Changes", body, width, height, true)
 }
 
 func truncate(s string, width int) string {

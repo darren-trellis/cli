@@ -115,7 +115,6 @@ func rebuildStyles(theme Theme) {
 
 	buttonStyle = lipgloss.NewStyle().
 		Foreground(theme.Dim).
-		Border(lipgloss.HiddenBorder()).
 		Padding(0, 1)
 	buttonFocusStyle = lipgloss.NewStyle().
 		Foreground(theme.SelectionFg).

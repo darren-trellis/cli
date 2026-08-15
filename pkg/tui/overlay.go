@@ -70,34 +70,90 @@ func (m Model) renderOverlay(base, modal string) string {
 		Render(base)
 
 	mw := lipgloss.Width(modal)
+	modal = fillLineBackground(modal, mw)
 	mh := lipgloss.Height(modal)
 	x := max(0, (m.width-mw)/2)
 	y := max(0, (m.height-mh)/2)
 	return placeOverlay(x, y, modal, base)
 }
 
-func (m Model) renderModalButtons(labels []string) string {
-	if len(labels) == 0 {
+type modalButton struct {
+	Label string
+	Key   string
+}
+
+func (b modalButton) text() string {
+	if b.Key == "" {
+		return b.Label
+	}
+	return b.Label + " (" + b.Key + ")"
+}
+
+func (m Model) renderModalButtons(buttons []modalButton, width int) string {
+	if len(buttons) == 0 {
 		return ""
 	}
 	idx := m.modalBtnIdx
 	if idx < 0 {
 		idx = 0
 	}
-	if idx >= len(labels) {
-		idx = len(labels) - 1
+	if idx >= len(buttons) {
+		idx = len(buttons) - 1
 	}
 
-	parts := make([]string, len(labels))
-	for i, label := range labels {
-		text := " " + label + " "
-		if i == idx {
-			parts[i] = buttonFocusStyle.Render(text)
-		} else {
-			parts[i] = buttonStyle.Render(text)
+	labels := make([]string, len(buttons))
+	cellW := 0
+	for i, b := range buttons {
+		labels[i] = b.text()
+		if w := lipgloss.Width(labels[i]); w > cellW {
+			cellW = w
 		}
 	}
-	return lipgloss.JoinHorizontal(lipgloss.Center, parts...)
+
+	gapStyle := lipgloss.NewStyle()
+	if background != "" {
+		gapStyle = gapStyle.Background(background)
+	}
+	parts := make([]string, 0, len(buttons)*2-1)
+	for i, label := range labels {
+		if i > 0 {
+			parts = append(parts, gapStyle.Render(" "))
+		}
+		text := " " + padRight(label, cellW) + " "
+		if i == idx {
+			parts = append(parts, buttonFocusStyle.Render(text))
+		} else {
+			parts = append(parts, buttonStyle.Render(text))
+		}
+	}
+	row := lipgloss.JoinHorizontal(lipgloss.Center, parts...)
+	if width <= 0 {
+		return row
+	}
+	pad := max(0, width-lipgloss.Width(row))
+	if pad == 0 {
+		return row
+	}
+	left := pad / 2
+	return gapStyle.Render(strings.Repeat(" ", left)) + row + gapStyle.Render(strings.Repeat(" ", pad-left))
+}
+
+func fillLineBackground(s string, width int) string {
+	if width <= 0 {
+		return s
+	}
+	padStyle := lipgloss.NewStyle()
+	if background != "" {
+		padStyle = padStyle.Background(background)
+	}
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		w := ansi.StringWidth(line)
+		if w < width {
+			lines[i] = line + padStyle.Render(strings.Repeat(" ", width-w))
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (m *Model) cycleModalButton(n int, delta int) {

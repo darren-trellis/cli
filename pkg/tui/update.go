@@ -295,6 +295,8 @@ func (m Model) handleSwitchConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		default:
 			return m.confirmSwitchSave()
 		}
+	case "d":
+		return m.confirmSwitchDiscard()
 	case "esc", "q":
 		m.clearPendingSwitch()
 		m.setFocus(focusSecrets)

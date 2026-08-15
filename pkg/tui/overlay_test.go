@@ -41,3 +41,10 @@ func TestPlaceOverlayCompositesOntoBackground(t *testing.T) {
 	assert.Equal(t, "CCYYCCCCCC", lines[2])
 	assert.Equal(t, "DDDDDDDDDD", lines[3])
 }
+
+func TestFillLineBackgroundPadsShortLines(t *testing.T) {
+	got := fillLineBackground("ab\ncd", 4)
+	lines := strings.Split(got, "\n")
+	assert.Equal(t, 4, len([]rune(lines[0])))
+	assert.Equal(t, 4, len([]rune(lines[1])))
+}

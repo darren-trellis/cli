@@ -16,6 +16,7 @@ limitations under the License.
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
@@ -74,9 +75,8 @@ func TestSwitchConfirmDiscardStartsNavigation(t *testing.T) {
 	m.activeConfig = "dev"
 	m.pendingSwitchProject = "api"
 	m.pendingSwitchConfig = "prd"
-	m.modalBtnIdx = 1
 
-	next, cmd := m.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyEnter})
+	next, cmd := m.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
 	mod := next.(Model)
 	require.NotNil(t, cmd)
 	assert.True(t, mod.fetching)
@@ -119,6 +119,23 @@ func TestSwitchConfirmCancelButton(t *testing.T) {
 	assert.Nil(t, cmd)
 	assert.Equal(t, focusSecrets, mod.focus)
 	assert.Empty(t, mod.pendingSwitchProject)
+}
+
+func TestSwitchConfirmModalCopyAndSize(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.width = 80
+	m.height = 24
+	m.focus = focusSwitchConfirm
+	m.pendingChanges = []models.ChangeRequest{{Name: "FOO"}, {Name: "BAR"}}
+
+	view := m.renderSwitchConfirmModal()
+	assert.NotContains(t, view, "You have unsaved")
+	assert.Contains(t, view, "Modified:")
+	assert.Contains(t, view, "FOO")
+	assert.Contains(t, view, "Save (enter)")
+	assert.Contains(t, view, "Discard (d)")
+	assert.Contains(t, view, "Cancel (esc)")
+	assert.Less(t, strings.Count(view, "\n")+1, 12)
 }
 
 func TestActivateSameConfigSkipsPrompt(t *testing.T) {
