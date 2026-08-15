@@ -73,7 +73,7 @@ func TestYankOperatorSequence(t *testing.T) {
 	assert.Equal(t, "Copied name", mod.statusMsg)
 }
 
-func TestSecretsYRemainsCellYank(t *testing.T) {
+func TestSecretsYStartsYankOperator(t *testing.T) {
 	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
 	m.fetching = false
 	m.focus = focusSecrets
@@ -83,23 +83,39 @@ func TestSecretsYRemainsCellYank(t *testing.T) {
 
 	cmd, ok := m.keys.Resolve(focusSecrets, "y")
 	require.True(t, ok)
-	assert.Equal(t, "secret yank", cmd)
+	assert.Equal(t, "yank", cmd)
 
 	next, _ := m.handleNavKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
 	mod := next.(Model)
+	assert.True(t, mod.pendingYank)
+	assert.Equal(t, "y", mod.statusMsg)
+}
+
+func TestSecretsYankCell(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusSecrets
+	m.secrets = []secretRow{newSecretRow("FOO", "bar", "masked")}
+	m.secretIdx = 0
+	m.secretCol = colValue
+
+	next, _ := m.handleNavKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	mod := next.(Model)
+	next, _ = mod.handleNavKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	mod = next.(Model)
 	assert.False(t, mod.pendingYank)
 	assert.Equal(t, "Copied to clipboard", mod.statusMsg)
 }
 
-func TestYankOperatorRejectedInSecrets(t *testing.T) {
+func TestYankOperatorStartsInSecrets(t *testing.T) {
 	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
 	m.fetching = false
 	m.focus = focusSecrets
 
 	next, _ := m.executeCommand("yank")
 	mod := next.(Model)
-	assert.False(t, mod.pendingYank)
-	assert.Contains(t, mod.errMsg, "Projects")
+	assert.True(t, mod.pendingYank)
+	assert.Equal(t, "y", mod.statusMsg)
 }
 
 func TestYankNameConfig(t *testing.T) {
@@ -143,4 +159,111 @@ func TestYankCommandDirect(t *testing.T) {
 	next, _ := m.executeCommand("yank env")
 	mod := next.(Model)
 	assert.Contains(t, mod.statusMsg, "Copied 1 secrets (env)")
+}
+
+func TestSecretYankWindow(t *testing.T) {
+	lo, hi := secretYankWindow(0, 5, 1, 10)
+	assert.Equal(t, 0, lo)
+	assert.Equal(t, 4, hi)
+
+	lo, hi = secretYankWindow(2, 3, -1, 10)
+	assert.Equal(t, 0, lo)
+	assert.Equal(t, 2, hi)
+
+	lo, hi = secretYankWindow(8, 5, 1, 10)
+	assert.Equal(t, 8, lo)
+	assert.Equal(t, 9, hi)
+}
+
+func TestFormatSecretRowsPreservesOrder(t *testing.T) {
+	rows := []secretRow{
+		newSecretRow("ZED", "9", "masked"),
+		newSecretRow("ALPHA", "1", "masked"),
+	}
+	env, err := formatSecretRows(rows, "env")
+	require.NoError(t, err)
+	assert.True(t, strings.Index(env, "ZED") < strings.Index(env, "ALPHA"))
+
+	js, err := formatSecretRows(rows, "json")
+	require.NoError(t, err)
+	assert.True(t, strings.Index(js, "ZED") < strings.Index(js, "ALPHA"))
+}
+
+func TestSecretsYankCurrentLineYAML(t *testing.T) {
+	m := secretsYankModel()
+	mod := sendKeys(m, "y", "y")
+	assert.False(t, mod.pendingYank)
+	assert.Contains(t, mod.statusMsg, "Copied 1 secrets (yaml)")
+}
+
+func TestSecretsYankCountDown(t *testing.T) {
+	m := secretsYankModel()
+	mod := sendKeys(m, "y", "5")
+	assert.True(t, mod.pendingYank)
+	assert.Equal(t, "y5", mod.statusMsg)
+
+	mod = sendKeys(mod, "down")
+	assert.False(t, mod.pendingYank)
+	assert.Contains(t, mod.statusMsg, "Copied 5 secrets (yaml)")
+}
+
+func TestSecretsYankJSONLineAndRange(t *testing.T) {
+	m := secretsYankModel()
+	mod := sendKeys(m, "y", "j")
+	assert.True(t, mod.pendingYank)
+	assert.Equal(t, "yj", mod.statusMsg)
+
+	mod = sendKeys(mod, "y")
+	assert.False(t, mod.pendingYank)
+	assert.Contains(t, mod.statusMsg, "Copied 1 secrets (json)")
+
+	m = secretsYankModel()
+	mod = sendKeys(m, "y", "j", "5", "down")
+	assert.Contains(t, mod.statusMsg, "Copied 5 secrets (json)")
+}
+
+func TestSecretsYankEnvLine(t *testing.T) {
+	m := secretsYankModel()
+	mod := sendKeys(m, "y", "e", "y")
+	assert.Contains(t, mod.statusMsg, "Copied 1 secrets (env)")
+}
+
+func TestSecretsYankCountThenJIsMotion(t *testing.T) {
+	m := secretsYankModel()
+	mod := sendKeys(m, "y", "3", "j")
+	assert.False(t, mod.pendingYank)
+	assert.Contains(t, mod.statusMsg, "Copied 3 secrets (yaml)")
+}
+
+func secretsYankModel() Model {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusSecrets
+	m.secrets = []secretRow{
+		newSecretRow("A", "1", "masked"),
+		newSecretRow("B", "2", "masked"),
+		newSecretRow("C", "3", "masked"),
+		newSecretRow("D", "4", "masked"),
+		newSecretRow("E", "5", "masked"),
+		newSecretRow("F", "6", "masked"),
+	}
+	m.secretIdx = 0
+	return m
+}
+
+func sendKeys(m Model, chords ...string) Model {
+	for _, chord := range chords {
+		var msg tea.KeyMsg
+		switch chord {
+		case "down":
+			msg = tea.KeyMsg{Type: tea.KeyDown}
+		case "up":
+			msg = tea.KeyMsg{Type: tea.KeyUp}
+		default:
+			msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(chord)}
+		}
+		next, _ := m.Update(msg)
+		m = next.(Model)
+	}
+	return m
 }

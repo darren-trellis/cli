@@ -616,7 +616,7 @@ func countDigit(chord string) (int, bool) {
 
 func commandUsesMotionCount(cmd string) bool {
 	switch cmd {
-	case "nav up", "nav down", "nav page up", "nav page down", "nav bottom", "search next", "search prev":
+	case "nav up", "nav down", "nav page up", "nav page down", "nav bottom", "search next", "search prev", "yank":
 		return true
 	default:
 		return false
@@ -1115,6 +1115,7 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.motionCount = 0
+	m.cancelYank()
 	if m.inModal() {
 		return m.handleModalMouse(msg)
 	}

@@ -100,9 +100,11 @@ type Model struct {
 
 	commandInput textinput.Model
 	completions  CompletionState
-	keys         KeysConfig
-	pendingYank  bool
-	motionCount  int
+	keys             KeysConfig
+	pendingYank      bool
+	yankFormat       string
+	yankFormatLocked bool
+	motionCount      int
 
 	cellInput textinput.Model
 

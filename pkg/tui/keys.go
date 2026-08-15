@@ -83,7 +83,7 @@ func defaultSecretsKeys() map[string]string {
 		"i":     "edit",
 		"a":     "edit",
 		"o":     "secret add",
-		"y":     "secret yank",
+		"y":     "yank",
 		"p":     "paste",
 	}
 }

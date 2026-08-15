@@ -48,8 +48,8 @@ var commandCatalog = []commandInfo{
 	{"secret add", "Add a secret"},
 	{"secret delete", "Delete/mark delete secret"},
 	{"secret undo", "Undo last secret change"},
-	{"secret yank", "Copy active cell"},
-	{"yank", "Start yank in Projects (n/y/j/e)"},
+	{"secret yank", "Copy focused cell"},
+	{"yank", "Start yank operator"},
 	{"yank name", "Copy config or project name"},
 	{"yank yaml", "Copy secrets as YAML"},
 	{"yank json", "Copy secrets as JSON"},
@@ -345,11 +345,12 @@ func (m Model) renderHelpText() string {
 		"yank name", "yank yaml", "yank json", "yank env",
 	})
 	writeSection("Secrets:", focusSecrets, []string{
-		"edit", "secret add", "secret delete", "secret undo", "secret yank", "paste", "secret save",
+		"edit", "secret add", "secret delete", "secret undo", "yank", "secret yank", "paste", "secret save",
 	})
 	b.WriteString("Typing modes (search/filter/insert/create/rename) use Esc/Enter locally.\n")
 	b.WriteString("Counts: 7j / 3k / 10G (G with a count jumps to that row).\n")
 	b.WriteString("Projects yank: y then n/y/j/e (name / yaml / json / env).\n")
+	b.WriteString("Secrets yank: y[j|e] then motion (yy line, yn cell, y5↓ 5 yaml pairs, yjy json line).\n")
 	b.WriteString("Secrets paste: p imports yaml/json/env from the clipboard.\n")
 	return b.String()
 }
