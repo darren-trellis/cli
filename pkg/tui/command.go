@@ -46,7 +46,8 @@ var commandCatalog = []commandInfo{
 	{"select", "Select project or config"},
 	{"edit", "Edit selected secret cell"},
 	{"secret add", "Add a secret"},
-	{"secret delete", "Delete/mark delete secret"},
+	{"secret delete", "Delete/mark delete the current secret"},
+	{"delete", "Delete secrets with a motion (dd, d2j)"},
 	{"secret undo", "Undo last secret change"},
 	{"secret yank", "Copy focused cell"},
 	{"yank", "Start yank operator"},
@@ -73,7 +74,7 @@ var commandCatalog = []commandInfo{
 }
 
 func (m *Model) beginCommand() {
-	m.cancelYank()
+	m.cancelOperators()
 	m.motionCount = 0
 	m.commandInput.SetValue("")
 	m.statusMsg = ""
@@ -136,6 +137,13 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 		return m.execSecret(args)
 	case "yank":
 		return m.execYank(args)
+	case "delete":
+		if m.focus != focusSecrets {
+			m.errMsg = "delete operator is only available in Secrets"
+			return m, nil
+		}
+		m.beginSecretDelete()
+		return m, nil
 	case "paste":
 		return m.pasteSecrets()
 	case "search":
@@ -178,7 +186,7 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 			m.statusMsg = ""
 			m.errMsg = ""
 			m.clearSearch()
-			m.cancelYank()
+			m.cancelOperators()
 			m.motionCount = 0
 			return m, nil
 		}
@@ -372,14 +380,15 @@ func (m Model) renderHelpText() string {
 		"yank name", "yank yaml", "yank json", "yank env",
 	})
 	writeSection("Secrets:", focusSecrets, []string{
-		"edit", "secret add", "secret delete", "secret undo", "yank", "secret yank", "paste", "secret save",
+		"edit", "secret add", "delete", "secret undo", "yank", "secret yank", "paste", "secret save",
 	})
 	b.WriteString("Typing modes (search/filter/insert/create/rename) use Esc/Enter locally.\n")
 	b.WriteString("Command and search ↑/↓ (C-p/C-n) recall history; ↓ in : focuses suggestions.\n")
 	b.WriteString("Counts: 7j / 3k / 10G (G with a count jumps to that row).\n")
 	b.WriteString("Cached configs show + on the left; highlighting one shows its secrets. n/N hops cached configs when not searching.\n")
 	b.WriteString("Projects yank: y then n/y/j/e (name / yaml / json / env).\n")
-	b.WriteString("Secrets yank: y[j|e] then motion (yy line, yn cell, y5↓ 5 yaml pairs, yjy json line).\n")
+	b.WriteString("Secrets yank: y[j|e] then motion (yy line, yn cell, y2j current+2 down, yjy json line).\n")
+	b.WriteString("Secrets delete: dd line, d2j current+2 down, 5dd 5 lines.\n")
 	b.WriteString("Secrets paste: p imports yaml/json/env from the clipboard.\n")
 	return b.String()
 }

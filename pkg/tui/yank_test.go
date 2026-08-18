@@ -175,6 +175,24 @@ func TestSecretYankWindow(t *testing.T) {
 	assert.Equal(t, 9, hi)
 }
 
+func TestSecretOpWindowMotionIsInclusive(t *testing.T) {
+	lo, hi := secretOpWindow(0, 2, 1, 10, false)
+	assert.Equal(t, 0, lo)
+	assert.Equal(t, 2, hi)
+
+	lo, hi = secretOpWindow(0, 1, 1, 10, false)
+	assert.Equal(t, 0, lo)
+	assert.Equal(t, 1, hi)
+
+	lo, hi = secretOpWindow(0, 1, 1, 10, true)
+	assert.Equal(t, 0, lo)
+	assert.Equal(t, 0, hi)
+
+	lo, hi = secretOpWindow(3, 2, -1, 10, false)
+	assert.Equal(t, 1, lo)
+	assert.Equal(t, 3, hi)
+}
+
 func TestFormatSecretRowsPreservesOrder(t *testing.T) {
 	rows := []secretRow{
 		newSecretRow("ZED", "9", "masked"),
@@ -204,7 +222,7 @@ func TestSecretsYankCountDown(t *testing.T) {
 
 	mod = sendKeys(mod, "down")
 	assert.False(t, mod.pendingYank)
-	assert.Contains(t, mod.statusMsg, "Copied 5 secrets (yaml)")
+	assert.Contains(t, mod.statusMsg, "Copied 6 secrets (yaml)")
 }
 
 func TestSecretsYankJSONLineAndRange(t *testing.T) {
@@ -219,7 +237,7 @@ func TestSecretsYankJSONLineAndRange(t *testing.T) {
 
 	m = secretsYankModel()
 	mod = sendKeys(m, "y", "j", "5", "down")
-	assert.Contains(t, mod.statusMsg, "Copied 5 secrets (json)")
+	assert.Contains(t, mod.statusMsg, "Copied 6 secrets (json)")
 }
 
 func TestSecretsYankEnvLine(t *testing.T) {
@@ -232,7 +250,21 @@ func TestSecretsYankCountThenJIsMotion(t *testing.T) {
 	m := secretsYankModel()
 	mod := sendKeys(m, "y", "3", "j")
 	assert.False(t, mod.pendingYank)
+	assert.Contains(t, mod.statusMsg, "Copied 4 secrets (yaml)")
+}
+
+func TestSecretsYankTwoJCopiesThree(t *testing.T) {
+	m := secretsYankModel()
+	mod := sendKeys(m, "y", "2", "j")
+	assert.False(t, mod.pendingYank)
 	assert.Contains(t, mod.statusMsg, "Copied 3 secrets (yaml)")
+}
+
+func TestSecretsYankCountYIsLinewise(t *testing.T) {
+	m := secretsYankModel()
+	mod := sendKeys(m, "y", "5", "y")
+	assert.False(t, mod.pendingYank)
+	assert.Contains(t, mod.statusMsg, "Copied 5 secrets (yaml)")
 }
 
 func secretsYankModel() Model {

@@ -99,16 +99,17 @@ type Model struct {
 	configPromptMode    configPromptKind // create or rename
 	renameFromConfig    string
 
-	commandInput       textinput.Model
-	commandReturnFocus focusArea
-	commandHistory     inputHistory
-	searchHistory      inputHistory
-	completions        CompletionState
-	keys             KeysConfig
-	pendingYank      bool
-	yankFormat       string
-	yankFormatLocked bool
-	motionCount      int
+	commandInput        textinput.Model
+	commandReturnFocus  focusArea
+	commandHistory      inputHistory
+	searchHistory       inputHistory
+	completions         CompletionState
+	keys                KeysConfig
+	pendingYank         bool
+	pendingSecretDelete bool
+	yankFormat          string
+	yankFormatLocked    bool
+	motionCount         int
 
 	cellInput textinput.Model
 

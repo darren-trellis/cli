@@ -287,7 +287,7 @@ func (m Model) handleSwitchConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.confirmSwitchSave()
 	case "d":
 		return m.confirmSwitchDiscard()
-		case "c", "esc", "q":
+	case "c", "esc", "q":
 		m.clearUnsavedConfirm()
 		m.setFocus(focusSecrets)
 		return m, nil
@@ -608,6 +608,9 @@ func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.pendingYank {
 		return m.handleYankMotion(msg)
 	}
+	if m.pendingSecretDelete {
+		return m.handleSecretDeleteMotion(msg)
+	}
 	chord, ok := encodeKey(msg)
 	if !ok {
 		return m, nil
@@ -642,7 +645,7 @@ func countDigit(chord string) (int, bool) {
 
 func commandUsesMotionCount(cmd string) bool {
 	switch cmd {
-	case "nav up", "nav down", "nav page up", "nav page down", "nav bottom", "search next", "search prev", "yank":
+	case "nav up", "nav down", "nav page up", "nav page down", "nav bottom", "search next", "search prev", "yank", "delete":
 		return true
 	default:
 		return false
@@ -1102,19 +1105,26 @@ func (m Model) configEnvironment(project, configName string) string {
 	return ""
 }
 
+func (m *Model) deleteSecretAt(idx int) {
+	if idx < 0 || idx >= len(m.secrets) {
+		return
+	}
+	if m.secrets[idx].originalName == nil {
+		m.secrets = append(m.secrets[:idx], m.secrets[idx+1:]...)
+		m.adjustUndoStackForRemoval(idx)
+		return
+	}
+	m.secrets[idx].shouldDelete = true
+	m.noteSecretEdit(idx)
+}
+
 func (m Model) deleteSecret() (tea.Model, tea.Cmd) {
 	idx, ok := m.selectedSecretIndex()
 	if !ok {
 		return m, nil
 	}
-	if m.secrets[idx].originalName == nil {
-		m.secrets = append(m.secrets[:idx], m.secrets[idx+1:]...)
-		m.adjustUndoStackForRemoval(idx)
-		m.clampSecretIdx()
-		return m, nil
-	}
-	m.secrets[idx].shouldDelete = true
-	m.noteSecretEdit(idx)
+	m.deleteSecretAt(idx)
+	m.clampSecretIdx()
 	return m, nil
 }
 
@@ -1197,7 +1207,7 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.motionCount = 0
-	m.cancelYank()
+	m.cancelOperators()
 	if m.inModal() {
 		return m.handleModalMouse(msg)
 	}

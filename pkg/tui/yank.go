@@ -28,6 +28,7 @@ import (
 )
 
 func (m *Model) beginYank() {
+	m.cancelSecretDelete()
 	m.pendingYank = true
 	m.yankFormat = "yaml"
 	m.yankFormatLocked = false
@@ -41,6 +42,34 @@ func (m *Model) cancelYank() {
 	}
 	m.clearYankOp()
 	m.statusMsg = ""
+}
+
+func (m *Model) cancelOperators() {
+	m.cancelYank()
+	m.cancelSecretDelete()
+}
+
+func (m *Model) beginSecretDelete() {
+	m.cancelYank()
+	m.pendingSecretDelete = true
+	m.statusMsg = m.deletePrompt()
+	m.errMsg = ""
+}
+
+func (m *Model) cancelSecretDelete() {
+	if !m.pendingSecretDelete {
+		return
+	}
+	m.pendingSecretDelete = false
+	m.statusMsg = ""
+}
+
+func (m Model) deletePrompt() string {
+	s := "d"
+	if m.motionCount > 0 {
+		s += strconv.Itoa(m.motionCount)
+	}
+	return s
 }
 
 func (m *Model) clearYankOp() {
@@ -130,10 +159,12 @@ func (m Model) handleSecretsYankMotion(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	switch chord {
-	case "y", "j", "down":
-		return m.finishSecretYankRange(m.takeMotionCount(), 1)
+	case "y":
+		return m.finishSecretYankRange(m.takeMotionCount(), 1, true)
+	case "j", "down":
+		return m.finishSecretYankRange(m.takeMotionCount(), 1, false)
 	case "k", "up":
-		return m.finishSecretYankRange(m.takeMotionCount(), -1)
+		return m.finishSecretYankRange(m.takeMotionCount(), -1, false)
 	case "n":
 		m.clearYankOp()
 		m.motionCount = 0
@@ -144,9 +175,9 @@ func (m Model) handleSecretsYankMotion(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.motionCount = 0
 		return m.finishSecretYankIndexRange(m.secretIdx, 0)
 	case "pagedown":
-		return m.finishSecretYankRange(m.pageSize()*m.takeMotionCount(), 1)
+		return m.finishSecretYankRange(m.pageSize()*m.takeMotionCount(), 1, false)
 	case "pageup":
-		return m.finishSecretYankRange(m.pageSize()*m.takeMotionCount(), -1)
+		return m.finishSecretYankRange(m.pageSize()*m.takeMotionCount(), -1, false)
 	case "esc":
 		m.cancelYank()
 		return m, nil
@@ -155,6 +186,99 @@ func (m Model) handleSecretsYankMotion(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.errMsg = "yank: y line · n cell · [j|e] format · count+motion"
 		return m, nil
 	}
+}
+
+func (m Model) handleSecretDeleteMotion(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	chord, ok := encodeKey(msg)
+	if !ok {
+		return m, nil
+	}
+	if d, isDigit := countDigit(chord); isDigit {
+		if d == 0 && m.motionCount == 0 {
+			return m, nil
+		}
+		m.motionCount = m.motionCount*10 + d
+		if m.motionCount > 9999 {
+			m.motionCount = 9999
+		}
+		m.statusMsg = m.deletePrompt()
+		return m, nil
+	}
+	switch chord {
+	case "d":
+		return m.finishSecretDeleteRange(m.takeMotionCount(), 1, true)
+	case "j", "down":
+		return m.finishSecretDeleteRange(m.takeMotionCount(), 1, false)
+	case "k", "up":
+		return m.finishSecretDeleteRange(m.takeMotionCount(), -1, false)
+	case "G", "end":
+		return m.finishSecretDeleteToIndex(m.takeMotionCountExplicit())
+	case "g", "home":
+		m.motionCount = 0
+		return m.finishSecretDeleteIndexRange(m.secretIdx, 0)
+	case "pagedown":
+		return m.finishSecretDeleteRange(m.pageSize()*m.takeMotionCount(), 1, false)
+	case "pageup":
+		return m.finishSecretDeleteRange(m.pageSize()*m.takeMotionCount(), -1, false)
+	case "esc":
+		m.cancelSecretDelete()
+		return m, nil
+	default:
+		m.cancelSecretDelete()
+		m.errMsg = "delete: d line · count+motion"
+		return m, nil
+	}
+}
+
+func (m Model) finishSecretDeleteRange(count, dir int, linewise bool) (tea.Model, tea.Cmd) {
+	idxs := m.filteredIndexes()
+	lo, hi := secretOpWindow(m.secretIdx, count, dir, len(idxs), linewise)
+	return m.finishSecretDeleteIndexRange(lo, hi)
+}
+
+func (m Model) finishSecretDeleteToIndex(n int, explicit bool) (tea.Model, tea.Cmd) {
+	idxs := m.filteredIndexes()
+	end := len(idxs) - 1
+	if explicit {
+		end = n - 1
+	}
+	return m.finishSecretDeleteIndexRange(m.secretIdx, end)
+}
+
+func (m Model) finishSecretDeleteIndexRange(from, to int) (tea.Model, tea.Cmd) {
+	m.pendingSecretDelete = false
+	m.motionCount = 0
+
+	idxs := m.filteredIndexes()
+	if len(idxs) == 0 {
+		m.statusMsg = ""
+		return m, nil
+	}
+	lo, hi := from, to
+	if lo > hi {
+		lo, hi = hi, lo
+	}
+	lo = clamp(lo, 0, len(idxs)-1)
+	hi = clamp(hi, 0, len(idxs)-1)
+
+	storeIdxs := make([]int, 0, hi-lo+1)
+	for i := lo; i <= hi; i++ {
+		storeIdxs = append(storeIdxs, idxs[i])
+	}
+	sort.Slice(storeIdxs, func(i, j int) bool { return storeIdxs[i] > storeIdxs[j] })
+	for _, idx := range storeIdxs {
+		m.deleteSecretAt(idx)
+	}
+	m.secretIdx = lo
+	m.clampSecretIdx()
+	n := hi - lo + 1
+	if n == 1 {
+		m.statusMsg = "Deleted 1 secret"
+	} else {
+		m.statusMsg = fmt.Sprintf("Deleted %d secrets", n)
+	}
+	m.errMsg = ""
+	return m, nil
 }
 
 func (m Model) execYank(args []string) (tea.Model, tea.Cmd) {
@@ -232,9 +356,9 @@ func (m Model) yankSecretsFormat(format string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) finishSecretYankRange(count, dir int) (tea.Model, tea.Cmd) {
+func (m Model) finishSecretYankRange(count, dir int, linewise bool) (tea.Model, tea.Cmd) {
 	idxs := m.filteredIndexes()
-	lo, hi := secretYankWindow(m.secretIdx, count, dir, len(idxs))
+	lo, hi := secretOpWindow(m.secretIdx, count, dir, len(idxs), linewise)
 	return m.finishSecretYankIndexRange(lo, hi)
 }
 
@@ -308,7 +432,7 @@ func (m Model) finishSecretYankIndexRange(from, to int) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func secretYankWindow(start, count, dir, n int) (int, int) {
+func secretOpWindow(start, count, dir, n int, linewise bool) (int, int) {
 	if n <= 0 {
 		return 0, -1
 	}
@@ -319,12 +443,19 @@ func secretYankWindow(start, count, dir, n int) (int, int) {
 		dir = 1
 	}
 	start = clamp(start, 0, n-1)
-	end := start + dir*(count-1)
-	end = clamp(end, 0, n-1)
+	steps := count
+	if linewise {
+		steps = count - 1
+	}
+	end := clamp(start+dir*steps, 0, n-1)
 	if start <= end {
 		return start, end
 	}
 	return end, start
+}
+
+func secretYankWindow(start, count, dir, n int) (int, int) {
+	return secretOpWindow(start, count, dir, n, true)
 }
 
 func secretRowCopyable(s secretRow) bool {
