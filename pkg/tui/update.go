@@ -262,9 +262,12 @@ func (m Model) handleSaveKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		return m.activateFocusedModalButton()
-	case "esc", "q":
+	case "y":
+		return m.confirmSave()
+	case "n", "esc", "q":
 		m.setFocus(focusSecrets)
 		m.pendingChanges = nil
+		return m, nil
 	case "ctrl+c":
 		return m, tea.Quit
 	}
@@ -305,11 +308,7 @@ func (m Model) activateFocusedModalButton() (tea.Model, tea.Cmd) {
 			m.pendingChanges = nil
 			return m, nil
 		}
-		m.fetching = true
-		m.statusMsg = ""
-		m.errMsg = ""
-		m.setFocus(focusSecrets)
-		return m, tea.Batch(m.spinner.Tick, saveSecretsCmd(m.opts, m.activeProject, m.activeConfig, m.pendingChanges))
+		return m.confirmSave()
 	case focusSwitchConfirm:
 		switch m.modalBtnIdx {
 		case 1:
@@ -1166,6 +1165,21 @@ func (m Model) yankSecret() (tea.Model, tea.Cmd) {
 	_ = utils.CopyToClipboard(text)
 	m.statusMsg = "Copied to clipboard"
 	return m, nil
+}
+
+func (m Model) confirmSave() (tea.Model, tea.Cmd) {
+	if len(m.pendingChanges) == 0 {
+		m.setFocus(focusSecrets)
+		m.pendingChanges = nil
+		return m, nil
+	}
+	changes := m.pendingChanges
+	m.fetching = true
+	m.statusMsg = ""
+	m.errMsg = ""
+	m.pendingChanges = nil
+	m.setFocus(focusSecrets)
+	return m, tea.Batch(m.spinner.Tick, saveSecretsCmd(m.opts, m.activeProject, m.activeConfig, changes))
 }
 
 func (m Model) openSave() (tea.Model, tea.Cmd) {

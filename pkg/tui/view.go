@@ -603,8 +603,8 @@ func (m Model) saveModalButtons() []modalButton {
 		return []modalButton{{Label: "Close", Key: "esc"}}
 	}
 	return []modalButton{
-		{Label: "Confirm", Key: "enter"},
-		{Label: "Cancel", Key: "esc"},
+		{Label: "Save", Key: "y"},
+		{Label: "Cancel", Key: "n"},
 	}
 }
 
@@ -637,19 +637,20 @@ func (m Model) renderHelpModal() string {
 }
 
 func (m Model) renderSaveModal() string {
-	width := min(60, m.width-4)
-	var body string
-	if len(m.pendingChanges) == 0 {
-		body = "There are no changes to save\n\n"
-	} else {
-		body = "The following secrets will be updated:\n\n"
+	width := min(60, max(24, m.width-4))
+	inner := m.modalInnerWidth(width)
+	var lines []string
+	if len(m.pendingChanges) > 0 {
+		lines = append(lines, "Modified:")
 		for _, c := range m.pendingChanges {
-			body += "● " + fmt.Sprint(c.Name) + "\n"
+			lines = append(lines, "● "+fmt.Sprint(c.Name))
 		}
-		body += "\n"
+	} else {
+		lines = append(lines, "No modifications")
 	}
-	body += m.renderModalButtons(m.saveModalButtons(), m.modalInnerWidth(width))
-	return m.renderTitledPanel("Confirm Changes", body, width, min(20, m.height-4), true)
+	body := strings.Join(lines, "\n") + "\n\n" + m.renderModalButtons(m.saveModalButtons(), inner)
+	height := min(lipgloss.Height(body)+m.panelChrome(), max(4, m.height-2))
+	return m.renderTitledPanel("Confirm Changes", body, width, height, true)
 }
 
 func (m Model) renderSwitchConfirmModal() string {
