@@ -166,8 +166,13 @@ func (m Model) renderProjectTree(width, height int) string {
 	}
 	title := fmt.Sprintf("Projects (%d)", len(m.projects))
 	selStyle := selectedStyle
-	if row, ok := m.currentTreeRow(); ok && row.kind == treeConfig && row.project == m.activeProject && row.config == m.activeConfig {
-		selStyle = selectedActiveStyle
+	if row, ok := m.currentTreeRow(); ok && row.kind == treeConfig {
+		switch {
+		case row.project == m.activeProject && row.config == m.activeConfig:
+			selStyle = selectedActiveStyle
+		case row.cached:
+			selStyle = selectedCachedStyle
+		}
 	}
 	return m.renderLinesPanel(title, lines, needles, m.treeIdx, m.focus == focusProjects, width, height, searchRe, selStyle)
 }

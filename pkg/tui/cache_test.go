@@ -127,9 +127,10 @@ func TestSidebarMarksCachedConfigs(t *testing.T) {
 	m.width = 80
 	m.height = 24
 	out := ansi.Strip(m.renderProjectTree(40, 20))
-	assert.Contains(t, out, "dev ·")
-	assert.Contains(t, out, "prd ·")
-	assert.NotContains(t, out, "dev_personal ·")
+	assert.Contains(t, out, "*dev")
+	assert.Contains(t, out, "+prd")
+	assert.NotContains(t, out, "+dev_personal")
+	assert.NotContains(t, out, " ·")
 }
 
 func TestNKeyHopsCachedWhenNotSearching(t *testing.T) {

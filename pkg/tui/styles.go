@@ -33,6 +33,8 @@ var (
 	selectedActiveStyle lipgloss.Style
 	searchHitStyle      lipgloss.Style
 	activeEnvStyle      lipgloss.Style
+	cachedConfigStyle   lipgloss.Style
+	selectedCachedStyle lipgloss.Style
 	dimStyle         lipgloss.Style
 	dirtyStyle       lipgloss.Style
 	deleteStyle      lipgloss.Style
@@ -89,6 +91,11 @@ func rebuildStyles(theme Theme) {
 	activeEnvStyle = lipgloss.NewStyle().Foreground(activeEnv).Bold(true)
 	selectedActiveStyle = lipgloss.NewStyle().
 		Foreground(activeEnv).
+		Bold(true).
+		Background(selectionBg)
+	cachedConfigStyle = lipgloss.NewStyle().Foreground(theme.Accent).Bold(true)
+	selectedCachedStyle = lipgloss.NewStyle().
+		Foreground(theme.Accent).
 		Bold(true).
 		Background(selectionBg)
 	hitBg := theme.SearchMatchBg
@@ -149,6 +156,7 @@ func rebuildStyles(theme Theme) {
 		dirtyStyle = dirtyStyle.Background(bg)
 		deleteStyle = deleteStyle.Background(bg)
 		activeEnvStyle = activeEnvStyle.Background(bg)
+		cachedConfigStyle = cachedConfigStyle.Background(bg)
 		titleStyle = titleStyle.Background(bg)
 		activeTitleStyle = activeTitleStyle.Background(bg)
 	}

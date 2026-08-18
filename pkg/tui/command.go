@@ -377,7 +377,7 @@ func (m Model) renderHelpText() string {
 	b.WriteString("Typing modes (search/filter/insert/create/rename) use Esc/Enter locally.\n")
 	b.WriteString("Command and search ↑/↓ (C-p/C-n) recall history; ↓ in : focuses suggestions.\n")
 	b.WriteString("Counts: 7j / 3k / 10G (G with a count jumps to that row).\n")
-	b.WriteString("Cached configs show · ; highlighting one shows its secrets. n/N hops cached configs when not searching.\n")
+	b.WriteString("Cached configs show + on the left; highlighting one shows its secrets. n/N hops cached configs when not searching.\n")
 	b.WriteString("Projects yank: y then n/y/j/e (name / yaml / json / env).\n")
 	b.WriteString("Secrets yank: y[j|e] then motion (yy line, yn cell, y5↓ 5 yaml pairs, yjy json line).\n")
 	b.WriteString("Secrets paste: p imports yaml/json/env from the clipboard.\n")

@@ -211,18 +211,18 @@ func formatTreeRow(row treeRow, activeProject, activeConfig string) string {
 
 	active := row.project == activeProject && row.config == activeConfig
 	label := row.config
-	if row.cached {
-		label = label + " ·"
-	}
 	if row.locked {
-		label = label + " 🔒"
+		label = label + " (L)"
 	}
 	if row.dirty {
 		label = label + " +"
 	}
 	name := label
-	if active {
+	switch {
+	case active:
 		name = activeEnvStyle.Render("*" + label)
+	case row.cached:
+		name = cachedConfigStyle.Render("+" + label)
 	}
 	if row.hasChildren {
 		icon := "▾ "
