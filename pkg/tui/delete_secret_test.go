@@ -129,7 +129,7 @@ func TestProjectsDStillDeletesConfig(t *testing.T) {
 	m.focus = focusProjects
 	cmd, ok := m.keys.Resolve(focusProjects, "d")
 	require.True(t, ok)
-	assert.Equal(t, "config delete", cmd)
+	assert.Equal(t, "delete", cmd)
 }
 
 func TestSecretsDeleteRangeRemovesUnsavedHighToLow(t *testing.T) {

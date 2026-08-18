@@ -93,6 +93,63 @@ func TestDeleteConfirmDStartsDelete(t *testing.T) {
 	assert.Empty(t, mod.pendingDeleteConfig)
 }
 
+func TestBeginDeleteProjectOpensConfirm(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusProjects
+	m.projects = []string{"api", "web"}
+	m.projectConfigs["api"] = buildConfigTree([]models.ConfigInfo{
+		{Name: "dev", Environment: "dev", Root: true},
+	})
+	m.expanded["api"] = true
+	m.rebuildTree()
+	m.treeIdx = findTreeIndex(m.tree, treeProject, "api", "")
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
+	mod := next.(Model)
+	assert.Nil(t, cmd)
+	assert.Equal(t, focusDeleteConfirm, mod.focus)
+	assert.Equal(t, "api", mod.pendingDeleteProject)
+	assert.Empty(t, mod.pendingDeleteConfig)
+	assert.True(t, mod.deletingProject())
+	assert.Contains(t, mod.renderDeleteConfirmModal(), "Delete Project")
+}
+
+func TestProjectDeletedMsgRemovesProject(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusProjects
+	m.projects = []string{"api", "web"}
+	m.projectConfigs["api"] = buildConfigTree([]models.ConfigInfo{
+		{Name: "dev", Environment: "dev", Root: true},
+	})
+	m.projectConfigs["web"] = buildConfigTree([]models.ConfigInfo{
+		{Name: "dev", Environment: "dev", Root: true},
+	})
+	m.expanded["api"] = true
+	m.activeProject = "web"
+	m.activeConfig = "dev"
+	m.rebuildTree()
+
+	next, _ := m.Update(projectDeletedMsg{
+		projects:  []string{"web"},
+		deleted:   "api",
+		highlight: "web",
+	})
+	mod := next.(Model)
+	assert.Equal(t, []string{"web"}, mod.projects)
+	assert.Nil(t, mod.projectConfigs["api"])
+	assert.Equal(t, "web", mod.activeProject)
+	assert.Equal(t, "Deleted project api", mod.statusMsg)
+	assert.Equal(t, findTreeIndex(mod.tree, treeProject, "web", ""), mod.treeIdx)
+}
+
+func TestPickProjectAfterDelete(t *testing.T) {
+	assert.Equal(t, "web", pickProjectAfterDelete([]string{"web", "jobs"}, []string{"api", "web", "jobs"}, "api"))
+	assert.Equal(t, "api", pickProjectAfterDelete([]string{"api"}, []string{"api", "web"}, "web"))
+	assert.Equal(t, "", pickProjectAfterDelete(nil, []string{"api"}, "api"))
+}
+
 func TestPickConfigAfterDeletePrefersEnv(t *testing.T) {
 	configs := buildConfigTree([]models.ConfigInfo{
 		{Name: "dev", Environment: "dev", Root: true},

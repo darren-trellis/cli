@@ -47,7 +47,7 @@ var commandCatalog = []commandInfo{
 	{"edit", "Edit selected secret cell"},
 	{"secret add", "Add a secret"},
 	{"secret delete", "Delete/mark delete the current secret"},
-	{"delete", "Delete secrets with a motion (dd, d2j)"},
+	{"delete", "Delete secrets with a motion, or a project/config"},
 	{"secret undo", "Undo last secret change"},
 	{"secret yank", "Copy focused cell"},
 	{"yank", "Start yank operator"},
@@ -68,6 +68,7 @@ var commandCatalog = []commandInfo{
 	{"config unlock", "Unlock selected config"},
 	{"config lock toggle", "Toggle lock on selected config"},
 	{"config delete", "Delete selected config"},
+	{"project delete", "Delete selected project"},
 	{"sidebar toggle", "Toggle projects sidebar"},
 	{"command", "Open command prompt"},
 	{"command clear", "Clear status / search"},
@@ -138,12 +139,9 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 	case "yank":
 		return m.execYank(args)
 	case "delete":
-		if m.focus != focusSecrets {
-			m.errMsg = "delete operator is only available in Secrets"
-			return m, nil
-		}
-		m.beginSecretDelete()
-		return m, nil
+		return m.execDelete()
+	case "project":
+		return m.execProject(args)
 	case "paste":
 		return m.pasteSecrets()
 	case "search":
@@ -293,6 +291,35 @@ func (m Model) execSecret(args []string) (tea.Model, tea.Cmd) {
 	}
 }
 
+func (m Model) execDelete() (tea.Model, tea.Cmd) {
+	switch m.focus {
+	case focusSecrets:
+		m.beginSecretDelete()
+		return m, nil
+	case focusProjects:
+		m.motionCount = 0
+		return m.beginDeleteSelection()
+	default:
+		m.errMsg = "delete is only available in Projects or Secrets"
+		return m, nil
+	}
+}
+
+func (m Model) execProject(args []string) (tea.Model, tea.Cmd) {
+	if len(args) == 0 {
+		m.errMsg = "usage: project delete"
+		return m, nil
+	}
+	switch args[0] {
+	case "delete":
+		m.motionCount = 0
+		return m.beginDeleteProject()
+	default:
+		m.errMsg = "unknown project command"
+		return m, nil
+	}
+}
+
 func (m Model) execSearch(args []string) (tea.Model, tea.Cmd) {
 	if len(args) == 0 {
 		m.beginSearch()
@@ -376,7 +403,7 @@ func (m Model) renderHelpText() string {
 		"nav up", "nav down", "nav top", "nav bottom", "nav page up", "nav page down", "nav left", "nav right",
 	})
 	writeSection("Projects:", focusProjects, []string{
-		"fold toggle", "select", "config create", "config rename", "config lock toggle", "config delete",
+		"fold toggle", "select", "config create", "config rename", "config lock toggle", "delete",
 		"yank name", "yank yaml", "yank json", "yank env",
 	})
 	writeSection("Secrets:", focusSecrets, []string{
@@ -387,6 +414,7 @@ func (m Model) renderHelpText() string {
 	b.WriteString("Counts: 7j / 3k / 10G (G with a count jumps to that row).\n")
 	b.WriteString("Cached configs show + on the left; highlighting one shows its secrets. n/N hops cached configs when not searching.\n")
 	b.WriteString("Projects yank: y then n/y/j/e (name / yaml / json / env).\n")
+	b.WriteString("Projects delete: d on a project or branch config (root configs cannot be deleted).\n")
 	b.WriteString("Secrets yank: y[j|e] then motion (yy line, yn cell, y2j current+2 down, yjy json line).\n")
 	b.WriteString("Secrets delete: dd line, d2j current+2 down, 5dd 5 lines.\n")
 	b.WriteString("Secrets paste: p imports yaml/json/env from the clipboard.\n")

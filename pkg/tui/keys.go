@@ -72,7 +72,6 @@ func defaultProjectsKeys() map[string]string {
 		"o":     "config create",
 		"r":     "config rename",
 		"L":     "config lock toggle",
-		"d":     "config delete",
 		"y":     "yank",
 	}
 }

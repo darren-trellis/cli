@@ -681,6 +681,19 @@ func (m Model) renderSwitchConfirmModal() string {
 func (m Model) renderDeleteConfirmModal() string {
 	width := min(60, max(24, m.width-4))
 	inner := m.modalInnerWidth(width)
+	if m.deletingProject() {
+		body := "Delete project and all of its configs?\n"
+		if m.pendingDeleteProject != "" {
+			body += "● " + m.pendingDeleteProject + "\n"
+		}
+		body += "This cannot be undone.\n"
+		if m.projectHasUnsavedSecrets(m.pendingDeleteProject) {
+			body += "Unsaved secret changes will be discarded.\n"
+		}
+		body += "\n" + m.renderModalButtons(m.deleteConfirmButtons(), inner)
+		height := min(lipgloss.Height(body)+m.panelChrome(), max(4, m.height-2))
+		return m.renderTitledPanel("Delete Project", body, width, height, true)
+	}
 	target := m.pendingDeleteConfig
 	if m.pendingDeleteProject != "" && target != "" {
 		target = m.pendingDeleteProject + " / " + target
@@ -692,6 +705,18 @@ func (m Model) renderDeleteConfirmModal() string {
 	body += "\n" + m.renderModalButtons(m.deleteConfirmButtons(), inner)
 	height := min(lipgloss.Height(body)+m.panelChrome(), max(4, m.height-2))
 	return m.renderTitledPanel("Delete Config", body, width, height, true)
+}
+
+func (m Model) projectHasUnsavedSecrets(project string) bool {
+	if project == "" {
+		return false
+	}
+	for _, g := range m.dirtyGroups() {
+		if g.project == project {
+			return true
+		}
+	}
+	return false
 }
 
 func truncate(s string, width int) string {

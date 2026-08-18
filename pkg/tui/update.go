@@ -135,6 +135,43 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.persistSession()
 		return m, nil
 
+	case projectDeletedMsg:
+		m.fetching = false
+		m.errMsg = ""
+		m.removeProjectState(msg.deleted)
+		m.projects = msg.projects
+		m.statusMsg = "Deleted project " + msg.deleted
+		if msg.switched {
+			m.projectConfigs[msg.project] = msg.configs
+			m.expanded[msg.project] = true
+			m.secrets = msg.secrets
+			m.secretIdx = 0
+			m.secretCol = colName
+			m.undoStack = nil
+			m.activeProject = msg.project
+			m.activeConfig = msg.config
+			if msg.config != "" {
+				m.rememberLoadedSecrets(msg.project, msg.config, msg.secrets)
+			}
+			m.setFocus(focusProjects)
+		} else if m.activeProject == msg.deleted {
+			m.activeProject = ""
+			m.activeConfig = ""
+			m.secrets = nil
+			m.undoStack = nil
+			m.secretIdx = 0
+			m.setFocus(focusProjects)
+		}
+		m.pruneSecretsCache()
+		m.rebuildTree()
+		if msg.highlight != "" {
+			m.treeIdx = findTreeIndex(m.tree, treeProject, msg.highlight, "")
+		} else if msg.switched && msg.project != "" {
+			m.treeIdx = findTreeIndex(m.tree, treeProject, msg.project, "")
+		}
+		m.persistSession()
+		return m, nil
+
 	case configsLoadedMsg:
 		m.fetching = false
 		m.errMsg = ""
@@ -326,7 +363,7 @@ func (m Model) activateFocusedModalButton() (tea.Model, tea.Cmd) {
 			m.setFocus(focusProjects)
 			return m, nil
 		}
-		return m.confirmDeleteConfig()
+		return m.confirmPendingDelete()
 	default:
 		return m, nil
 	}
@@ -994,6 +1031,33 @@ func (m Model) beginRenameConfig() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) beginDeleteSelection() (tea.Model, tea.Cmd) {
+	row, ok := m.currentTreeRow()
+	if !ok {
+		m.errMsg = "Nothing to delete"
+		return m, nil
+	}
+	if row.kind == treeProject {
+		return m.beginDeleteProject()
+	}
+	return m.beginDeleteConfig()
+}
+
+func (m Model) beginDeleteProject() (tea.Model, tea.Cmd) {
+	row, ok := m.currentTreeRow()
+	if !ok || row.project == "" {
+		m.errMsg = "Select a project to delete"
+		return m, nil
+	}
+	m.pendingDeleteProject = row.project
+	m.pendingDeleteConfig = ""
+	m.modalBtnIdx = 0
+	m.focus = focusDeleteConfirm
+	m.errMsg = ""
+	m.statusMsg = ""
+	return m, nil
+}
+
 func (m Model) beginDeleteConfig() (tea.Model, tea.Cmd) {
 	row, ok := m.currentTreeRow()
 	if !ok || row.kind != treeConfig || row.config == "" {
@@ -1013,6 +1077,10 @@ func (m Model) beginDeleteConfig() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) deletingProject() bool {
+	return m.pendingDeleteProject != "" && m.pendingDeleteConfig == ""
+}
+
 func (m Model) handleDeleteConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	buttons := m.deleteConfirmButtons()
 	if delta, ok := modalCycleDelta(msg.String()); ok {
@@ -1023,7 +1091,7 @@ func (m Model) handleDeleteConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		return m.activateFocusedModalButton()
 	case "d":
-		return m.confirmDeleteConfig()
+		return m.confirmPendingDelete()
 	case "c", "esc", "q":
 		m.clearPendingDelete()
 		m.setFocus(focusProjects)
@@ -1037,6 +1105,25 @@ func (m Model) handleDeleteConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *Model) clearPendingDelete() {
 	m.pendingDeleteProject = ""
 	m.pendingDeleteConfig = ""
+}
+
+func (m Model) confirmPendingDelete() (tea.Model, tea.Cmd) {
+	if m.deletingProject() {
+		return m.confirmDeleteProject()
+	}
+	return m.confirmDeleteConfig()
+}
+
+func (m Model) confirmDeleteProject() (tea.Model, tea.Cmd) {
+	project := m.pendingDeleteProject
+	stayProject := m.activeProject
+	oldProjects := append([]string(nil), m.projects...)
+	m.clearPendingDelete()
+	m.fetching = true
+	m.statusMsg = ""
+	m.errMsg = ""
+	m.setFocus(focusProjects)
+	return m, tea.Batch(m.spinner.Tick, deleteProjectCmd(m.opts, project, oldProjects, stayProject))
 }
 
 func (m Model) confirmDeleteConfig() (tea.Model, tea.Cmd) {
@@ -1059,6 +1146,17 @@ func (m Model) configIsRoot(project, name string) bool {
 		}
 	}
 	return false
+}
+
+func (m *Model) removeProjectState(project string) {
+	delete(m.projectConfigs, project)
+	delete(m.expanded, project)
+	prefix := project + "\x00"
+	for k := range m.expandedEnvs {
+		if strings.HasPrefix(k, prefix) {
+			delete(m.expandedEnvs, k)
+		}
+	}
 }
 
 // setSelectedConfigLock locks/unlocks the selected config.

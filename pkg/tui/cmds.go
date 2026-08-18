@@ -49,6 +49,17 @@ type configsLoadedMsg struct {
 	expand  bool
 }
 
+type projectDeletedMsg struct {
+	projects  []string
+	deleted   string
+	highlight string
+	switched  bool
+	configs   []configRow
+	secrets   []secretRow
+	project   string
+	config    string
+}
+
 type configLockMsg struct {
 	project string
 	configs []configRow
@@ -310,6 +321,98 @@ func pickConfigAfterDelete(configs []configRow, env string) string {
 		return configs[0].name
 	}
 	return ""
+}
+
+func deleteProjectCmd(opts models.ScopedOptions, deleted string, oldProjects []string, stayProject string) tea.Cmd {
+	return func() tea.Msg {
+		err := controllers.DeleteProject(withProject(opts, deleted))
+		if err.Unwrap() != nil {
+			return errMsg{err.Unwrap()}
+		}
+		ids, listErr := controllers.GetProjectIDs(opts)
+		if listErr.Unwrap() != nil {
+			return errMsg{listErr.Unwrap()}
+		}
+		highlight := pickProjectAfterDelete(ids, oldProjects, deleted)
+		nextProject := stayProject
+		if stayProject == deleted || !containsString(ids, stayProject) {
+			nextProject = highlight
+		}
+		if nextProject == "" || nextProject == stayProject {
+			return projectDeletedMsg{projects: ids, deleted: deleted, highlight: highlight}
+		}
+
+		configInfos, cfgErr := controllers.GetConfigs(withProject(opts, nextProject))
+		if cfgErr.Unwrap() != nil {
+			return errMsg{cfgErr.Unwrap()}
+		}
+		configs := buildConfigTree(configInfos)
+		configName := ""
+		if len(configs) > 0 {
+			configName = configs[0].name
+		}
+		if configName == "" {
+			return projectDeletedMsg{
+				projects:  ids,
+				deleted:   deleted,
+				highlight: highlight,
+				switched:  true,
+				configs:   configs,
+				project:   nextProject,
+			}
+		}
+		computed, secretsErr := controllers.GetSecrets(withProjectConfig(opts, nextProject, configName))
+		if secretsErr.Unwrap() != nil {
+			return errMsg{secretsErr.Unwrap()}
+		}
+		return projectDeletedMsg{
+			projects:  ids,
+			deleted:   deleted,
+			highlight: highlight,
+			switched:  true,
+			configs:   configs,
+			secrets:   secretsFromComputed(computed),
+			project:   nextProject,
+			config:    configName,
+		}
+	}
+}
+
+func pickProjectAfterDelete(remaining, old []string, deleted string) string {
+	inRemaining := map[string]bool{}
+	for _, p := range remaining {
+		inRemaining[p] = true
+	}
+	idx := -1
+	for i, p := range old {
+		if p == deleted {
+			idx = i
+			break
+		}
+	}
+	for i := idx + 1; i < len(old); i++ {
+		if inRemaining[old[i]] {
+			return old[i]
+		}
+	}
+	for i := idx - 1; i >= 0; i-- {
+		if inRemaining[old[i]] {
+			return old[i]
+		}
+	}
+	if len(remaining) > 0 {
+		return remaining[0]
+	}
+	return ""
+}
+
+func containsString(items []string, want string) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
 }
 
 func setConfigLockCmd(opts models.ScopedOptions, project, config string, lock bool) tea.Cmd {

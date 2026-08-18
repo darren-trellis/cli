@@ -35,3 +35,14 @@ func GetProjectIDs(config models.ScopedOptions) ([]string, Error) {
 	}
 	return ids, Error{}
 }
+
+func DeleteProject(config models.ScopedOptions) Error {
+	utils.RequireValue("token", config.Token.Value)
+	utils.RequireValue("project", config.EnclaveProject.Value)
+
+	err := http.DeleteProject(config.APIHost.Value, utils.GetBool(config.VerifyTLS.Value, true), config.Token.Value, config.EnclaveProject.Value)
+	if !err.IsNil() {
+		return Error{Err: err.Unwrap(), Message: err.Message}
+	}
+	return Error{}
+}
