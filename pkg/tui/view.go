@@ -616,8 +616,7 @@ func (m Model) saveModalButtons() []modalButton {
 func (m Model) propagateModalButtons() []modalButton {
 	return []modalButton{
 		{Label: "Apply", Key: "y"},
-		{Label: "This config only", Key: "n"},
-		{Label: "Back", Key: "esc"},
+		{Label: "Cancel", Key: "c"},
 	}
 }
 

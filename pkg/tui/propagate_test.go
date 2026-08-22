@@ -143,13 +143,13 @@ func TestPropagateATogglesAllUnlocked(t *testing.T) {
 	assert.Empty(t, mod.selectedPropagateConfigs())
 }
 
-func TestPropagateNSavesCurrentOnly(t *testing.T) {
+func TestPropagateYWithNoneSelectedSavesCurrentOnly(t *testing.T) {
 	m := saveModalModel("dev", rootConfigs())
 	next, _ := m.handleSaveKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
 	mod := next.(Model)
-	mod.togglePropagateAt(0)
+	assert.Empty(t, mod.selectedPropagateConfigs())
 
-	next, cmd := mod.handlePropagateKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	next, cmd := mod.handlePropagateKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
 	mod = next.(Model)
 	require.NotNil(t, cmd)
 	assert.True(t, mod.fetching)
@@ -172,16 +172,17 @@ func TestPropagateYKeepsSelectedSiblings(t *testing.T) {
 	assert.Empty(t, mod.pendingChanges)
 }
 
-func TestPropagateEscReturnsToSaveModal(t *testing.T) {
+func TestPropagateCancelAbandonsSave(t *testing.T) {
 	m := saveModalModel("dev", rootConfigs())
 	next, _ := m.handleSaveKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
 	mod := next.(Model)
+	mod.togglePropagateAt(0)
 
-	next, cmd := mod.handlePropagateKey(tea.KeyMsg{Type: tea.KeyEsc})
+	next, cmd := mod.handlePropagateKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
 	mod = next.(Model)
 	assert.Nil(t, cmd)
-	assert.Equal(t, focusSave, mod.focus)
-	assert.Equal(t, []models.ChangeRequest{{Name: "FOO"}}, mod.pendingChanges)
+	assert.Equal(t, focusSecrets, mod.focus)
+	assert.Empty(t, mod.pendingChanges)
 	assert.Empty(t, mod.propagateTargets)
 }
 
@@ -210,7 +211,8 @@ func TestPropagateModalCopy(t *testing.T) {
 	assert.Contains(t, view, "prd")
 	assert.NotContains(t, view, "$prd")
 	assert.Contains(t, view, "Apply (y)")
-	assert.Contains(t, view, "This config only (n)")
+	assert.Contains(t, view, "Cancel (c)")
+	assert.NotContains(t, view, "This config only")
 	assert.NotContains(t, view, "dev_personal")
 	assert.Less(t, strings.Count(view, "\n")+1, 16)
 }

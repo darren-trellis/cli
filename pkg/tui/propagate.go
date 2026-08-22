@@ -176,14 +176,8 @@ func (m Model) handlePropagateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.activateFocusedModalButton()
 	case "y":
 		return m.confirmSave()
-	case "n":
-		m.clearPropagate()
-		return m.confirmSave()
-	case "esc", "q":
-		m.clearPropagate()
-		m.modalBtnIdx = 0
-		m.setFocus(focusSave)
-		return m, nil
+	case "c", "esc", "q":
+		return m.cancelPropagate()
 	case "j", "down":
 		m.movePropagateIdx(1)
 	case "k", "up":
@@ -191,6 +185,13 @@ func (m Model) handlePropagateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "C-c", "ctrl+c":
 		return m, tea.Quit
 	}
+	return m, nil
+}
+
+func (m Model) cancelPropagate() (tea.Model, tea.Cmd) {
+	m.clearPropagate()
+	m.pendingChanges = nil
+	m.setFocus(focusSecrets)
 	return m, nil
 }
 

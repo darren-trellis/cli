@@ -61,8 +61,7 @@ func TestModalButtonsStayOnOneLine(t *testing.T) {
 	m := Model{modalBtnIdx: 0}
 	buttons := []modalButton{
 		{Label: "Apply", Key: "y"},
-		{Label: "This config only", Key: "n"},
-		{Label: "Back", Key: "esc"},
+		{Label: "Cancel", Key: "c"},
 	}
 	for _, w := range []int{28, 40, 56} {
 		row := m.renderModalButtons(buttons, w)
@@ -73,8 +72,7 @@ func TestModalButtonsStayOnOneLine(t *testing.T) {
 	}
 	wide := ansi.Strip(m.renderModalButtons(buttons, 56))
 	assert.Contains(t, wide, "Apply (y)")
-	assert.Contains(t, wide, "This config only (n)")
-	assert.Contains(t, wide, "Back (esc)")
+	assert.Contains(t, wide, "Cancel (c)")
 }
 
 func TestButtonHitRectsFindsCenteredRow(t *testing.T) {

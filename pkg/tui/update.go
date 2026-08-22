@@ -372,18 +372,10 @@ func (m Model) activateFocusedModalButton() (tea.Model, tea.Cmd) {
 		}
 		return m.requestSaveConfirm()
 	case focusPropagate:
-		switch m.modalBtnIdx {
-		case 1:
-			m.clearPropagate()
-			return m.confirmSave()
-		case 2:
-			m.clearPropagate()
-			m.modalBtnIdx = 0
-			m.focus = focusSave
-			return m, nil
-		default:
-			return m.confirmSave()
+		if m.modalBtnIdx == 1 {
+			return m.cancelPropagate()
 		}
+		return m.confirmSave()
 	case focusSwitchConfirm:
 		switch m.modalBtnIdx {
 		case 1:
