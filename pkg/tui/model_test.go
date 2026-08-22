@@ -463,21 +463,21 @@ func TestBuildConfigTree(t *testing.T) {
 
 func TestFormatTreeRowShowsLock(t *testing.T) {
 	row := treeRow{kind: treeConfig, project: "api", config: "prd", depth: 1, lastSibling: true, locked: true}
-	assert.Equal(t, "  └─ prd (L)", ansi.Strip(formatTreeRow(row, "api", "dev")))
+	assert.Equal(t, "  └─ $prd", ansi.Strip(formatTreeRow(row, "api", "dev")))
 
 	active := treeRow{kind: treeConfig, project: "api", config: "prd", depth: 1, lastSibling: true, locked: true}
-	assert.Equal(t, "  └─ *prd (L)", ansi.Strip(formatTreeRow(active, "api", "prd")))
+	assert.Equal(t, "  └─ *$prd", ansi.Strip(formatTreeRow(active, "api", "prd")))
 	active.dirty = true
-	assert.Equal(t, "  └─ *prd (L) +", ansi.Strip(formatTreeRow(active, "api", "prd")))
+	assert.Equal(t, "  └─ *$prd +", ansi.Strip(formatTreeRow(active, "api", "prd")))
 	active.dirty = false
 	active.cached = true
-	assert.Equal(t, "  └─ *prd (L)", ansi.Strip(formatTreeRow(active, "api", "prd")))
+	assert.Equal(t, "  └─ *$prd", ansi.Strip(formatTreeRow(active, "api", "prd")))
 
 	cached := treeRow{kind: treeConfig, project: "api", config: "prd", depth: 1, lastSibling: true, cached: true}
 	assert.Equal(t, "  └─ +prd", ansi.Strip(formatTreeRow(cached, "api", "dev")))
 	cached.locked = true
 	cached.dirty = true
-	assert.Equal(t, "  └─ +prd (L) +", ansi.Strip(formatTreeRow(cached, "api", "dev")))
+	assert.Equal(t, "  └─ +$prd +", ansi.Strip(formatTreeRow(cached, "api", "dev")))
 }
 
 func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {

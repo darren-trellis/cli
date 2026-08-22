@@ -289,7 +289,7 @@ func formatTreeRow(row treeRow, activeProject, activeConfig string) string {
 	active := row.project == activeProject && row.config == activeConfig
 	label := row.config
 	if row.locked {
-		label = label + " (L)"
+		label = "$" + label
 	}
 	if row.dirty {
 		label = label + " +"
