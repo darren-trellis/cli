@@ -15,7 +15,10 @@ limitations under the License.
 */
 package tui
 
-import "github.com/DopplerHQ/cli/pkg/models"
+import (
+	"github.com/DopplerHQ/cli/pkg/models"
+	tea "github.com/charmbracelet/bubbletea"
+)
 
 type secretsCacheEntry struct {
 	secrets   []secretRow
@@ -122,6 +125,84 @@ func (m *Model) revealHighlightedConfig() {
 	}
 	m.stashCurrentSecrets()
 	m.applyCachedSecrets(row.project, row.config)
+}
+
+func (m *Model) dropSecretsCache(project, config string) {
+	if m.secretsCache == nil || project == "" || config == "" {
+		return
+	}
+	delete(m.secretsCache, secretsCacheKey(project, config))
+}
+
+func (m *Model) clearLoadedSecrets() {
+	m.secrets = nil
+	m.secretIdx = 0
+	m.secretCol = colName
+	m.undoStack = nil
+	m.filter = ""
+	m.filterInput.SetValue("")
+	m.activeConfig = ""
+}
+
+func (m Model) otherCachedConfig(skipProject, skipConfig string) (string, string, bool) {
+	idxs := m.cachedTreeIndexes()
+	if len(idxs) == 0 {
+		return "", "", false
+	}
+	start := 0
+	for i, idx := range idxs {
+		if idx >= m.treeIdx {
+			start = i
+			break
+		}
+	}
+	for i := 0; i < len(idxs); i++ {
+		idx := idxs[(start+i)%len(idxs)]
+		row := m.tree[idx]
+		if row.project == skipProject && row.config == skipConfig {
+			continue
+		}
+		return row.project, row.config, true
+	}
+	return "", "", false
+}
+
+func (m Model) unloadHighlightedConfig() (tea.Model, tea.Cmd) {
+	if m.focus != focusProjects {
+		m.errMsg = "Unload is only available in Projects"
+		return m, nil
+	}
+	row, ok := m.currentTreeRow()
+	if !ok || row.kind != treeConfig || row.config == "" {
+		m.errMsg = "Select a loaded config"
+		return m, nil
+	}
+	loaded := m.configIsCached(row.project, row.config) ||
+		(row.project == m.activeProject && row.config == m.activeConfig)
+	if !loaded {
+		m.errMsg = "Config is not loaded"
+		return m, nil
+	}
+	if m.configIsDirty(row.project, row.config) {
+		m.errMsg = "Save or discard unsaved changes first"
+		return m, nil
+	}
+
+	project, config := row.project, row.config
+	wasActive := project == m.activeProject && config == m.activeConfig
+	m.dropSecretsCache(project, config)
+	if wasActive {
+		if nextProject, nextConfig, ok := m.otherCachedConfig(project, config); ok {
+			m.applyCachedSecrets(nextProject, nextConfig)
+		} else {
+			m.clearLoadedSecrets()
+		}
+	}
+	m.rebuildTree()
+	m.treeIdx = findTreeIndex(m.tree, treeConfig, project, config)
+	m.statusMsg = "Unloaded " + project + " / " + config
+	m.errMsg = ""
+	return m, nil
 }
 
 func (m *Model) pruneSecretsCache() {

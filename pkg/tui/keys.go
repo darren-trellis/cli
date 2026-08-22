@@ -68,12 +68,13 @@ func defaultBaseKeys() map[string]string {
 
 func defaultProjectsKeys() map[string]string {
 	return map[string]string{
-		"space": "fold toggle",
-		"enter": "select",
-		"o":     "config create",
-		"r":     "config rename",
-		"L":     "config lock toggle",
-		"y":     "yank",
+		"space":     "fold toggle",
+		"enter":     "select",
+		"o":         "config create",
+		"r":         "config rename",
+		"L":         "config lock toggle",
+		"backspace": "unload",
+		"y":         "yank",
 	}
 }
 

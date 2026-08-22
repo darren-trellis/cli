@@ -70,6 +70,7 @@ var commandCatalog = []commandInfo{
 	{"config lock toggle", "Toggle lock on selected config"},
 	{"config delete", "Delete selected config"},
 	{"project delete", "Delete selected project"},
+	{"unload", "Unload the selected cached config"},
 	{"sidebar toggle", "Toggle projects sidebar"},
 	{"command", "Open command prompt"},
 	{"command clear", "Clear status / search"},
@@ -141,6 +142,8 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 		return m.execYank(args)
 	case "delete":
 		return m.execDelete()
+	case "unload":
+		return m.unloadHighlightedConfig()
 	case "project":
 		return m.execProject(args)
 	case "paste":
@@ -411,7 +414,7 @@ func (m Model) renderHelpText() string {
 		"nav up", "nav down", "nav top", "nav bottom", "nav page up", "nav page down", "nav left", "nav right",
 	})
 	writeSection("Projects:", focusProjects, []string{
-		"fold toggle", "select", "config create", "config rename", "config lock toggle", "delete",
+		"fold toggle", "select", "config create", "config rename", "config lock toggle", "delete", "unload",
 		"yank name", "yank yaml", "yank json", "yank env",
 	})
 	writeSection("Secrets:", focusSecrets, []string{
@@ -420,7 +423,7 @@ func (m Model) renderHelpText() string {
 	b.WriteString("Typing modes (search/filter/insert/create/rename) use Esc/Enter locally.\n")
 	b.WriteString("Command and search ↑/↓ (C-p/C-n) recall history; ↓ in : focuses suggestions.\n")
 	b.WriteString("Counts: 7j / 3k / 10G (G with a count jumps to that row).\n")
-	b.WriteString("Cached configs show + on the left; highlighting one shows its secrets. n/N hops cached configs when not searching.\n")
+	b.WriteString("Cached configs show + on the left; highlighting one shows its secrets. n/N hops cached configs when not searching. Backspace unloads a loaded config.\n")
 	b.WriteString("Search: / in the current pane; C-f keys and values across configs (Enter scans the workplace).\n")
 	b.WriteString("Projects yank: y then n/y/j/e (name / yaml / json / env).\n")
 	b.WriteString("Projects delete: d on a project or branch config (root configs cannot be deleted).\n")

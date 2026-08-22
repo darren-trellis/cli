@@ -133,6 +133,62 @@ func TestSidebarMarksCachedConfigs(t *testing.T) {
 	assert.NotContains(t, out, " ·")
 }
 
+func TestBackspaceUnloadsCachedConfig(t *testing.T) {
+	m := cachedSidebarModel()
+	m.width = 80
+	m.height = 24
+	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "prd")
+	m.revealHighlightedConfig()
+	require.True(t, m.configIsCached("api", "prd"))
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	mod := next.(Model)
+	assert.False(t, mod.configIsCached("api", "prd"))
+	assert.True(t, mod.configIsCached("api", "dev"))
+	assert.Equal(t, "dev", mod.activeConfig)
+	assert.Equal(t, "DEV", mod.secrets[0].name)
+	assert.Equal(t, findTreeIndex(mod.tree, treeConfig, "api", "prd"), mod.treeIdx)
+	assert.Contains(t, mod.statusMsg, "Unloaded api / prd")
+	assert.NotContains(t, ansi.Strip(mod.renderProjectTree(40, 20)), "+prd")
+}
+
+func TestBackspaceUnloadsLastCachedConfig(t *testing.T) {
+	m := cachedSidebarModel()
+	m.dropSecretsCache("api", "prd")
+	m.rebuildTree()
+	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
+
+	next, _ := m.unloadHighlightedConfig()
+	mod := next.(Model)
+	assert.False(t, mod.configIsCached("api", "dev"))
+	assert.Empty(t, mod.activeConfig)
+	assert.Empty(t, mod.secrets)
+	assert.Equal(t, findTreeIndex(mod.tree, treeConfig, "api", "dev"), mod.treeIdx)
+}
+
+func TestBackspaceRefusesDirtyCachedConfig(t *testing.T) {
+	m := cachedSidebarModel()
+	m.secrets[0].value = "changed"
+	m.stashCurrentSecrets()
+
+	next, _ := m.unloadHighlightedConfig()
+	mod := next.(Model)
+	assert.True(t, mod.configIsCached("api", "dev"))
+	assert.Equal(t, "dev", mod.activeConfig)
+	assert.Contains(t, mod.errMsg, "unsaved")
+}
+
+func TestBackspaceOnUncachedConfigDoesNothing(t *testing.T) {
+	m := cachedSidebarModel()
+	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev_personal")
+
+	next, _ := m.unloadHighlightedConfig()
+	mod := next.(Model)
+	assert.True(t, mod.configIsCached("api", "dev"))
+	assert.Equal(t, "dev", mod.activeConfig)
+	assert.Contains(t, mod.errMsg, "not loaded")
+}
+
 func TestNKeyHopsCachedWhenNotSearching(t *testing.T) {
 	m := cachedSidebarModel()
 	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
