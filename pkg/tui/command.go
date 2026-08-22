@@ -64,7 +64,9 @@ var commandCatalog = []commandInfo{
 	{"search next", "Next search match (or next cached config)"},
 	{"search prev", "Previous search match (or previous cached config)"},
 	{"search clear", "Clear search"},
-	{"filter", "Open secrets filter"},
+	{"filter", "Open local secrets filter"},
+	{"filter local", "Open local secrets filter"},
+	{"filter global", "Open workplace secrets filter"},
 	{"config create", "Create a config"},
 	{"config rename", "Rename selected config"},
 	{"config lock", "Lock or unlock the selected config"},
@@ -155,8 +157,7 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 	case "search":
 		return m.execSearch(args)
 	case "filter":
-		m.setFocus(focusFilter)
-		return m, nil
+		return m.execFilter(args)
 	case "config":
 		if len(args) == 0 {
 			m.errMsg = "usage: config create|rename|lock|load|delete"
@@ -412,6 +413,23 @@ func (m Model) execProject(args []string) (tea.Model, tea.Cmd) {
 	}
 }
 
+func (m Model) execFilter(args []string) (tea.Model, tea.Cmd) {
+	global := false
+	if len(args) > 0 {
+		switch args[0] {
+		case "global":
+			global = true
+		case "local":
+			global = false
+		default:
+			m.errMsg = "usage: filter [local|global]"
+			return m, nil
+		}
+	}
+	m.beginFilter(global)
+	return m, nil
+}
+
 func (m Model) execSearch(args []string) (tea.Model, tea.Cmd) {
 	if len(args) == 0 {
 		m.beginSearch()
@@ -496,7 +514,7 @@ func (m Model) renderHelpText() string {
 
 	writeSection("Global:", focusSecrets, []string{
 		"quit", "help", "command", "command clear", "search", "search global", "search next", "search prev", "search clear",
-		"filter", "sidebar toggle", "focus cycle", "focus prev", "focus projects", "focus secrets",
+		"filter", "filter global", "sidebar toggle", "focus cycle", "focus prev", "focus projects", "focus secrets",
 	})
 	writeSection("Navigation:", focusSecrets, []string{
 		"nav up", "nav down", "nav top", "nav bottom", "nav page up", "nav page down", "nav left", "nav right",
@@ -513,6 +531,7 @@ func (m Model) renderHelpText() string {
 	b.WriteString("Counts: 7j / 3k / 10G (G with a count jumps to that row).\n")
 	b.WriteString("Cached configs show + on the left; locked configs show $. Highlighting a cached config shows its secrets. n/N hops cached configs when not searching. Enter loads a config; Backspace unloads it. Click selects a sidebar row; double-click loads it. Folding a project or env keeps the active and loaded configs visible.\n")
 	b.WriteString("Search: / in the current pane; C-f keys and values across configs (Enter scans the workplace).\n")
+	b.WriteString("Filter: f this config; F every config (local applies after global).\n")
 	b.WriteString("Projects yank: y then n/y/j/e (name / yaml / json / env).\n")
 	b.WriteString("Projects delete: d on a project or branch config (root configs cannot be deleted).\n")
 	b.WriteString("Secrets yank: y[j|e] then motion (yy line, yn cell, y2j current+2 down, yjy json line).\n")

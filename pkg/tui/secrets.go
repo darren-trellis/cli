@@ -154,14 +154,18 @@ func collectChanges(secrets []secretRow) []models.ChangeRequest {
 	return changes
 }
 
-func filterSecretIndexes(secrets []secretRow, filter, caseMode string) []int {
+func filterSecretIndexes(secrets []secretRow, global, local, caseMode string) []int {
 	var idxs []int
 	for i, s := range secrets {
-		if s.isDirty() || filter == "" || matchWithCaseMode(s.name, filter, caseMode) {
+		if s.isDirty() || (matchesFilter(s.name, global, caseMode) && matchesFilter(s.name, local, caseMode)) {
 			idxs = append(idxs, i)
 		}
 	}
 	return idxs
+}
+
+func matchesFilter(name, filter, caseMode string) bool {
+	return filter == "" || matchWithCaseMode(name, filter, caseMode)
 }
 
 func matchWithCaseMode(text, query, caseMode string) bool {

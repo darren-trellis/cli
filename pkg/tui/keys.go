@@ -58,6 +58,7 @@ func defaultBaseKeys() map[string]string {
 		"N":        "search prev",
 		"esc":      "command clear",
 		"f":        "filter",
+		"F":        "filter global",
 		"?":        "help",
 		":":        "command",
 		"d":        "delete",

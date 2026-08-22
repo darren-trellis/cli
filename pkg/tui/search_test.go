@@ -170,7 +170,17 @@ func TestFilterKeybinding(t *testing.T) {
 	m.focus = focusSecrets
 
 	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
-	assert.Equal(t, focusFilter, next.(Model).focus)
+	mod := next.(Model)
+	assert.Equal(t, focusFilter, mod.focus)
+	assert.False(t, mod.filterGlobal)
+
+	m = newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, ListScrollbarVertical: true, SidebarScrollbarVertical: true})
+	m.fetching = false
+	m.focus = focusSecrets
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'F'}})
+	mod = next.(Model)
+	assert.Equal(t, focusFilter, mod.focus)
+	assert.True(t, mod.filterGlobal)
 
 	m = newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, ListScrollbarVertical: true, SidebarScrollbarVertical: true})
 	m.fetching = false

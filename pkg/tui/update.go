@@ -452,10 +452,30 @@ func (m Model) requestQuit() (tea.Model, tea.Cmd) {
 	return m.openQuitConfirm()
 }
 
+func (m *Model) beginFilter(global bool) {
+	m.filterGlobal = global
+	if global {
+		m.filterInput.Prompt = "F "
+		m.filterInput.Placeholder = "Filter all configs…"
+	} else {
+		m.filterInput.Prompt = "f "
+		m.filterInput.Placeholder = "Filter this config…"
+	}
+	m.setFocus(focusFilter)
+}
+
+func (m *Model) commitFilterInput() {
+	if m.filterGlobal {
+		m.globalFilter = m.filterInput.Value()
+	} else {
+		m.filter = m.filterInput.Value()
+	}
+}
+
 func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "tab", "shift+tab", "enter", "esc":
-		m.filter = m.filterInput.Value()
+		m.commitFilterInput()
 		m.secretIdx = 0
 		m.setFocus(focusSecrets)
 		return m, nil
@@ -465,7 +485,7 @@ func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 	m.filterInput, cmd = m.filterInput.Update(msg)
-	m.filter = m.filterInput.Value()
+	m.commitFilterInput()
 	m.clampSecretIdx()
 	if m.searchPane == focusSecrets && m.searchRe != nil {
 		m.refreshSearchMatches()

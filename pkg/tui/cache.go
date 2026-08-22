@@ -111,7 +111,9 @@ func (m *Model) applyCachedSecrets(project, config string) bool {
 	m.secretCol = e.secretCol
 	m.undoStack = append([]int(nil), e.undoStack...)
 	m.filter = e.filter
-	m.filterInput.SetValue(e.filter)
+	if !m.filterGlobal {
+		m.filterInput.SetValue(e.filter)
+	}
 	m.activeProject = project
 	m.activeConfig = config
 	m.clampSecretIdx()

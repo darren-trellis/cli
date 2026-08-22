@@ -386,14 +386,15 @@ func (m Model) renderStatus(width int) string {
 	}
 
 	var right string
+	filters := m.filterStatusLabel()
 	switch {
 	case m.searchQuery != "":
 		right = searchHitStyle.Render(m.searchStatusLabel())
-		if m.filter != "" {
-			right = helpStyle.Render("f "+m.filter) + "  " + right
+		if filters != "" {
+			right = helpStyle.Render(filters) + "  " + right
 		}
-	case m.filter != "":
-		right = activeEnvStyle.Render("f " + m.filter)
+	case filters != "":
+		right = activeEnvStyle.Render(filters)
 	}
 
 	var line string
@@ -417,6 +418,17 @@ func (m Model) renderStatus(width int) string {
 	}
 
 	return statusBarStyle.Width(width).MaxWidth(width).Render(line)
+}
+
+func (m Model) filterStatusLabel() string {
+	var parts []string
+	if m.globalFilter != "" {
+		parts = append(parts, "F "+m.globalFilter)
+	}
+	if m.filter != "" {
+		parts = append(parts, "f "+m.filter)
+	}
+	return strings.Join(parts, "  ")
 }
 
 func renderStatusInput(ti *textinput.Model, width int) string {

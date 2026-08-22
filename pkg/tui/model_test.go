@@ -43,23 +43,52 @@ func TestFilterSecretIndexes(t *testing.T) {
 	secrets[1].value = "changed"
 	assert.True(t, secrets[1].isDirty())
 
-	idxs := filterSecretIndexes(secrets, "a", "insensitive")
+	idxs := filterSecretIndexes(secrets, "", "a", "insensitive")
 	assert.Equal(t, []int{0, 1, 2}, idxs)
 
-	idxs = filterSecretIndexes(secrets, "BETA", "insensitive")
+	idxs = filterSecretIndexes(secrets, "", "BETA", "insensitive")
 	assert.Equal(t, []int{1}, idxs)
 
-	idxs = filterSecretIndexes(secrets, "zzz", "insensitive")
+	idxs = filterSecretIndexes(secrets, "", "zzz", "insensitive")
 	assert.Equal(t, []int{1}, idxs)
 
-	idxs = filterSecretIndexes(secrets, "a", "sensitive")
+	idxs = filterSecretIndexes(secrets, "", "a", "sensitive")
 	assert.Equal(t, []int{1}, idxs)
 
-	idxs = filterSecretIndexes(secrets, "alpha", "smart")
+	idxs = filterSecretIndexes(secrets, "", "alpha", "smart")
 	assert.Equal(t, []int{0, 1}, idxs)
 
-	idxs = filterSecretIndexes(secrets, "ALPHA", "smart")
+	idxs = filterSecretIndexes(secrets, "", "ALPHA", "smart")
 	assert.Equal(t, []int{0, 1}, idxs)
+
+	idxs = filterSecretIndexes(secrets, "a", "BETA", "insensitive")
+	assert.Equal(t, []int{1}, idxs)
+
+	idxs = filterSecretIndexes(secrets, "GAMMA", "zzz", "insensitive")
+	assert.Equal(t, []int{1}, idxs)
+
+	idxs = filterSecretIndexes(secrets, "a", "", "insensitive")
+	assert.Equal(t, []int{0, 1, 2}, idxs)
+}
+
+func TestFilterStatusLabel(t *testing.T) {
+	m := Model{filter: "api", globalFilter: "TOKEN"}
+	assert.Equal(t, "F TOKEN  f api", m.filterStatusLabel())
+	m.filter = ""
+	assert.Equal(t, "F TOKEN", m.filterStatusLabel())
+}
+
+func TestExecFilterOpensLocalOrGlobal(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
+	next, _ := m.executeCommand("filter")
+	mod := next.(Model)
+	assert.Equal(t, focusFilter, mod.focus)
+	assert.False(t, mod.filterGlobal)
+
+	next, _ = mod.executeCommand("filter global")
+	mod = next.(Model)
+	assert.Equal(t, focusFilter, mod.focus)
+	assert.True(t, mod.filterGlobal)
 }
 
 func TestCollectChanges(t *testing.T) {

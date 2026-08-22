@@ -137,6 +137,20 @@ func TestDirtyCacheSurvivesSwitch(t *testing.T) {
 	assert.True(t, m.hasDirtySecrets())
 }
 
+func TestGlobalFilterSurvivesConfigSwitch(t *testing.T) {
+	m := cachedSidebarModel()
+	m.filter = "DEV"
+	m.globalFilter = "TOKEN"
+	m.stashCurrentSecrets()
+	m.putSecretsCache("api", "prd", secretsCacheEntry{
+		secrets: []secretRow{newSecretRow("PRD", "9", "masked")},
+		filter:  "PRD",
+	})
+	require.True(t, m.applyCachedSecrets("api", "prd"))
+	assert.Equal(t, "PRD", m.filter)
+	assert.Equal(t, "TOKEN", m.globalFilter)
+}
+
 func TestSidebarMarksCachedConfigs(t *testing.T) {
 	m := cachedSidebarModel()
 	m.width = 80

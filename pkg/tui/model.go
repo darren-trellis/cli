@@ -84,8 +84,10 @@ type Model struct {
 	secretCol    secretCol
 	undoStack    []int // secret store indexes, most recent last
 
-	filter      string
-	filterInput textinput.Model
+	filter       string
+	globalFilter string
+	filterGlobal bool
+	filterInput  textinput.Model
 
 	searchQuery       string
 	searchInput       textinput.Model
@@ -216,7 +218,7 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) filteredIndexes() []int {
-	return filterSecretIndexes(m.secrets, m.filter, m.cfg.CaseMode)
+	return filterSecretIndexes(m.secrets, m.globalFilter, m.filter, m.cfg.CaseMode)
 }
 
 func (m Model) panelChrome() int {
@@ -472,7 +474,11 @@ func (m *Model) setFocus(f focusArea) {
 		m.loadCellFromSelection()
 		m.cellInput.Focus()
 	case focusFilter:
-		m.filterInput.SetValue(m.filter)
+		if m.filterGlobal {
+			m.filterInput.SetValue(m.globalFilter)
+		} else {
+			m.filterInput.SetValue(m.filter)
+		}
 		m.filterInput.CursorEnd()
 		m.filterInput.Focus()
 	case focusSearch:
