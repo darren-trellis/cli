@@ -209,7 +209,7 @@ func encodeKey(msg tea.KeyMsg) (string, bool) {
 	switch s {
 	case "ctrl+c":
 		return "C-c", true
-	case " ":
+	case " ", "space":
 		return "space", true
 	case "enter":
 		return "enter", true

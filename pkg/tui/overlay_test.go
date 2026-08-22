@@ -57,6 +57,26 @@ func TestModalButtonsFillWidth(t *testing.T) {
 	assert.Contains(t, ansi.Strip(row), "Cancel (n)")
 }
 
+func TestModalButtonsStayOnOneLine(t *testing.T) {
+	m := Model{modalBtnIdx: 0}
+	buttons := []modalButton{
+		{Label: "Apply", Key: "y"},
+		{Label: "This config only", Key: "n"},
+		{Label: "Back", Key: "esc"},
+	}
+	for _, w := range []int{28, 40, 56} {
+		row := m.renderModalButtons(buttons, w)
+		plain := ansi.Strip(row)
+		assert.Equal(t, 1, strings.Count(row, "\n")+1, "width %d wrapped", w)
+		assert.LessOrEqual(t, lipgloss.Width(plain), w, "width %d overflowed", w)
+		assert.Equal(t, w, lipgloss.Width(plain), "width %d should fill", w)
+	}
+	wide := ansi.Strip(m.renderModalButtons(buttons, 56))
+	assert.Contains(t, wide, "Apply (y)")
+	assert.Contains(t, wide, "This config only (n)")
+	assert.Contains(t, wide, "Back (esc)")
+}
+
 func TestButtonHitRectsFindsCenteredRow(t *testing.T) {
 	m := Model{modalBtnIdx: 0}
 	buttons := []modalButton{

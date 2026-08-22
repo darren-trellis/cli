@@ -17,6 +17,7 @@ package tui
 
 import (
 	"strings"
+	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -158,6 +159,14 @@ func (m Model) handlePropagateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cycleModalButton(len(buttons), delta)
 		return m, nil
 	}
+	if isSpaceKey(msg) {
+		m.togglePropagateAt(m.propagateIdx)
+		return m, nil
+	}
+	if isLetterKey(msg, 'a') {
+		m.toggleAllPropagate()
+		return m, nil
+	}
 	switch msg.String() {
 	case "enter":
 		return m.activateFocusedModalButton()
@@ -175,14 +184,41 @@ func (m Model) handlePropagateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.movePropagateIdx(1)
 	case "k", "up":
 		m.movePropagateIdx(-1)
-	case " ":
-		m.togglePropagateAt(m.propagateIdx)
-	case "a":
-		m.toggleAllPropagate()
 	case "ctrl+c":
 		return m, tea.Quit
 	}
 	return m, nil
+}
+
+func isSpaceKey(msg tea.KeyMsg) bool {
+	if msg.Type == tea.KeySpace {
+		return true
+	}
+	switch msg.String() {
+	case " ", "space":
+		return true
+	}
+	if chord, ok := encodeKey(msg); ok && chord == "space" {
+		return true
+	}
+	return len(msg.Runes) == 1 && msg.Runes[0] == ' '
+}
+
+func isLetterKey(msg tea.KeyMsg, letter rune) bool {
+	letter = unicode.ToLower(letter)
+	if len(msg.Runes) == 1 && unicode.ToLower(msg.Runes[0]) == letter {
+		return true
+	}
+	s := msg.String()
+	if rs := []rune(s); len(rs) == 1 && unicode.ToLower(rs[0]) == letter {
+		return true
+	}
+	if chord, ok := encodeKey(msg); ok {
+		if rs := []rune(chord); len(rs) == 1 && unicode.ToLower(rs[0]) == letter {
+			return true
+		}
+	}
+	return false
 }
 
 func formatSaveStatus(applied, failed []string) string {

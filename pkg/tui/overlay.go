@@ -102,14 +102,10 @@ func (m Model) renderModalButtons(buttons []modalButton, width int) string {
 	}
 
 	labels := make([]string, len(buttons))
-	minInner := 0
 	for i, b := range buttons {
 		labels[i] = b.text()
-		if w := lipgloss.Width(labels[i]); w > minInner {
-			minInner = w
-		}
 	}
-	widths := modalButtonWidths(len(buttons), minInner+2, width)
+	widths, gap := modalButtonLayout(labelWidths(labels), width)
 
 	gapStyle := lipgloss.NewStyle()
 	if background != "" {
@@ -117,15 +113,10 @@ func (m Model) renderModalButtons(buttons []modalButton, width int) string {
 	}
 	parts := make([]string, 0, len(buttons)*2-1)
 	for i, label := range labels {
-		if i > 0 {
-			parts = append(parts, gapStyle.Render(" "))
+		if i > 0 && gap > 0 {
+			parts = append(parts, gapStyle.Render(strings.Repeat(" ", gap)))
 		}
-		text := padButtonLabel(label, widths[i])
-		st := buttonStyle.UnsetPadding()
-		if i == idx {
-			st = buttonFocusStyle.UnsetPadding()
-		}
-		parts = append(parts, st.Render(text))
+		parts = append(parts, renderModalButton(label, widths[i], i == idx))
 	}
 	row := lipgloss.JoinHorizontal(lipgloss.Top, parts...)
 	if width <= 0 {
@@ -139,30 +130,79 @@ func (m Model) renderModalButtons(buttons []modalButton, width int) string {
 	return gapStyle.Render(strings.Repeat(" ", left)) + row + gapStyle.Render(strings.Repeat(" ", pad-left))
 }
 
-func modalButtonWidths(n, minCell, total int) []int {
+func renderModalButton(label string, width int, focused bool) string {
+	text := padButtonLabel(label, width)
+	st := buttonStyle
+	if focused {
+		st = buttonFocusStyle
+	}
+	return st.Padding(0, 0).Width(width).MaxWidth(width).Inline(true).Render(text)
+}
+
+func labelWidths(labels []string) []int {
+	out := make([]int, len(labels))
+	for i, label := range labels {
+		out[i] = max(1, lipgloss.Width(label))
+	}
+	return out
+}
+
+func modalButtonLayout(mins []int, total int) ([]int, int) {
+	n := len(mins)
 	out := make([]int, n)
-	if n <= 0 {
-		return out
+	if n == 0 {
+		return out, 0
 	}
-	if minCell < 1 {
-		minCell = 1
-	}
-	usable := total - (n - 1)
-	if total <= 0 || usable < minCell*n {
+	if total <= 0 {
 		for i := range out {
-			out[i] = minCell
+			out[i] = 1
 		}
-		return out
+		return out, 0
 	}
+
+	gap := 1
+	usable := total - (n-1)*gap
+	if usable < n {
+		gap = 0
+		usable = total
+	}
+	if usable < n {
+		for i := range out {
+			out[i] = 1
+		}
+		return out, 0
+	}
+
+	sumMin := 0
+	for i, w := range mins {
+		if w < 1 {
+			w = 1
+			mins[i] = 1
+		}
+		sumMin += w
+	}
+	if sumMin <= usable {
+		extra := usable - sumMin
+		base := extra / n
+		rem := extra % n
+		for i := range out {
+			out[i] = mins[i] + base
+			if i < rem {
+				out[i]++
+			}
+		}
+		return out, gap
+	}
+
 	base := usable / n
-	extra := usable % n
+	rem := usable % n
 	for i := range out {
 		out[i] = base
-		if i < extra {
+		if i < rem {
 			out[i]++
 		}
 	}
-	return out
+	return out, gap
 }
 
 func padButtonLabel(label string, width int) string {
@@ -237,21 +277,10 @@ func modalCycleDelta(key string) (int, bool) {
 	}
 }
 
-func modalButtonCellWidth(buttons []modalButton) int {
-	cellW := 0
-	for _, b := range buttons {
-		if w := lipgloss.Width(b.text()); w > cellW {
-			cellW = w
-		}
-	}
-	return cellW
-}
-
 func buttonHitRects(modal string, buttons []modalButton, originX, originY int) []rect {
 	if len(buttons) == 0 || modal == "" {
 		return nil
 	}
-	minCell := modalButtonCellWidth(buttons) + 2
 	first := buttons[0].text()
 	for i, line := range strings.Split(modal, "\n") {
 		plain := ansi.Strip(line)
@@ -272,13 +301,17 @@ func buttonHitRects(modal string, buttons []modalButton, originX, originY int) [
 		if !ok {
 			continue
 		}
-		widths := modalButtonWidths(len(buttons), minCell, inferButtonRowWidth(plain))
+		labels := make([]string, len(buttons))
+		for j, b := range buttons {
+			labels[j] = b.text()
+		}
+		widths, gap := modalButtonLayout(labelWidths(labels), inferButtonRowWidth(plain))
 		start := originX + col - (widths[0]-lipgloss.Width(first))/2
 		rects := make([]rect, len(buttons))
 		x := start
 		for j, w := range widths {
 			rects[j] = rect{x: x, y: originY + i, w: w, h: 1}
-			x += w + 1
+			x += w + gap
 		}
 		return rects
 	}

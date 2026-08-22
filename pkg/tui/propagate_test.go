@@ -101,6 +101,27 @@ func TestPropagateSpaceTogglesUnlockedOnly(t *testing.T) {
 	assert.Equal(t, []string{"stg"}, mod.selectedPropagateConfigs())
 }
 
+func TestPropagateKeysViaUpdate(t *testing.T) {
+	m := saveModalModel("dev", rootConfigs())
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	mod := next.(Model)
+	require.Equal(t, focusPropagate, mod.focus)
+
+	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeySpace})
+	mod = next.(Model)
+	assert.True(t, mod.propagateTargets[0].on)
+	assert.Equal(t, []string{"stg"}, mod.selectedPropagateConfigs())
+
+	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	mod = next.(Model)
+	assert.Empty(t, mod.selectedPropagateConfigs())
+
+	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'A'}})
+	mod = next.(Model)
+	assert.Equal(t, []string{"stg"}, mod.selectedPropagateConfigs())
+}
+
 func TestPropagateATogglesAllUnlocked(t *testing.T) {
 	m := saveModalModel("dev", []models.ConfigInfo{
 		{Name: "dev", Environment: "dev", Root: true},
