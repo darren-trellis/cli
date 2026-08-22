@@ -212,6 +212,12 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.activeProject = msg.activeProject
 		m.activeConfig = msg.activeConfig
 		m.rememberLoadedSecrets(msg.activeProject, msg.activeConfig, msg.secrets)
+		if msg.saved {
+			for _, name := range msg.applied {
+				m.dropSecretsCache(msg.activeProject, name)
+			}
+			m.statusMsg = formatSaveStatus(msg.applied, msg.failed)
+		}
 		if m.searchGlobal && m.pendingSearchName != "" {
 			m.selectSecretByName(m.pendingSearchName)
 			m.pendingSearchName = ""
@@ -266,6 +272,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleSwitchConfirmKey(msg)
 	case focusDeleteConfirm:
 		return m.handleDeleteConfirmKey(msg)
+	case focusPropagate:
+		return m.handlePropagateKey(msg)
 	case focusFilter:
 		return m.handleFilterKey(msg)
 	case focusSearch:
@@ -316,8 +324,9 @@ func (m Model) handleSaveKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		return m.activateFocusedModalButton()
 	case "y":
-		return m.confirmSave()
+		return m.requestSaveConfirm()
 	case "n", "esc", "q":
+		m.clearPropagate()
 		m.setFocus(focusSecrets)
 		m.pendingChanges = nil
 		return m, nil
@@ -357,11 +366,25 @@ func (m Model) activateFocusedModalButton() (tea.Model, tea.Cmd) {
 		return m, nil
 	case focusSave:
 		if len(m.pendingChanges) == 0 || m.modalBtnIdx == 1 {
+			m.clearPropagate()
 			m.setFocus(focusSecrets)
 			m.pendingChanges = nil
 			return m, nil
 		}
-		return m.confirmSave()
+		return m.requestSaveConfirm()
+	case focusPropagate:
+		switch m.modalBtnIdx {
+		case 1:
+			m.clearPropagate()
+			return m.confirmSave()
+		case 2:
+			m.clearPropagate()
+			m.modalBtnIdx = 0
+			m.focus = focusSave
+			return m, nil
+		default:
+			return m.confirmSave()
+		}
 	case focusSwitchConfirm:
 		switch m.modalBtnIdx {
 		case 1:
@@ -389,6 +412,7 @@ func (m *Model) clearUnsavedConfirm() {
 	m.pendingChanges = nil
 	m.pendingQuit = false
 	m.quitDirty = nil
+	m.clearPropagate()
 }
 
 func (m Model) confirmSwitchSave() (tea.Model, tea.Cmd) {
@@ -1303,12 +1327,14 @@ func (m Model) confirmSave() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	changes := m.pendingChanges
+	extras := m.selectedPropagateConfigs()
 	m.fetching = true
 	m.statusMsg = ""
 	m.errMsg = ""
 	m.pendingChanges = nil
+	m.clearPropagate()
 	m.setFocus(focusSecrets)
-	return m, tea.Batch(m.spinner.Tick, saveSecretsCmd(m.opts, m.activeProject, m.activeConfig, changes))
+	return m, tea.Batch(m.spinner.Tick, saveSecretsCmd(m.opts, m.activeProject, m.activeConfig, changes, extras))
 }
 
 func (m Model) openSave() (tea.Model, tea.Cmd) {
@@ -1316,6 +1342,7 @@ func (m Model) openSave() (tea.Model, tea.Cmd) {
 		m.applyCellToSelection()
 	}
 	m.pendingChanges = collectChanges(m.secrets)
+	m.clearPropagate()
 	m.modalBtnIdx = 0
 	m.focus = focusSave
 	return m, nil

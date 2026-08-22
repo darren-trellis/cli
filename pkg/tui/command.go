@@ -56,7 +56,7 @@ var commandCatalog = []commandInfo{
 	{"yank json", "Copy secrets as JSON"},
 	{"yank env", "Copy secrets as env"},
 	{"paste", "Paste secrets from clipboard"},
-	{"secret save", "Open save prompt"},
+	{"secret save", "Open save prompt (root configs can apply to other environments)"},
 	{"search", "Open search"},
 	{"search global", "Search secret keys and values across configs"},
 	{"search next", "Next search match (or next cached config)"},
@@ -430,5 +430,6 @@ func (m Model) renderHelpText() string {
 	b.WriteString("Secrets yank: y[j|e] then motion (yy line, yn cell, y2j current+2 down, yjy json line).\n")
 	b.WriteString("Secrets delete: dd line, d2j current+2 down, 5dd 5 lines.\n")
 	b.WriteString("Secrets paste: p imports yaml/json/env from the clipboard.\n")
+	b.WriteString("Saving a root config asks whether to apply the same changes to other environments.\n")
 	return b.String()
 }

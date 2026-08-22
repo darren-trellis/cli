@@ -144,6 +144,8 @@ func (m Model) View() string {
 		base = m.renderOverlay(base, m.renderSwitchConfirmModal())
 	case focusDeleteConfirm:
 		base = m.renderOverlay(base, m.renderDeleteConfirmModal())
+	case focusPropagate:
+		base = m.renderOverlay(base, m.renderPropagateModal())
 	}
 
 	return appStyle.Width(m.width).Height(m.height).Render(base)
@@ -611,6 +613,14 @@ func (m Model) saveModalButtons() []modalButton {
 	}
 }
 
+func (m Model) propagateModalButtons() []modalButton {
+	return []modalButton{
+		{Label: "Apply", Key: "y"},
+		{Label: "This config only", Key: "n"},
+		{Label: "Back", Key: "esc"},
+	}
+}
+
 func (m Model) deleteConfirmButtons() []modalButton {
 	return []modalButton{
 		{Label: "Delete", Key: "d"},
@@ -708,6 +718,35 @@ func (m Model) renderDeleteConfirmModal() string {
 	body += "\n" + m.renderModalButtons(m.deleteConfirmButtons(), inner)
 	height := min(lipgloss.Height(body)+m.panelChrome(), max(4, m.height-2))
 	return m.renderTitledPanel("Delete Config", body, width, height, true)
+}
+
+func (m Model) renderPropagateModal() string {
+	width := min(60, max(28, m.width-4))
+	inner := m.modalInnerWidth(width)
+	lines := []string{"Also apply these changes to other root configs?", ""}
+	for i, t := range m.propagateTargets {
+		box := "[ ]"
+		if t.on {
+			box = "[x]"
+		}
+		label := box + " " + t.name
+		if t.locked {
+			label += " (L)"
+		} else if t.dirty {
+			label += " (unsaved)"
+		}
+		if i == m.propagateIdx {
+			lines = append(lines, selectedStyle.Width(inner).MaxWidth(inner).Render(padRight(label, inner)))
+		} else if !t.selectable() {
+			lines = append(lines, dimStyle.Render(label))
+		} else {
+			lines = append(lines, label)
+		}
+	}
+	lines = append(lines, "", dimStyle.Render("Space toggles · a all unlocked"))
+	body := strings.Join(lines, "\n") + "\n\n" + m.renderModalButtons(m.propagateModalButtons(), inner)
+	height := min(lipgloss.Height(body)+m.panelChrome(), max(4, m.height-2))
+	return m.renderTitledPanel("Apply to other environments", body, width, height, true)
 }
 
 func (m Model) projectHasUnsavedSecrets(project string) bool {

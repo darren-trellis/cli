@@ -73,6 +73,9 @@ type secretsLoadedMsg struct {
 	secrets       []secretRow
 	activeProject string
 	activeConfig  string
+	saved         bool
+	applied       []string
+	failed        []string
 }
 
 type workplaceSearchMsg struct {
@@ -203,16 +206,31 @@ func selectConfigCmd(opts models.ScopedOptions, project, config string) tea.Cmd 
 	}
 }
 
-func saveSecretsCmd(opts models.ScopedOptions, project, config string, changes []models.ChangeRequest) tea.Cmd {
+func saveSecretsCmd(opts models.ScopedOptions, project, config string, changes []models.ChangeRequest, also []string) tea.Cmd {
 	return func() tea.Msg {
 		computed, err := controllers.SetSecrets(withProjectConfig(opts, project, config), changes)
 		if err.Unwrap() != nil {
 			return errMsg{err.Unwrap()}
 		}
+		var applied, failed []string
+		for _, extra := range also {
+			if extra == "" || extra == config {
+				continue
+			}
+			_, extraErr := controllers.SetSecrets(withProjectConfig(opts, project, extra), changes)
+			if extraErr.Unwrap() != nil {
+				failed = append(failed, extra)
+				continue
+			}
+			applied = append(applied, extra)
+		}
 		return secretsLoadedMsg{
 			secrets:       secretsFromComputed(computed),
 			activeProject: project,
 			activeConfig:  config,
+			saved:         true,
+			applied:       applied,
+			failed:        failed,
 		}
 	}
 }

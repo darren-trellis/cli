@@ -43,6 +43,7 @@ const (
 	focusSave
 	focusSwitchConfirm
 	focusDeleteConfirm
+	focusPropagate
 )
 
 type secretCol int
@@ -131,6 +132,9 @@ type Model struct {
 
 	pendingDeleteProject string
 	pendingDeleteConfig  string
+
+	propagateTargets []propagateTarget
+	propagateIdx     int
 
 	modalBtnIdx int
 
@@ -410,7 +414,7 @@ func (m *Model) rebuildTree() {
 }
 
 func (m Model) inModal() bool {
-	return m.focus == focusHelp || m.focus == focusSave || m.focus == focusSwitchConfirm || m.focus == focusDeleteConfirm
+	return m.focus == focusHelp || m.focus == focusSave || m.focus == focusSwitchConfirm || m.focus == focusDeleteConfirm || m.focus == focusPropagate
 }
 
 func (m *Model) annotateTreeCache() {
