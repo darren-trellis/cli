@@ -79,7 +79,11 @@ func TestMergeKeysUnbindAndOverlay(t *testing.T) {
 
 	cmd, ok = keys.Resolve(focusProjects, "enter")
 	require.True(t, ok)
-	assert.Equal(t, "select", cmd)
+	assert.Equal(t, "config load on", cmd)
+
+	cmd, ok = keys.Resolve(focusProjects, "backspace")
+	require.True(t, ok)
+	assert.Equal(t, "config load off", cmd)
 
 	cmd, ok = keys.Resolve(focusSecrets, "enter")
 	require.True(t, ok)
@@ -148,7 +152,7 @@ func TestExecuteCommandNavAndRemap(t *testing.T) {
 
 func TestHelpIncludesRemappedBinding(t *testing.T) {
 	m := newModel(models.ScopedOptions{}, configuration.TUISettings{
-		Border: true,
+		Border:  true,
 		Sidebar: true,
 		Keys: &models.TUIKeysOptions{
 			Bindings: map[string]string{"x": "quit"},

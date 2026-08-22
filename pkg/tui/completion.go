@@ -28,11 +28,11 @@ type Suggestion struct {
 }
 
 type CompletionState struct {
-	Items      []Suggestion
-	Selected   *int
-	Browsed    bool
-	Scroll     int
-	ViewportH  int
+	Items     []Suggestion
+	Selected  *int
+	Browsed   bool
+	Scroll    int
+	ViewportH int
 }
 
 func (c *CompletionState) Clear() {
@@ -228,20 +228,114 @@ func suggestionsFor(buffer string) []Suggestion {
 	body := strings.TrimLeft(buffer, " \t")
 
 	var items []Suggestion
-	if !strings.ContainsAny(body, " \t") {
-		items = commandPrefixSuggestions(body, trimmedStart)
+	if body == "" {
+		items = commandPrefixSuggestions("", trimmedStart)
 	} else {
-		cmd, restRaw, ok := splitOnceWS(body)
-		if !ok {
-			items = commandPrefixSuggestions(body, trimmedStart)
-		} else {
-			rest := strings.TrimLeft(restRaw, " \t")
-			restFrom := len(buffer) - len(rest)
-			items = subcommandSuggestions(cmd, rest, restFrom)
-		}
+		items = commandPathSuggestions(buffer, body, trimmedStart)
 	}
 	sortSuggestions(items)
 	return items
+}
+
+func hasTrailingWS(s string) bool {
+	if s == "" {
+		return false
+	}
+	return s[len(s)-1] == ' ' || s[len(s)-1] == '\t'
+}
+
+func commandPathSuggestions(buffer, body string, trimmedStart int) []Suggestion {
+	fields := strings.Fields(body)
+	if len(fields) == 0 {
+		return commandPrefixSuggestions("", trimmedStart)
+	}
+
+	if !hasTrailingWS(body) {
+		partial := fields[len(fields)-1]
+		complete := fields[:len(fields)-1]
+		if len(complete) == 0 {
+			if commandPrefixHasChildren([]string{partial}) {
+				return nextTokenSuggestions([]string{partial}, "", len(buffer), true)
+			}
+			return commandPrefixSuggestions(partial, trimmedStart)
+		}
+		prefix := append(append([]string{}, complete...), partial)
+		if commandPrefixHasChildren(prefix) {
+			return nextTokenSuggestions(prefix, "", len(buffer), true)
+		}
+		return nextTokenSuggestions(complete, partial, len(buffer)-len(partial), false)
+	}
+
+	return nextTokenSuggestions(fields, "", len(buffer), false)
+}
+
+func commandPrefixHasChildren(tokens []string) bool {
+	if len(tokens) == 0 {
+		return false
+	}
+	for _, c := range commandCatalog {
+		fields := strings.Fields(c.name)
+		if len(fields) <= len(tokens) {
+			continue
+		}
+		if commandPathPrefix(fields, tokens) {
+			return true
+		}
+	}
+	return false
+}
+
+func commandPathPrefix(fields, tokens []string) bool {
+	if len(fields) < len(tokens) {
+		return false
+	}
+	for i, t := range tokens {
+		if !strings.EqualFold(fields[i], t) {
+			return false
+		}
+	}
+	return true
+}
+
+func nextTokenSuggestions(complete []string, partial string, replaceFrom int, leadSpace bool) []Suggestion {
+	partialL := strings.ToLower(partial)
+	seen := map[string]bool{}
+	var items []Suggestion
+	for _, c := range commandCatalog {
+		fields := strings.Fields(c.name)
+		if !commandPathPrefix(fields, complete) || len(fields) <= len(complete) {
+			continue
+		}
+		next := fields[len(complete)]
+		if partialL != "" && !strings.HasPrefix(strings.ToLower(next), partialL) {
+			continue
+		}
+		if seen[next] {
+			continue
+		}
+		seen[next] = true
+		text := next
+		if leadSpace {
+			text = " " + next
+		}
+		items = append(items, Suggestion{
+			Text:        text,
+			Label:       next,
+			Help:        nextTokenHelp(complete, next),
+			ReplaceFrom: replaceFrom,
+		})
+	}
+	return items
+}
+
+func nextTokenHelp(complete []string, next string) string {
+	name := strings.TrimSpace(strings.Join(append(append([]string{}, complete...), next), " "))
+	for _, c := range commandCatalog {
+		if strings.EqualFold(c.name, name) {
+			return c.help
+		}
+	}
+	return name + " commands"
 }
 
 func commandPrefixSuggestions(prefix string, replaceFrom int) []Suggestion {
@@ -307,48 +401,13 @@ func parentCommandHelp(parent string) string {
 	return parent + " commands"
 }
 
-func subcommandSuggestions(cmd, rest string, restFrom int) []Suggestion {
-	cmdL := strings.ToLower(cmd)
-	restL := strings.ToLower(rest)
-	var items []Suggestion
-	for _, c := range commandCatalog {
-		fields := strings.Fields(c.name)
-		if len(fields) < 2 {
-			continue
-		}
-		if strings.ToLower(fields[0]) != cmdL {
-			continue
-		}
-		suffix := strings.Join(fields[1:], " ")
-		if restL == "" || strings.HasPrefix(strings.ToLower(suffix), restL) {
-			items = append(items, Suggestion{
-				Text:        suffix,
-				Label:       suffix,
-				Help:        c.help,
-				ReplaceFrom: restFrom,
-			})
-		}
-	}
-	return items
-}
-
 func sortSuggestions(items []Suggestion) {
 	sort.Slice(items, func(i, j int) bool {
-		a := strings.ToLower(items[i].Text)
-		b := strings.ToLower(items[j].Text)
+		a := strings.ToLower(items[i].Label)
+		b := strings.ToLower(items[j].Label)
 		if a == b {
-			return items[i].Text < items[j].Text
+			return items[i].Label < items[j].Label
 		}
 		return a < b
 	})
-}
-
-func splitOnceWS(s string) (head, rest string, ok bool) {
-	i := strings.IndexFunc(s, func(r rune) bool {
-		return r == ' ' || r == '\t'
-	})
-	if i < 0 {
-		return "", "", false
-	}
-	return s[:i], s[i+1:], true
 }

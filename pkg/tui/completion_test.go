@@ -77,11 +77,69 @@ func TestSuggestionsPrefixAndSubcommand(t *testing.T) {
 	assert.True(t, texts["up"])
 	assert.True(t, texts["down"])
 	assert.True(t, texts["top"])
+	assert.True(t, texts["page"])
+	assert.False(t, texts["page up"])
+	assert.False(t, texts["page down"])
+
+	items = suggestionsFor("nav page")
+	texts = suggestionTexts(items)
+	assert.True(t, texts["up"])
+	assert.True(t, texts["down"])
+	assert.False(t, texts["page"])
+	assert.False(t, texts["page up"])
+
+	items = suggestionsFor("nav page ")
+	texts = suggestionTexts(items)
+	assert.True(t, texts["up"])
+	assert.True(t, texts["down"])
+	assert.False(t, texts["page up"])
+}
+
+func TestSuggestionsHideNestedUntilParentTyped(t *testing.T) {
+	items := suggestionsFor("config")
+	texts := suggestionTexts(items)
+	assert.True(t, texts["create"] || texts["lock"] || texts["load"])
+	assert.False(t, texts["on"])
+	assert.False(t, texts["off"])
+	assert.False(t, texts["toggle"])
+
+	items = suggestionsFor("config ")
+	texts = suggestionTexts(items)
+	assert.True(t, texts["create"])
+	assert.True(t, texts["rename"])
+	assert.True(t, texts["lock"])
+	assert.True(t, texts["load"])
+	assert.True(t, texts["delete"])
+	assert.False(t, texts["on"])
+	assert.False(t, texts["off"])
+	assert.False(t, texts["toggle"])
+	assert.False(t, texts["lock toggle"])
+	assert.False(t, texts["unlock"])
+
+	items = suggestionsFor("config lock")
+	texts = suggestionTexts(items)
+	assert.True(t, texts["on"])
+	assert.True(t, texts["off"])
+	assert.True(t, texts["toggle"])
+	assert.False(t, texts["create"])
+
+	items = suggestionsFor("config lock ")
+	texts = suggestionTexts(items)
+	assert.True(t, texts["on"])
+	assert.True(t, texts["off"])
+	assert.True(t, texts["toggle"])
+
+	items = suggestionsFor("config load ")
+	texts = suggestionTexts(items)
+	assert.True(t, texts["on"])
+	assert.True(t, texts["off"])
+	assert.True(t, texts["toggle"])
 }
 
 func suggestionTexts(items []Suggestion) map[string]bool {
 	texts := map[string]bool{}
 	for _, s := range items {
+		texts[s.Label] = true
 		texts[s.Text] = true
 	}
 	return texts

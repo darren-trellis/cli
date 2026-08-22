@@ -521,7 +521,18 @@ func (m *Model) cyclePane(delta int) {
 }
 
 func (m *Model) toggleSidebar() {
-	m.cfg.Sidebar = !m.cfg.Sidebar
+	m.setSidebar(nil)
+}
+
+func (m *Model) setSidebar(on *bool) {
+	want := !m.cfg.Sidebar
+	if on != nil {
+		want = *on
+	}
+	if want == m.cfg.Sidebar {
+		return
+	}
+	m.cfg.Sidebar = want
 	if !m.cfg.Sidebar && m.focus == focusProjects {
 		m.focus = focusSecrets
 	}

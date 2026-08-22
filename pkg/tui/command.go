@@ -34,6 +34,7 @@ var commandCatalog = []commandInfo{
 	{"nav down", "Move selection down"},
 	{"nav top", "Jump to top"},
 	{"nav bottom", "Jump to bottom"},
+	{"nav page", "Page up or down"},
 	{"nav page up", "Page up"},
 	{"nav page down", "Page down"},
 	{"nav left", "Focus name column"},
@@ -42,8 +43,9 @@ var commandCatalog = []commandInfo{
 	{"focus prev", "Cycle panes backward"},
 	{"focus projects", "Focus projects sidebar"},
 	{"focus secrets", "Focus secrets pane"},
+	{"fold on", "Expand project or env"},
+	{"fold off", "Collapse project or env"},
 	{"fold toggle", "Fold/unfold project or env"},
-	{"select", "Select project or config"},
 	{"edit", "Edit selected secret cell"},
 	{"secret add", "Add a secret"},
 	{"secret delete", "Delete/mark delete the current secret"},
@@ -65,12 +67,18 @@ var commandCatalog = []commandInfo{
 	{"filter", "Open secrets filter"},
 	{"config create", "Create a config"},
 	{"config rename", "Rename selected config"},
-	{"config lock", "Lock selected config"},
-	{"config unlock", "Unlock selected config"},
+	{"config lock", "Lock or unlock the selected config"},
+	{"config lock on", "Lock selected config"},
+	{"config lock off", "Unlock selected config"},
 	{"config lock toggle", "Toggle lock on selected config"},
+	{"config load", "Load or unload the selected config"},
+	{"config load on", "Load selected config"},
+	{"config load off", "Unload selected config"},
+	{"config load toggle", "Toggle load on selected config"},
 	{"config delete", "Delete selected config"},
 	{"project delete", "Delete selected project"},
-	{"unload", "Unload the selected cached config"},
+	{"sidebar on", "Show projects sidebar"},
+	{"sidebar off", "Hide projects sidebar"},
 	{"sidebar toggle", "Toggle projects sidebar"},
 	{"command", "Open command prompt"},
 	{"command clear", "Clear status / search"},
@@ -124,11 +132,7 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 	case "focus":
 		return m.execFocus(args)
 	case "fold":
-		if len(args) == 0 || args[0] == "toggle" {
-			return m.toggleFold()
-		}
-		m.errMsg = "unknown fold command"
-		return m, nil
+		return m.execOnOffToggle(args, "fold", m.foldOn, m.foldOff, m.toggleFold)
 	case "select":
 		return m.activateSelection()
 	case "edit":
@@ -155,7 +159,7 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "config":
 		if len(args) == 0 {
-			m.errMsg = "usage: config create|rename|lock|unlock|delete"
+			m.errMsg = "usage: config create|rename|lock|load|delete"
 			return m, nil
 		}
 		switch args[0] {
@@ -164,12 +168,11 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 		case "rename":
 			return m.beginRenameConfig()
 		case "lock":
-			if len(args) > 1 && args[1] == "toggle" {
-				return m.setSelectedConfigLock(nil)
-			}
-			return m.setSelectedConfigLock(boolPtr(true))
+			return m.execOnOffToggle(args[1:], "config lock", m.lockOn, m.lockOff, m.lockToggle)
 		case "unlock":
-			return m.setSelectedConfigLock(boolPtr(false))
+			return m.lockOff()
+		case "load":
+			return m.execOnOffToggle(args[1:], "config load", m.loadOn, m.loadOff, m.loadToggle)
 		case "delete":
 			return m.beginDeleteConfig()
 		default:
@@ -177,12 +180,7 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	case "sidebar":
-		if len(args) > 0 && args[0] == "toggle" {
-			m.toggleSidebar()
-			return m, nil
-		}
-		m.errMsg = "unknown sidebar command"
-		return m, nil
+		return m.execOnOffToggle(args, "sidebar", m.sidebarOn, m.sidebarOff, m.sidebarToggle)
 	case "command":
 		if len(args) > 0 && args[0] == "clear" {
 			m.statusMsg = ""
@@ -203,6 +201,96 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 		m.statusMsg = ""
 		return m, nil
 	}
+}
+
+func parseOnOffToggle(args []string) (on *bool, ok bool) {
+	if len(args) == 0 {
+		return nil, false
+	}
+	switch args[0] {
+	case "on":
+		return boolPtr(true), true
+	case "off":
+		return boolPtr(false), true
+	case "toggle":
+		return nil, true
+	default:
+		return nil, false
+	}
+}
+
+func (m Model) execOnOffToggle(args []string, usage string, on, off, toggle func() (tea.Model, tea.Cmd)) (tea.Model, tea.Cmd) {
+	mode, ok := parseOnOffToggle(args)
+	if !ok {
+		m.errMsg = "usage: " + usage + " on|off|toggle"
+		return m, nil
+	}
+	if mode == nil {
+		return toggle()
+	}
+	if *mode {
+		return on()
+	}
+	return off()
+}
+
+func (m Model) lockOn() (tea.Model, tea.Cmd) {
+	return m.setSelectedConfigLock(boolPtr(true))
+}
+
+func (m Model) lockOff() (tea.Model, tea.Cmd) {
+	return m.setSelectedConfigLock(boolPtr(false))
+}
+
+func (m Model) lockToggle() (tea.Model, tea.Cmd) {
+	return m.setSelectedConfigLock(nil)
+}
+
+func (m Model) loadOn() (tea.Model, tea.Cmd) {
+	return m.activateSelection()
+}
+
+func (m Model) loadOff() (tea.Model, tea.Cmd) {
+	return m.unloadHighlightedConfig()
+}
+
+func (m Model) loadToggle() (tea.Model, tea.Cmd) {
+	if m.focus != focusProjects {
+		return m.activateSelection()
+	}
+	row, ok := m.currentTreeRow()
+	if !ok || row.kind != treeConfig || row.config == "" {
+		return m.activateSelection()
+	}
+	loaded := m.configIsCached(row.project, row.config) ||
+		(row.project == m.activeProject && row.config == m.activeConfig)
+	if loaded {
+		return m.unloadHighlightedConfig()
+	}
+	return m.activateSelection()
+}
+
+func (m Model) foldOn() (tea.Model, tea.Cmd) {
+	return m.setFold(boolPtr(true))
+}
+
+func (m Model) foldOff() (tea.Model, tea.Cmd) {
+	return m.setFold(boolPtr(false))
+}
+
+func (m Model) sidebarOn() (tea.Model, tea.Cmd) {
+	m.setSidebar(boolPtr(true))
+	return m, nil
+}
+
+func (m Model) sidebarOff() (tea.Model, tea.Cmd) {
+	m.setSidebar(boolPtr(false))
+	return m, nil
+}
+
+func (m Model) sidebarToggle() (tea.Model, tea.Cmd) {
+	m.setSidebar(nil)
+	return m, nil
 }
 
 func (m Model) execNav(args []string) (tea.Model, tea.Cmd) {
@@ -414,7 +502,7 @@ func (m Model) renderHelpText() string {
 		"nav up", "nav down", "nav top", "nav bottom", "nav page up", "nav page down", "nav left", "nav right",
 	})
 	writeSection("Projects:", focusProjects, []string{
-		"fold toggle", "select", "config create", "config rename", "config lock toggle", "delete", "unload",
+		"fold toggle", "config load on", "config load off", "config create", "config rename", "config lock toggle", "delete",
 		"yank name", "yank yaml", "yank json", "yank env",
 	})
 	writeSection("Secrets:", focusSecrets, []string{
@@ -423,7 +511,7 @@ func (m Model) renderHelpText() string {
 	b.WriteString("Typing modes (search/filter/insert/create/rename) use Esc/Enter locally.\n")
 	b.WriteString("Command and search ↑/↓ (C-p/C-n) recall history; ↓ in : focuses suggestions.\n")
 	b.WriteString("Counts: 7j / 3k / 10G (G with a count jumps to that row).\n")
-	b.WriteString("Cached configs show + on the left; locked configs show $. Highlighting a cached config shows its secrets. n/N hops cached configs when not searching. Backspace unloads a loaded config. Folding a project or env keeps the active and loaded configs visible.\n")
+	b.WriteString("Cached configs show + on the left; locked configs show $. Highlighting a cached config shows its secrets. n/N hops cached configs when not searching. Enter loads a config; Backspace unloads it. Folding a project or env keeps the active and loaded configs visible.\n")
 	b.WriteString("Search: / in the current pane; C-f keys and values across configs (Enter scans the workplace).\n")
 	b.WriteString("Projects yank: y then n/y/j/e (name / yaml / json / env).\n")
 	b.WriteString("Projects delete: d on a project or branch config (root configs cannot be deleted).\n")

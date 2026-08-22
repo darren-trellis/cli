@@ -189,6 +189,29 @@ func TestBackspaceOnUncachedConfigDoesNothing(t *testing.T) {
 	assert.Contains(t, mod.errMsg, "not loaded")
 }
 
+func TestConfigLoadCommands(t *testing.T) {
+	m := cachedSidebarModel()
+	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "prd")
+
+	next, _ := m.executeCommand("config load off")
+	mod := next.(Model)
+	assert.False(t, mod.configIsCached("api", "prd"))
+
+	next, _ = mod.executeCommand("config load on")
+	mod = next.(Model)
+	assert.True(t, mod.fetching || mod.activeConfig == "prd")
+
+	m = cachedSidebarModel()
+	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "prd")
+	next, _ = m.executeCommand("config load toggle")
+	mod = next.(Model)
+	assert.False(t, mod.configIsCached("api", "prd"))
+
+	next, _ = mod.executeCommand("config load toggle")
+	mod = next.(Model)
+	assert.True(t, mod.fetching || mod.configIsCached("api", "prd") || mod.activeConfig == "prd")
+}
+
 func TestNKeyHopsCachedWhenNotSearching(t *testing.T) {
 	m := cachedSidebarModel()
 	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})

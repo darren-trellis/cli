@@ -162,6 +162,20 @@ func TestSubmitRenameConfigNoopSameName(t *testing.T) {
 	assert.Equal(t, configPromptCreate, mod.configPromptMode)
 }
 
+func TestConfigLockRequiresOnOffToggle(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusProjects
+
+	next, _ := m.executeCommand("config lock")
+	mod := next.(Model)
+	assert.Contains(t, mod.errMsg, "config lock on|off|toggle")
+
+	next, _ = m.executeCommand("config unlock")
+	mod = next.(Model)
+	assert.NotContains(t, mod.errMsg, "unknown")
+}
+
 func TestConfigLockToggleKeybinding(t *testing.T) {
 	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
 	m.fetching = false

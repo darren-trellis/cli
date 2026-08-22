@@ -899,6 +899,10 @@ func (m Model) pageSize() int {
 }
 
 func (m Model) toggleFold() (tea.Model, tea.Cmd) {
+	return m.setFold(nil)
+}
+
+func (m Model) setFold(on *bool) (tea.Model, tea.Cmd) {
 	row, ok := m.currentTreeRow()
 	if !ok {
 		return m, nil
@@ -906,35 +910,53 @@ func (m Model) toggleFold() (tea.Model, tea.Cmd) {
 
 	switch {
 	case row.kind == treeProject:
-		return m.toggleProjectFold(row.project)
+		return m.setProjectFold(row.project, on)
 	case row.kind == treeConfig && row.hasChildren:
-		return m.toggleEnvFold(row.project, row.foldRoot)
+		return m.setEnvFold(row.project, row.foldRoot, on)
 	default:
 		return m, nil
 	}
 }
 
-func (m Model) toggleEnvFold(project, rootConfig string) (tea.Model, tea.Cmd) {
+func (m Model) setEnvFold(project, rootConfig string, on *bool) (tea.Model, tea.Cmd) {
+	current := isEnvExpanded(m.expandedEnvs, project, rootConfig)
+	want := !current
+	if on != nil {
+		want = *on
+	}
+	if want == current {
+		return m, nil
+	}
 	if m.expandedEnvs == nil {
 		m.expandedEnvs = map[string]bool{}
 	}
-	key := envKey(project, rootConfig)
-	m.expandedEnvs[key] = !isEnvExpanded(m.expandedEnvs, project, rootConfig)
+	m.expandedEnvs[envKey(project, rootConfig)] = want
 	m.rebuildTree()
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, project, rootConfig)
 	m.persistSession()
 	return m, nil
 }
 
-func (m Model) toggleProjectFold(project string) (tea.Model, tea.Cmd) {
+func (m Model) setProjectFold(project string, on *bool) (tea.Model, tea.Cmd) {
 	if project == "" {
 		return m, nil
 	}
 
-	if m.expanded[project] {
+	current := m.expanded[project]
+	want := !current
+	if on != nil {
+		want = *on
+	}
+	if !want {
+		if !current {
+			return m, nil
+		}
 		m.expanded[project] = false
 		m.rebuildTree()
 		m.treeIdx = findTreeIndex(m.tree, treeProject, project, "")
+		return m, nil
+	}
+	if current {
 		return m, nil
 	}
 
