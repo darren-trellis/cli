@@ -511,7 +511,7 @@ func (m Model) renderHelpText() string {
 	b.WriteString("Typing modes (search/filter/insert/create/rename) use Esc/Enter locally.\n")
 	b.WriteString("Command and search ↑/↓ (C-p/C-n) recall history; ↓ in : focuses suggestions.\n")
 	b.WriteString("Counts: 7j / 3k / 10G (G with a count jumps to that row).\n")
-	b.WriteString("Cached configs show + on the left; locked configs show $. Highlighting a cached config shows its secrets. n/N hops cached configs when not searching. Enter loads a config; Backspace unloads it. Folding a project or env keeps the active and loaded configs visible.\n")
+	b.WriteString("Cached configs show + on the left; locked configs show $. Highlighting a cached config shows its secrets. n/N hops cached configs when not searching. Enter loads a config; Backspace unloads it. Click selects a sidebar row; double-click loads it. Folding a project or env keeps the active and loaded configs visible.\n")
 	b.WriteString("Search: / in the current pane; C-f keys and values across configs (Enter scans the workplace).\n")
 	b.WriteString("Projects yank: y then n/y/j/e (name / yaml / json / env).\n")
 	b.WriteString("Projects delete: d on a project or branch config (root configs cannot be deleted).\n")

@@ -138,6 +138,8 @@ type Model struct {
 
 	modalBtnIdx int
 
+	lastSidebarClick sidebarClick
+
 	helpViewport  viewport.Model
 	configModTime time.Time
 

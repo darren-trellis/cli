@@ -1411,7 +1411,11 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			idx := start + rel
 			if idx >= 0 && idx < len(m.tree) {
 				m.treeIdx = idx
-				return m.activateSelection()
+				if m.noteSidebarClick(idx, msg.X, msg.Y) {
+					return m.activateSelection()
+				}
+				m.revealHighlightedConfig()
+				return m, nil
 			}
 		}
 	case layout.secrets.contains(msg.X, msg.Y):
@@ -1435,6 +1439,37 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		m.beginSearch()
 	}
 	return m, nil
+}
+
+type sidebarClick struct {
+	x, y int
+	idx  int
+	at   time.Time
+}
+
+const sidebarDoubleClick = 400 * time.Millisecond
+
+func (m *Model) noteSidebarClick(idx, x, y int) bool {
+	now := time.Now()
+	prev := m.lastSidebarClick
+	double := prev.idx == idx &&
+		absInt(prev.x-x) <= 1 &&
+		absInt(prev.y-y) <= 1 &&
+		!prev.at.IsZero() &&
+		now.Sub(prev.at) <= sidebarDoubleClick
+	if double {
+		m.lastSidebarClick = sidebarClick{}
+		return true
+	}
+	m.lastSidebarClick = sidebarClick{x: x, y: y, idx: idx, at: now}
+	return false
+}
+
+func absInt(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 func (m Model) handleModalMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {

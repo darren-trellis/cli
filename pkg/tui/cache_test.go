@@ -233,3 +233,59 @@ func TestNKeyHopsCachedWhenNotSearching(t *testing.T) {
 	mod := next.(Model)
 	assert.Equal(t, "prd", mod.activeConfig)
 }
+
+func sidebarRowClick(m Model, idx int) tea.MouseMsg {
+	layout := m.computeLayout()
+	visible := max(1, layout.projects.h-m.panelChrome())
+	start := clampScrollOffset(m.treeOffset, m.treeIdx, visible, len(m.tree))
+	return tea.MouseMsg{
+		X:      layout.projects.x + 2,
+		Y:      layout.projects.y + 1 + (idx - start),
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonLeft,
+	}
+}
+
+func TestSidebarSingleClickSelectsWithoutLoading(t *testing.T) {
+	m := cachedSidebarModel()
+	m.width = 80
+	m.height = 24
+	m.projects = []string{"api", "web"}
+	m.rebuildTree()
+	webIdx := findTreeIndex(m.tree, treeProject, "web", "")
+	cfgIdx := findTreeIndex(m.tree, treeConfig, "api", "dev_personal")
+
+	next, cmd := m.handleMouse(sidebarRowClick(m, webIdx))
+	mod := next.(Model)
+	assert.Nil(t, cmd)
+	assert.False(t, mod.fetching)
+	assert.Equal(t, webIdx, mod.treeIdx)
+	assert.Equal(t, "api", mod.activeProject)
+
+	next, cmd = mod.handleMouse(sidebarRowClick(mod, cfgIdx))
+	mod = next.(Model)
+	assert.Nil(t, cmd)
+	assert.False(t, mod.fetching)
+	assert.Equal(t, cfgIdx, mod.treeIdx)
+	assert.Equal(t, "dev", mod.activeConfig)
+}
+
+func TestSidebarDoubleClickLoads(t *testing.T) {
+	m := cachedSidebarModel()
+	m.width = 80
+	m.height = 24
+	m.projects = []string{"api", "web"}
+	m.rebuildTree()
+	webIdx := findTreeIndex(m.tree, treeProject, "web", "")
+	click := sidebarRowClick(m, webIdx)
+
+	next, cmd := m.handleMouse(click)
+	mod := next.(Model)
+	assert.Nil(t, cmd)
+	assert.False(t, mod.fetching)
+
+	next, cmd = mod.handleMouse(click)
+	mod = next.(Model)
+	require.NotNil(t, cmd)
+	assert.True(t, mod.fetching)
+}
