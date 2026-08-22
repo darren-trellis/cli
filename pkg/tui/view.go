@@ -730,7 +730,7 @@ func (m Model) renderPropagateModal() string {
 			box = "[x]"
 		}
 		label := box + " " + t.name
-		if !t.locked && t.dirty {
+		if t.dirty {
 			label += " (unsaved)"
 		}
 		if i == m.propagateIdx {
@@ -741,7 +741,7 @@ func (m Model) renderPropagateModal() string {
 			lines = append(lines, label)
 		}
 	}
-	lines = append(lines, "", dimStyle.Render("Space toggles · a all unlocked"))
+	lines = append(lines, "", dimStyle.Render("Space toggles · a all except unsaved"))
 	body := strings.Join(lines, "\n") + "\n\n" + m.renderModalButtons(m.propagateModalButtons(), inner)
 	height := min(lipgloss.Height(body)+m.panelChrome(), max(4, m.height-2))
 	return m.renderTitledPanel("Apply to other environments", body, width, height, true)

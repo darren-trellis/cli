@@ -1489,6 +1489,15 @@ func (m Model) handleModalMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			return m.activateFocusedModalButton()
 		}
 	}
+	if m.focus == focusPropagate {
+		for i, r := range propagateRowHitRects(modal, m.propagateTargets, ox, oy) {
+			if r.contains(msg.X, msg.Y) {
+				m.propagateIdx = i
+				m.togglePropagateAt(i)
+				return m, nil
+			}
+		}
+	}
 	return m, nil
 }
 

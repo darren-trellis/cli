@@ -22,6 +22,7 @@ import (
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -95,10 +96,10 @@ func TestPropagateSpaceTogglesUnlockedOnly(t *testing.T) {
 
 	next, _ = mod.handlePropagateKey(tea.KeyMsg{Type: tea.KeyDown})
 	mod = next.(Model)
-	next, _ = mod.handlePropagateKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	next, _ = mod.handlePropagateKey(tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}})
 	mod = next.(Model)
-	assert.False(t, mod.propagateTargets[1].on)
-	assert.Equal(t, []string{"stg"}, mod.selectedPropagateConfigs())
+	assert.True(t, mod.propagateTargets[1].on)
+	assert.Equal(t, []string{"stg", "prd"}, mod.selectedPropagateConfigs())
 }
 
 func TestPropagateKeysViaUpdate(t *testing.T) {
@@ -108,18 +109,18 @@ func TestPropagateKeysViaUpdate(t *testing.T) {
 	mod := next.(Model)
 	require.Equal(t, focusPropagate, mod.focus)
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeySpace})
+	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}})
 	mod = next.(Model)
 	assert.True(t, mod.propagateTargets[0].on)
 	assert.Equal(t, []string{"stg"}, mod.selectedPropagateConfigs())
 
 	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
 	mod = next.(Model)
-	assert.Empty(t, mod.selectedPropagateConfigs())
+	assert.Equal(t, []string{"stg", "prd"}, mod.selectedPropagateConfigs())
 
 	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'A'}})
 	mod = next.(Model)
-	assert.Equal(t, []string{"stg"}, mod.selectedPropagateConfigs())
+	assert.Empty(t, mod.selectedPropagateConfigs())
 }
 
 func TestPropagateATogglesAllUnlocked(t *testing.T) {
@@ -134,8 +135,8 @@ func TestPropagateATogglesAllUnlocked(t *testing.T) {
 
 	next, _ = mod.handlePropagateKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
 	mod = next.(Model)
-	assert.Equal(t, []string{"stg", "ci"}, mod.selectedPropagateConfigs())
-	assert.False(t, mod.propagateTargets[2].on)
+	assert.Equal(t, []string{"stg", "ci", "prd"}, mod.selectedPropagateConfigs())
+	assert.True(t, mod.propagateTargets[2].on)
 
 	next, _ = mod.handlePropagateKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
 	mod = next.(Model)
@@ -219,6 +220,29 @@ func TestFormatSaveStatus(t *testing.T) {
 	assert.Equal(t, "Saved · applied to stg, prd", formatSaveStatus([]string{"stg", "prd"}, nil))
 	assert.Equal(t, "Saved · failed on prd", formatSaveStatus(nil, []string{"prd"}))
 	assert.Equal(t, "Saved · applied to stg · failed on prd", formatSaveStatus([]string{"stg"}, []string{"prd"}))
+}
+
+func TestPropagateClickTogglesRow(t *testing.T) {
+	m := saveModalModel("dev", rootConfigs())
+	next, _ := m.handleSaveKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	mod := next.(Model)
+
+	modal := mod.renderPropagateModal()
+	ox := max(0, (mod.width-lipgloss.Width(modal))/2)
+	oy := max(0, (mod.height-lipgloss.Height(modal))/2)
+	hits := propagateRowHitRects(modal, mod.propagateTargets, ox, oy)
+	require.Len(t, hits, 2)
+
+	next, cmd := mod.handleMouse(tea.MouseMsg{
+		X:      hits[0].x,
+		Y:      hits[0].y,
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonLeft,
+	})
+	mod = next.(Model)
+	assert.Nil(t, cmd)
+	assert.True(t, mod.propagateTargets[0].on)
+	assert.Equal(t, []string{"stg"}, mod.selectedPropagateConfigs())
 }
 
 func TestSecretsLoadedMsgDropsAppliedCaches(t *testing.T) {

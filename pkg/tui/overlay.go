@@ -318,6 +318,39 @@ func buttonHitRects(modal string, buttons []modalButton, originX, originY int) [
 	return nil
 }
 
+func propagateRowHitRects(modal string, targets []propagateTarget, originX, originY int) []rect {
+	if len(targets) == 0 || modal == "" {
+		return nil
+	}
+	rects := make([]rect, 0, len(targets))
+	used := make([]bool, len(targets))
+	for i, line := range strings.Split(modal, "\n") {
+		plain := ansi.Strip(line)
+		if !strings.Contains(plain, "[ ]") && !strings.Contains(plain, "[x]") {
+			continue
+		}
+		for j, t := range targets {
+			if used[j] || !strings.Contains(plain, t.name) {
+				continue
+			}
+			used[j] = true
+			col := strings.Index(plain, "[")
+			if col < 0 {
+				col = strings.Index(plain, t.name)
+			}
+			if col < 0 {
+				col = 0
+			}
+			rects = append(rects, rect{x: originX + col, y: originY + i, w: max(1, ansi.StringWidth(plain)-col), h: 1})
+			break
+		}
+	}
+	if len(rects) != len(targets) {
+		return nil
+	}
+	return rects
+}
+
 func (m Model) currentModalButtons() []modalButton {
 	switch m.focus {
 	case focusHelp:
