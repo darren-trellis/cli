@@ -198,6 +198,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.setFocus(focusProjects)
 		return m, nil
 
+	case workplaceSearchMsg:
+		return m.applyWorkplaceSearch(msg)
+
 	case secretsLoadedMsg:
 		m.fetching = false
 		m.errMsg = ""
@@ -209,6 +212,11 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.activeProject = msg.activeProject
 		m.activeConfig = msg.activeConfig
 		m.rememberLoadedSecrets(msg.activeProject, msg.activeConfig, msg.secrets)
+		if m.searchGlobal && m.pendingSearchName != "" {
+			m.selectSecretByName(m.pendingSearchName)
+			m.pendingSearchName = ""
+			m.syncLocalMatchesFromGlobal()
+		}
 		if _, ok := m.projectConfigs[msg.activeProject]; ok {
 			m.expanded[msg.activeProject] = true
 		}
@@ -236,6 +244,14 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c":
 			return m, tea.Quit
+		case "esc":
+			if m.searchGlobal {
+				m.fetching = false
+				m.searchGen++
+				m.pendingSearchName = ""
+				return m, nil
+			}
+			return m, nil
 		default:
 			return m, nil
 		}
@@ -457,6 +473,11 @@ func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.recordSearchHistory(query)
 		m.errMsg = ""
+		if m.searchGlobal {
+			cmd := m.startWorkplaceSearch()
+			m.setFocus(focusSecrets)
+			return m, cmd
+		}
 		m.setFocus(m.searchPane)
 		return m, nil
 	case "tab", "shift+tab":

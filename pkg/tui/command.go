@@ -58,6 +58,7 @@ var commandCatalog = []commandInfo{
 	{"paste", "Paste secrets from clipboard"},
 	{"secret save", "Open save prompt"},
 	{"search", "Open search"},
+	{"search global", "Search secret keys and values across configs"},
 	{"search next", "Next search match (or next cached config)"},
 	{"search prev", "Previous search match (or previous cached config)"},
 	{"search clear", "Clear search"},
@@ -333,9 +334,11 @@ func (m Model) execSearch(args []string) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
+		var cmd tea.Cmd
 		for i := 0; i < m.takeMotionCount(); i++ {
-			m.stepSearchMatch(1)
+			cmd = m.stepSearchMatch(1)
 		}
+		return m, cmd
 	case "prev":
 		if m.searchQuery == "" {
 			for i := 0; i < m.takeMotionCount(); i++ {
@@ -343,9 +346,14 @@ func (m Model) execSearch(args []string) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
+		var cmd tea.Cmd
 		for i := 0; i < m.takeMotionCount(); i++ {
-			m.stepSearchMatch(-1)
+			cmd = m.stepSearchMatch(-1)
 		}
+		return m, cmd
+	case "global":
+		m.beginGlobalSearch()
+		return m, nil
 	case "clear":
 		m.clearSearch()
 		m.statusMsg = ""
@@ -396,7 +404,7 @@ func (m Model) renderHelpText() string {
 	}
 
 	writeSection("Global:", focusSecrets, []string{
-		"quit", "help", "command", "command clear", "search", "search next", "search prev", "search clear",
+		"quit", "help", "command", "command clear", "search", "search global", "search next", "search prev", "search clear",
 		"filter", "sidebar toggle", "focus cycle", "focus prev", "focus projects", "focus secrets",
 	})
 	writeSection("Navigation:", focusSecrets, []string{
@@ -413,6 +421,7 @@ func (m Model) renderHelpText() string {
 	b.WriteString("Command and search ↑/↓ (C-p/C-n) recall history; ↓ in : focuses suggestions.\n")
 	b.WriteString("Counts: 7j / 3k / 10G (G with a count jumps to that row).\n")
 	b.WriteString("Cached configs show + on the left; highlighting one shows its secrets. n/N hops cached configs when not searching.\n")
+	b.WriteString("Search: / in the current pane; C-f keys and values across configs (Enter scans the workplace).\n")
 	b.WriteString("Projects yank: y then n/y/j/e (name / yaml / json / env).\n")
 	b.WriteString("Projects delete: d on a project or branch config (root configs cannot be deleted).\n")
 	b.WriteString("Secrets yank: y[j|e] then motion (yy line, yn cell, y2j current+2 down, yjy json line).\n")

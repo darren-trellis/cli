@@ -17,6 +17,8 @@ package tui
 
 import (
 	"context"
+	"regexp"
+	"sync"
 
 	"github.com/DopplerHQ/cli/pkg/controllers"
 	"github.com/DopplerHQ/cli/pkg/models"
@@ -71,6 +73,15 @@ type secretsLoadedMsg struct {
 	secrets       []secretRow
 	activeProject string
 	activeConfig  string
+}
+
+type workplaceSearchMsg struct {
+	gen     uint64
+	query   string
+	hits    []globalHit
+	fetched map[string][]secretRow
+	configs map[string][]configRow
+	err     error
 }
 
 func withProject(opts models.ScopedOptions, project string) models.ScopedOptions {
@@ -439,6 +450,86 @@ func setConfigLockCmd(opts models.ScopedOptions, project, config string, lock bo
 			configs: buildConfigTree(configInfos),
 			config:  info.Name,
 			locked:  info.Locked,
+		}
+	}
+}
+
+func workplaceSearchCmd(
+	opts models.ScopedOptions,
+	gen uint64,
+	query, caseMode string,
+	projects []string,
+	known map[string][]configRow,
+	cached map[string][]secretRow,
+) tea.Cmd {
+	return func() tea.Msg {
+		pattern := query
+		if searchShouldIgnoreCase(query, caseMode) {
+			pattern = "(?i)" + query
+		}
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			return workplaceSearchMsg{gen: gen, query: query, err: err}
+		}
+
+		g, _ := errgroup.WithContext(context.Background())
+		g.SetLimit(8)
+		var mu sync.Mutex
+		var hits []globalHit
+		fetchedSecrets := map[string][]secretRow{}
+		fetchedConfigs := map[string][]configRow{}
+
+		for _, project := range projects {
+			project := project
+			g.Go(func() error {
+				cfgs, ok := known[project]
+				if !ok {
+					infos, cerr := controllers.GetConfigs(withProject(opts, project))
+					if cerr.Unwrap() != nil {
+						return nil
+					}
+					cfgs = buildConfigTree(infos)
+					mu.Lock()
+					fetchedConfigs[project] = cfgs
+					mu.Unlock()
+				}
+				for _, cfg := range cfgs {
+					cfg := cfg
+					g.Go(func() error {
+						key := secretsCacheKey(project, cfg.name)
+						secrets, ok := cached[key]
+						if !ok {
+							computed, serr := controllers.GetSecrets(withProjectConfig(opts, project, cfg.name))
+							if serr.Unwrap() != nil {
+								return nil
+							}
+							secrets = secretsFromComputed(computed)
+							mu.Lock()
+							fetchedSecrets[key] = secrets
+							mu.Unlock()
+						}
+						found := collectSecretHits(re, project, cfg.name, secrets)
+						if len(found) == 0 {
+							return nil
+						}
+						mu.Lock()
+						hits = append(hits, found...)
+						mu.Unlock()
+						return nil
+					})
+				}
+				return nil
+			})
+		}
+		if waitErr := g.Wait(); waitErr != nil {
+			return workplaceSearchMsg{gen: gen, query: query, err: waitErr}
+		}
+		return workplaceSearchMsg{
+			gen:     gen,
+			query:   query,
+			hits:    hits,
+			fetched: fetchedSecrets,
+			configs: fetchedConfigs,
 		}
 	}
 }

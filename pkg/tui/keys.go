@@ -53,6 +53,7 @@ func defaultBaseKeys() map[string]string {
 		"backtab":  "focus prev",
 		"B":        "sidebar toggle",
 		"/":        "search",
+		"C-f":      "search global",
 		"n":        "search next",
 		"N":        "search prev",
 		"esc":      "command clear",

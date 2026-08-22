@@ -17,6 +17,7 @@ package tui
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
@@ -176,4 +177,81 @@ func TestFilterKeybinding(t *testing.T) {
 	m.focus = focusSecrets
 	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
 	assert.Equal(t, focusSearch, next.(Model).focus)
+}
+
+func TestSecretMatchesSearchUsesFullValue(t *testing.T) {
+	long := strings.Repeat("x", 50) + "NEEDLE" + strings.Repeat("y", 10)
+	s := newSecretRow("TOKEN", long, "masked")
+	re := regexp.MustCompile("NEEDLE")
+	assert.True(t, secretMatchesSearch(s, re))
+	assert.False(t, secretMatchesSearch(s, regexp.MustCompile("missing")))
+
+	restricted := newSecretRow("SECRET", "hidden", "restricted")
+	assert.False(t, secretMatchesSearch(restricted, regexp.MustCompile("hidden")))
+	assert.True(t, secretMatchesSearch(restricted, regexp.MustCompile("SECRET")))
+}
+
+func TestGlobalSearchFindsCachedConfigs(t *testing.T) {
+	m := cachedSidebarModel()
+	m.focus = focusSecrets
+	m.beginGlobalSearch()
+	require.NoError(t, m.applySearch("PRD", false))
+	assert.True(t, m.searchGlobal)
+	require.Len(t, m.globalHits, 1)
+	assert.Equal(t, "api", m.globalHits[0].project)
+	assert.Equal(t, "prd", m.globalHits[0].config)
+	assert.Equal(t, "PRD", m.globalHits[0].name)
+	assert.Equal(t, "dev", m.activeConfig)
+}
+
+func TestGlobalSearchNextJumpsConfig(t *testing.T) {
+	m := cachedSidebarModel()
+	m.focus = focusSecrets
+	m.putSecretsCache("api", "dev", secretsCacheEntry{
+		secrets: []secretRow{newSecretRow("SHARED", "a", "masked")},
+	})
+	m.putSecretsCache("api", "prd", secretsCacheEntry{
+		secrets: []secretRow{newSecretRow("SHARED", "b", "masked")},
+	})
+	m.secrets = []secretRow{newSecretRow("SHARED", "a", "masked")}
+	m.beginGlobalSearch()
+	require.NoError(t, m.applySearch("SHARED", true))
+	require.Len(t, m.globalHits, 2)
+	assert.Equal(t, "dev", m.activeConfig)
+
+	cmd := m.stepSearchMatch(1)
+	assert.Nil(t, cmd)
+	assert.Equal(t, "prd", m.activeConfig)
+	assert.Equal(t, "SHARED", m.secrets[0].name)
+	assert.Equal(t, 1, m.searchMatchIdx)
+}
+
+func TestGlobalSearchKeybinding(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusSecrets
+
+	cmd, ok := m.keys.Resolve(focusSecrets, "C-f")
+	require.True(t, ok)
+	assert.Equal(t, "search global", cmd)
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlF})
+	mod := next.(Model)
+	assert.Equal(t, focusSearch, mod.focus)
+	assert.True(t, mod.searchGlobal)
+	assert.Equal(t, "g/ ", mod.searchInput.Prompt)
+}
+
+func TestWorkplaceSearchIgnoresStaleGen(t *testing.T) {
+	m := cachedSidebarModel()
+	m.searchGlobal = true
+	m.searchGen = 3
+	m.fetching = true
+	next, _ := m.applyWorkplaceSearch(workplaceSearchMsg{
+		gen:  2,
+		hits: []globalHit{{project: "api", config: "prd", name: "PRD"}},
+	})
+	mod := next.(Model)
+	assert.True(t, mod.fetching)
+	assert.Empty(t, mod.globalHits)
 }

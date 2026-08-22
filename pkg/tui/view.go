@@ -374,6 +374,9 @@ func (m Model) renderStatus(width int) string {
 	var left string
 	if m.fetching {
 		left = m.spinner.View() + " Loading…"
+		if m.searchGlobal && m.searchQuery != "" {
+			left = m.spinner.View() + " Searching workplace…"
+		}
 	} else if m.errMsg != "" {
 		left = errorStyle.Render(m.errMsg)
 	} else if m.statusMsg != "" {

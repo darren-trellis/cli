@@ -86,12 +86,16 @@ type Model struct {
 	filter      string
 	filterInput textinput.Model
 
-	searchQuery    string
-	searchInput    textinput.Model
-	searchRe       *regexp.Regexp
-	searchPane     focusArea
-	searchMatches  []int
-	searchMatchIdx int
+	searchQuery       string
+	searchInput       textinput.Model
+	searchRe          *regexp.Regexp
+	searchPane        focusArea
+	searchMatches     []int
+	searchMatchIdx    int
+	searchGlobal      bool
+	searchGen         uint64
+	globalHits        []globalHit
+	pendingSearchName string
 
 	createConfigInput   textinput.Model
 	createConfigProject string
