@@ -52,6 +52,17 @@ func (m *Model) rememberLoadedSecrets(project, config string, secrets []secretRo
 	m.putSecretsCache(project, config, secretsCacheEntry{secrets: secrets})
 }
 
+func (m Model) visibleFoldedConfigs() map[string]bool {
+	out := map[string]bool{}
+	for k := range m.secretsCache {
+		out[k] = true
+	}
+	if m.activeProject != "" && m.activeConfig != "" {
+		out[secretsCacheKey(m.activeProject, m.activeConfig)] = true
+	}
+	return out
+}
+
 func (m Model) configIsCached(project, config string) bool {
 	if project == "" || config == "" {
 		return false

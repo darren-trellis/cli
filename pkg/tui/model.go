@@ -402,7 +402,7 @@ func (m *Model) rebuildTree() {
 		m.expandedEnvs = map[string]bool{}
 	}
 
-	m.tree = buildProjectTree(m.projects, m.projectConfigs, m.expanded, m.expandedEnvs, m.activeProject, m.activeConfig)
+	m.tree = buildProjectTree(m.projects, m.projectConfigs, m.expanded, m.expandedEnvs, m.activeProject, m.activeConfig, m.visibleFoldedConfigs())
 	m.annotateTreeCache()
 	m.treeIdx = findTreeIndex(m.tree, kind, project, config)
 	if m.treeIdx >= len(m.tree) {

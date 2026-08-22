@@ -491,7 +491,7 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 	}
 	expanded := map[string]bool{"api": true}
 
-	tree := buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, nil, "api", "dev")
+	tree := buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, nil, "api", "dev", nil)
 	assert.Equal(t, []treeKind{treeProject, treeConfig, treeConfig, treeConfig, treeProject}, treeKinds(tree))
 	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd", "web"}, treeLabels(tree))
 	assert.Equal(t, 1, tree[1].depth)
@@ -506,7 +506,7 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 	assert.Equal(t, "  └─ prd", ansi.Strip(formatTreeRow(tree[3], "api", "dev")))
 
 	expandedEnvs := map[string]bool{envKey("api", "dev"): false}
-	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, expandedEnvs, "api", "dev_personal")
+	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, expandedEnvs, "api", "dev_personal", nil)
 	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd", "web"}, treeLabels(tree))
 	assert.True(t, tree[1].folded)
 	assert.True(t, tree[2].pinned)
@@ -514,7 +514,7 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 	assert.Equal(t, "  │  └─ *dev_personal", ansi.Strip(formatTreeRow(tree[2], "api", "dev_personal")))
 
 	expanded["api"] = false
-	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, nil, "api", "dev")
+	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, nil, "api", "dev", nil)
 	require.Len(t, tree, 3)
 	assert.True(t, tree[0].folded)
 	assert.Equal(t, treeConfig, tree[1].kind)
@@ -522,6 +522,76 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 	assert.True(t, tree[1].pinned)
 	assert.Equal(t, "  └─ *dev", ansi.Strip(formatTreeRow(tree[1], "api", "dev")))
 	assert.Equal(t, "web", tree[2].project)
+}
+
+func TestBuildProjectTreeFoldKeepsCachedConfigs(t *testing.T) {
+	configs := buildConfigTree([]models.ConfigInfo{
+		{Name: "dev", Environment: "dev", Root: true},
+		{Name: "dev_personal", Environment: "dev", Root: false},
+		{Name: "dev_ci", Environment: "dev", Root: false},
+		{Name: "prd", Environment: "prd", Root: true},
+	})
+	projectConfigs := map[string][]configRow{"api": configs}
+	keep := map[string]bool{
+		secretsCacheKey("api", "dev"):          true,
+		secretsCacheKey("api", "dev_personal"): true,
+		secretsCacheKey("api", "prd"):          true,
+	}
+
+	expanded := map[string]bool{"api": true}
+	expandedEnvs := map[string]bool{envKey("api", "dev"): false}
+	tree := buildProjectTree([]string{"api"}, projectConfigs, expanded, expandedEnvs, "api", "dev", keep)
+	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd"}, treeLabels(tree))
+	assert.True(t, tree[1].folded)
+	assert.True(t, tree[2].pinned)
+	assert.Equal(t, "dev_personal", tree[2].config)
+	assert.False(t, tree[3].pinned)
+
+	expanded["api"] = false
+	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, nil, "api", "dev", keep)
+	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd", "web"}, treeLabels(tree))
+	assert.True(t, tree[0].folded)
+	assert.True(t, tree[1].pinned)
+	assert.True(t, tree[1].folded)
+	assert.True(t, tree[2].pinned)
+	assert.Equal(t, 2, tree[2].depth)
+	assert.True(t, tree[3].pinned)
+	assert.Equal(t, "  ├─ ▸ *dev", ansi.Strip(formatTreeRow(tree[1], "api", "dev")))
+	tree[2].cached = true
+	assert.Equal(t, "  │  └─ +dev_personal", ansi.Strip(formatTreeRow(tree[2], "api", "dev")))
+	tree[3].cached = true
+	assert.Equal(t, "  └─ +prd", ansi.Strip(formatTreeRow(tree[3], "api", "dev")))
+}
+
+func TestToggleProjectFoldKeepsCached(t *testing.T) {
+	m := cachedSidebarModel()
+	m.treeIdx = 0
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	mod := next.(Model)
+	assert.Nil(t, cmd)
+	assert.False(t, mod.expanded["api"])
+	assert.Equal(t, []string{"api", "dev", "prd"}, treeLabels(mod.tree))
+	assert.True(t, mod.tree[1].pinned)
+	assert.True(t, mod.tree[2].pinned)
+	assert.Equal(t, "prd", mod.tree[2].config)
+}
+
+func TestToggleEnvFoldKeepsCached(t *testing.T) {
+	m := cachedSidebarModel()
+	m.putSecretsCache("api", "dev_personal", secretsCacheEntry{
+		secrets: []secretRow{newSecretRow("LOCAL", "1", "masked")},
+	})
+	m.rebuildTree()
+	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	mod := next.(Model)
+	assert.Nil(t, cmd)
+	assert.False(t, isEnvExpanded(mod.expandedEnvs, "api", "dev"))
+	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd"}, treeLabels(mod.tree))
+	assert.True(t, mod.tree[2].pinned)
+	assert.Equal(t, "dev_personal", mod.tree[2].config)
 }
 
 func TestToggleProjectFold(t *testing.T) {
