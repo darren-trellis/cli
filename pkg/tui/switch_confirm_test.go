@@ -227,6 +227,6 @@ func TestActivateSameConfigSkipsFetch(t *testing.T) {
 	next, cmd := m.activateSelection()
 	mod := next.(Model)
 	assert.Nil(t, cmd)
-	assert.Equal(t, focusSecrets, mod.focus)
+	assert.Equal(t, focusProjects, mod.focus)
 	assert.NotEqual(t, focusSwitchConfirm, mod.focus)
 }

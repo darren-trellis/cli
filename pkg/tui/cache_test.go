@@ -69,6 +69,21 @@ func TestHighlightUncachedConfigKeepsCurrentSecrets(t *testing.T) {
 	assert.False(t, m.configIsCached("api", "dev_personal"))
 }
 
+func TestSecretsLoadedKeepsSidebarFocus(t *testing.T) {
+	m := cachedSidebarModel()
+	m.focus = focusProjects
+	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "prd")
+
+	next, _ := m.Update(secretsLoadedMsg{
+		secrets:       []secretRow{newSecretRow("PRD", "9", "masked")},
+		activeProject: "api",
+		activeConfig:  "prd",
+	})
+	mod := next.(Model)
+	assert.Equal(t, focusProjects, mod.focus)
+	assert.Equal(t, "prd", mod.activeConfig)
+}
+
 func TestActivateCachedConfigDoesNotFetch(t *testing.T) {
 	m := cachedSidebarModel()
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "prd")
@@ -76,7 +91,7 @@ func TestActivateCachedConfigDoesNotFetch(t *testing.T) {
 	next, cmd := m.activateSelection()
 	mod := next.(Model)
 	assert.Nil(t, cmd)
-	assert.Equal(t, focusSecrets, mod.focus)
+	assert.Equal(t, focusProjects, mod.focus)
 	assert.Equal(t, "prd", mod.activeConfig)
 	assert.Equal(t, "PRD", mod.secrets[0].name)
 }

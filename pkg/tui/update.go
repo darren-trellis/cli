@@ -127,7 +127,6 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.rebuildTree()
 		if msg.config != "" {
 			m.treeIdx = findTreeIndex(m.tree, treeConfig, msg.project, msg.config)
-			m.setFocus(focusSecrets)
 		} else {
 			m.treeIdx = findTreeIndex(m.tree, treeProject, msg.project, "")
 			m.setFocus(focusProjects)
@@ -222,13 +221,13 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selectSecretByName(m.pendingSearchName)
 			m.pendingSearchName = ""
 			m.syncLocalMatchesFromGlobal()
+			m.setFocus(focusSecrets)
 		}
 		if _, ok := m.projectConfigs[msg.activeProject]; ok {
 			m.expanded[msg.activeProject] = true
 		}
 		m.rebuildTree()
 		m.treeIdx = findTreeIndex(m.tree, treeConfig, msg.activeProject, msg.activeConfig)
-		m.setFocus(focusSecrets)
 		m.persistSession()
 		return m, nil
 
@@ -986,12 +985,10 @@ func (m Model) activateSelection() (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if row.project == m.activeProject && row.config == m.activeConfig {
-			m.setFocus(focusSecrets)
 			return m, nil
 		}
 		m.stashCurrentSecrets()
 		if m.applyCachedSecrets(row.project, row.config) {
-			m.setFocus(focusSecrets)
 			return m, nil
 		}
 		m.fetching = true
@@ -1016,7 +1013,6 @@ func (m Model) activateSelection() (tea.Model, tea.Cmd) {
 			m.expanded[row.project] = true
 			m.rebuildTree()
 			m.treeIdx = findTreeIndex(m.tree, treeConfig, row.project, preferred)
-			m.setFocus(focusSecrets)
 			return m, nil
 		}
 		m.fetching = true

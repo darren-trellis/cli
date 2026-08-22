@@ -438,7 +438,7 @@ func TestProjectSelectedMsgLoadsSecrets(t *testing.T) {
 	assert.Equal(t, "backend-ts", mod.activeProject)
 	assert.Equal(t, "dev_personal", mod.activeConfig)
 	assert.True(t, mod.expanded["backend-ts"])
-	assert.Equal(t, focusSecrets, mod.focus)
+	assert.Equal(t, focusProjects, mod.focus)
 	assert.Equal(t, "FROM_OTHER", mod.secrets[0].name)
 }
 
