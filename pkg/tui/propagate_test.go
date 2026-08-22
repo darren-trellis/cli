@@ -207,7 +207,7 @@ func TestPropagateModalCopy(t *testing.T) {
 	assert.Contains(t, view, "Apply to other environments")
 	assert.Contains(t, view, "stg")
 	assert.Contains(t, view, "prd")
-	assert.Contains(t, view, "$prd")
+	assert.NotContains(t, view, "$prd")
 	assert.Contains(t, view, "Apply (y)")
 	assert.Contains(t, view, "This config only (n)")
 	assert.NotContains(t, view, "dev_personal")

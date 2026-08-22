@@ -729,11 +729,7 @@ func (m Model) renderPropagateModal() string {
 		if t.on {
 			box = "[x]"
 		}
-		name := t.name
-		if t.locked {
-			name = "$" + name
-		}
-		label := box + " " + name
+		label := box + " " + t.name
 		if !t.locked && t.dirty {
 			label += " (unsaved)"
 		}
