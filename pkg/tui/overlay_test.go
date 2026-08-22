@@ -19,6 +19,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,6 +43,18 @@ func TestPlaceOverlayCompositesOntoBackground(t *testing.T) {
 	assert.Equal(t, "BBXXBBBBBB", lines[1])
 	assert.Equal(t, "CCYYCCCCCC", lines[2])
 	assert.Equal(t, "DDDDDDDDDD", lines[3])
+}
+
+func TestModalButtonsFillWidth(t *testing.T) {
+	m := Model{modalBtnIdx: 0}
+	buttons := []modalButton{
+		{Label: "Save", Key: "y"},
+		{Label: "Cancel", Key: "n"},
+	}
+	row := m.renderModalButtons(buttons, 40)
+	assert.Equal(t, 40, lipgloss.Width(ansi.Strip(row)))
+	assert.Contains(t, ansi.Strip(row), "Save (y)")
+	assert.Contains(t, ansi.Strip(row), "Cancel (n)")
 }
 
 func TestButtonHitRectsFindsCenteredRow(t *testing.T) {

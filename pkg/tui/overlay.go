@@ -102,13 +102,14 @@ func (m Model) renderModalButtons(buttons []modalButton, width int) string {
 	}
 
 	labels := make([]string, len(buttons))
-	cellW := 0
+	minInner := 0
 	for i, b := range buttons {
 		labels[i] = b.text()
-		if w := lipgloss.Width(labels[i]); w > cellW {
-			cellW = w
+		if w := lipgloss.Width(labels[i]); w > minInner {
+			minInner = w
 		}
 	}
+	widths := modalButtonWidths(len(buttons), minInner+2, width)
 
 	gapStyle := lipgloss.NewStyle()
 	if background != "" {
@@ -119,14 +120,14 @@ func (m Model) renderModalButtons(buttons []modalButton, width int) string {
 		if i > 0 {
 			parts = append(parts, gapStyle.Render(" "))
 		}
-		text := " " + padRight(label, cellW) + " "
+		text := padButtonLabel(label, widths[i])
+		st := buttonStyle.UnsetPadding()
 		if i == idx {
-			parts = append(parts, buttonFocusStyle.Render(text))
-		} else {
-			parts = append(parts, buttonStyle.Render(text))
+			st = buttonFocusStyle.UnsetPadding()
 		}
+		parts = append(parts, st.Render(text))
 	}
-	row := lipgloss.JoinHorizontal(lipgloss.Center, parts...)
+	row := lipgloss.JoinHorizontal(lipgloss.Top, parts...)
 	if width <= 0 {
 		return row
 	}
@@ -136,6 +137,64 @@ func (m Model) renderModalButtons(buttons []modalButton, width int) string {
 	}
 	left := pad / 2
 	return gapStyle.Render(strings.Repeat(" ", left)) + row + gapStyle.Render(strings.Repeat(" ", pad-left))
+}
+
+func modalButtonWidths(n, minCell, total int) []int {
+	out := make([]int, n)
+	if n <= 0 {
+		return out
+	}
+	if minCell < 1 {
+		minCell = 1
+	}
+	usable := total - (n - 1)
+	if total <= 0 || usable < minCell*n {
+		for i := range out {
+			out[i] = minCell
+		}
+		return out
+	}
+	base := usable / n
+	extra := usable % n
+	for i := range out {
+		out[i] = base
+		if i < extra {
+			out[i]++
+		}
+	}
+	return out
+}
+
+func padButtonLabel(label string, width int) string {
+	w := lipgloss.Width(label)
+	if width <= 0 {
+		return label
+	}
+	if w >= width {
+		return truncate(label, width)
+	}
+	pad := width - w
+	left := pad / 2
+	return strings.Repeat(" ", left) + label + strings.Repeat(" ", pad-left)
+}
+
+func inferButtonRowWidth(plain string) int {
+	w := ansi.StringWidth(plain)
+	if w == 0 {
+		return 0
+	}
+	runes := []rune(plain)
+	if runes[0] != '│' && runes[0] != '|' {
+		return w
+	}
+	inner := w - 2
+	if len(runes) > 2 && runes[1] == ' ' {
+		inner--
+	}
+	if len(runes) > 2 && runes[len(runes)-2] == ' ' {
+		inner--
+	}
+	return max(1, inner)
 }
 
 func fillLineBackground(s string, width int) string {
@@ -192,18 +251,34 @@ func buttonHitRects(modal string, buttons []modalButton, originX, originY int) [
 	if len(buttons) == 0 || modal == "" {
 		return nil
 	}
-	cellW := modalButtonCellWidth(buttons)
-	first := " " + padRight(buttons[0].text(), cellW) + " "
+	minCell := modalButtonCellWidth(buttons) + 2
+	first := buttons[0].text()
 	for i, line := range strings.Split(modal, "\n") {
 		plain := ansi.Strip(line)
 		col := strings.Index(plain, first)
 		if col < 0 {
 			continue
 		}
-		btnW := cellW + 2
+		cursor := col + len(first)
+		ok := true
+		for _, b := range buttons[1:] {
+			idx := strings.Index(plain[cursor:], b.text())
+			if idx < 0 {
+				ok = false
+				break
+			}
+			cursor += idx + len(b.text())
+		}
+		if !ok {
+			continue
+		}
+		widths := modalButtonWidths(len(buttons), minCell, inferButtonRowWidth(plain))
+		start := originX + col - (widths[0]-lipgloss.Width(first))/2
 		rects := make([]rect, len(buttons))
-		for j := range buttons {
-			rects[j] = rect{x: originX + col + j*(btnW+1), y: originY + i, w: btnW, h: 1}
+		x := start
+		for j, w := range widths {
+			rects[j] = rect{x: x, y: originY + i, w: w, h: 1}
+			x += w + 1
 		}
 		return rects
 	}
