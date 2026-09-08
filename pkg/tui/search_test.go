@@ -16,9 +16,11 @@ limitations under the License.
 package tui
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
@@ -250,6 +252,32 @@ func TestGlobalSearchKeybinding(t *testing.T) {
 	assert.Equal(t, focusSearch, mod.focus)
 	assert.True(t, mod.searchGlobal)
 	assert.Equal(t, "g/ ", mod.searchInput.Prompt)
+}
+
+func TestWorkplaceSearchDoesNotDeadlockWithManyProjects(t *testing.T) {
+	projects := make([]string, 16)
+	known := map[string][]configRow{}
+	cached := map[string][]secretRow{}
+	for i := range projects {
+		p := fmt.Sprintf("p%d", i)
+		projects[i] = p
+		known[p] = []configRow{{name: "dev"}}
+		cached[secretsCacheKey(p, "dev")] = []secretRow{newSecretRow("FOO", "bar", "masked")}
+	}
+
+	cmd := workplaceSearchCmd(models.ScopedOptions{}, 1, "FOO", "insensitive", projects, known, cached)
+	done := make(chan tea.Msg, 1)
+	go func() { done <- cmd() }()
+
+	select {
+	case msg := <-done:
+		got, ok := msg.(workplaceSearchMsg)
+		require.True(t, ok)
+		assert.NoError(t, got.err)
+		assert.Len(t, got.hits, 16)
+	case <-time.After(2 * time.Second):
+		t.Fatal("workplace search deadlocked")
+	}
 }
 
 func TestWorkplaceSearchIgnoresStaleGen(t *testing.T) {

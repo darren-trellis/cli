@@ -490,16 +490,22 @@ func workplaceSearchCmd(
 			return workplaceSearchMsg{gen: gen, query: query, err: err}
 		}
 
-		g, _ := errgroup.WithContext(context.Background())
-		g.SetLimit(8)
-		var mu sync.Mutex
-		var hits []globalHit
-		fetchedSecrets := map[string][]secretRow{}
-		fetchedConfigs := map[string][]configRow{}
+		type searchJob struct {
+			project string
+			config  string
+			secrets []secretRow
+			fetch   bool
+		}
 
+		var mu sync.Mutex
+		fetchedConfigs := map[string][]configRow{}
+		var jobs []searchJob
+
+		gCfg, _ := errgroup.WithContext(context.Background())
+		gCfg.SetLimit(8)
 		for _, project := range projects {
 			project := project
-			g.Go(func() error {
+			gCfg.Go(func() error {
 				cfgs, ok := known[project]
 				if !ok {
 					infos, cerr := controllers.GetConfigs(withProject(opts, project))
@@ -511,35 +517,57 @@ func workplaceSearchCmd(
 					fetchedConfigs[project] = cfgs
 					mu.Unlock()
 				}
+				mu.Lock()
 				for _, cfg := range cfgs {
-					cfg := cfg
-					g.Go(func() error {
-						key := secretsCacheKey(project, cfg.name)
-						secrets, ok := cached[key]
-						if !ok {
-							computed, serr := controllers.GetSecrets(withProjectConfig(opts, project, cfg.name))
-							if serr.Unwrap() != nil {
-								return nil
-							}
-							secrets = secretsFromComputed(computed)
-							mu.Lock()
-							fetchedSecrets[key] = secrets
-							mu.Unlock()
-						}
-						found := collectSecretHits(re, project, cfg.name, secrets)
-						if len(found) == 0 {
-							return nil
-						}
-						mu.Lock()
-						hits = append(hits, found...)
-						mu.Unlock()
-						return nil
+					if cfg.name == "" {
+						continue
+					}
+					key := secretsCacheKey(project, cfg.name)
+					secrets, have := cached[key]
+					jobs = append(jobs, searchJob{
+						project: project,
+						config:  cfg.name,
+						secrets: secrets,
+						fetch:   !have,
 					})
 				}
+				mu.Unlock()
 				return nil
 			})
 		}
-		if waitErr := g.Wait(); waitErr != nil {
+		if waitErr := gCfg.Wait(); waitErr != nil {
+			return workplaceSearchMsg{gen: gen, query: query, err: waitErr}
+		}
+
+		var hits []globalHit
+		fetchedSecrets := map[string][]secretRow{}
+		gSec, _ := errgroup.WithContext(context.Background())
+		gSec.SetLimit(8)
+		for _, job := range jobs {
+			job := job
+			gSec.Go(func() error {
+				secrets := job.secrets
+				if job.fetch {
+					computed, serr := controllers.GetSecrets(withProjectConfig(opts, job.project, job.config))
+					if serr.Unwrap() != nil {
+						return nil
+					}
+					secrets = secretsFromComputed(computed)
+					mu.Lock()
+					fetchedSecrets[secretsCacheKey(job.project, job.config)] = secrets
+					mu.Unlock()
+				}
+				found := collectSecretHits(re, job.project, job.config, secrets)
+				if len(found) == 0 {
+					return nil
+				}
+				mu.Lock()
+				hits = append(hits, found...)
+				mu.Unlock()
+				return nil
+			})
+		}
+		if waitErr := gSec.Wait(); waitErr != nil {
 			return workplaceSearchMsg{gen: gen, query: query, err: waitErr}
 		}
 		return workplaceSearchMsg{
