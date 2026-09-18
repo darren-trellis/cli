@@ -42,6 +42,27 @@ func (m Model) siblingRootConfigs() []configRow {
 	return out
 }
 
+func (m Model) rootConfigNames(project string) []string {
+	seen := map[string]bool{}
+	var names []string
+	add := func(name string) {
+		if name == "" || seen[name] {
+			return
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	for _, c := range m.projectConfigs[project] {
+		if c.root {
+			add(c.name)
+		}
+	}
+	if project == m.activeProject {
+		add(m.activeConfig)
+	}
+	return names
+}
+
 func (m Model) shouldAskPropagate() bool {
 	if len(m.pendingChanges) == 0 {
 		return false
@@ -200,13 +221,25 @@ func (m Model) cancelPropagate() (Model, Cmd) {
 	return m, nil
 }
 
-func rewriteSecretRefsInValue(s, project, fromConfig, toConfig string) string {
-	if s == "" || project == "" || fromConfig == "" || toConfig == "" || fromConfig == toConfig {
+func rewriteSecretRefsInValue(s, project, toConfig string, envConfigs []string) string {
+	if s == "" || project == "" || toConfig == "" {
+		return s
+	}
+	envs := map[string]bool{}
+	for _, name := range envConfigs {
+		if name != "" {
+			envs[name] = true
+		}
+	}
+	if len(envs) == 0 {
 		return s
 	}
 	return secretRefRe.ReplaceAllStringFunc(s, func(match string) string {
 		parts := secretRefRe.FindStringSubmatch(match)
-		if len(parts) != 4 || parts[1] != project || parts[2] != fromConfig {
+		if len(parts) != 4 || !strings.EqualFold(parts[1], project) || !envs[parts[2]] {
+			return match
+		}
+		if parts[2] == toConfig {
 			return match
 		}
 		prefix := "{"
@@ -217,24 +250,38 @@ func rewriteSecretRefsInValue(s, project, fromConfig, toConfig string) string {
 	})
 }
 
-func rewriteSecretRefsInChanges(changes []models.ChangeRequest, project, fromConfig, toConfig string) []models.ChangeRequest {
-	if len(changes) == 0 || fromConfig == toConfig {
+func changeRequestValue(v interface{}) (string, bool) {
+	switch t := v.(type) {
+	case string:
+		return t, true
+	case *string:
+		if t == nil {
+			return "", false
+		}
+		return *t, true
+	default:
+		return "", false
+	}
+}
+
+func rewriteSecretRefsInChanges(changes []models.ChangeRequest, project, toConfig string, envConfigs []string) []models.ChangeRequest {
+	if len(changes) == 0 || toConfig == "" {
 		return changes
 	}
 	out := make([]models.ChangeRequest, len(changes))
 	for i, c := range changes {
 		out[i] = c
-		if v, ok := c.Value.(string); ok {
-			out[i].Value = rewriteSecretRefsInValue(v, project, fromConfig, toConfig)
+		if v, ok := changeRequestValue(c.Value); ok {
+			out[i].Value = rewriteSecretRefsInValue(v, project, toConfig, envConfigs)
 		}
 	}
 	return out
 }
 
-func changesForPropagateTarget(changes []models.ChangeRequest, project, fromConfig, toConfig string, rewrite bool) []models.ChangeRequest {
+func changesForPropagateTarget(changes []models.ChangeRequest, project, toConfig string, envConfigs []string, rewrite bool) []models.ChangeRequest {
 	var out []models.ChangeRequest
 	if rewrite {
-		out = rewriteSecretRefsInChanges(changes, project, fromConfig, toConfig)
+		out = rewriteSecretRefsInChanges(changes, project, toConfig, envConfigs)
 	} else {
 		out = append([]models.ChangeRequest(nil), changes...)
 	}

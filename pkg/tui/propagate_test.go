@@ -52,6 +52,7 @@ func TestSiblingRootConfigsIgnoresBranchesAndSelf(t *testing.T) {
 	m := saveModalModel("dev", rootConfigs())
 	names := configNames(m.siblingRootConfigs())
 	assert.Equal(t, []string{"stg", "prd"}, names)
+	assert.Equal(t, []string{"dev", "stg", "prd"}, m.rootConfigNames("api"))
 }
 
 func TestSaveModalYOpensPropagateWhenRootHasSiblings(t *testing.T) {
@@ -310,26 +311,33 @@ func TestPropagateClickTogglesRewriteRow(t *testing.T) {
 	assert.Empty(t, mod.selectedPropagateConfigs())
 }
 
-func TestRewriteSecretRefsRetargetsSourceConfig(t *testing.T) {
-	assert.Equal(t, "{api.prd.SECRET}", rewriteSecretRefsInValue("{api.dev.SECRET}", "api", "dev", "prd"))
-	assert.Equal(t, "${api.prd.SECRET}", rewriteSecretRefsInValue("${api.dev.SECRET}", "api", "dev", "prd"))
-	assert.Equal(t, "pre {api.prd.A} ${api.prd.B}", rewriteSecretRefsInValue("pre {api.dev.A} ${api.dev.B}", "api", "dev", "prd"))
+func TestRewriteSecretRefsRetargetsEnvConfigs(t *testing.T) {
+	envs := []string{"dev", "stg", "prd", "prod-beta"}
+	assert.Equal(t, "{api.prd.SECRET}", rewriteSecretRefsInValue("{api.dev.SECRET}", "api", "prd", envs))
+	assert.Equal(t, "${api.prd.SECRET}", rewriteSecretRefsInValue("${api.dev.SECRET}", "api", "prd", envs))
+	assert.Equal(t, "${api.prd.BROWSERBASE_API_KEY}", rewriteSecretRefsInValue("${api.dev.BROWSERBASE_API_KEY}", "api", "prd", envs))
+	assert.Equal(t, "${api.prod-beta.BROWSERBASE_API_KEY}", rewriteSecretRefsInValue("${api.dev.BROWSERBASE_API_KEY}", "api", "prod-beta", envs))
+	assert.Equal(t, "pre {api.prd.A} ${api.prd.B}", rewriteSecretRefsInValue("pre {api.dev.A} ${api.dev.B}", "api", "prd", envs))
+	assert.Equal(t, "{api.prd.SECRET}", rewriteSecretRefsInValue("{api.stg.SECRET}", "api", "prd", envs))
 }
 
 func TestRewriteSecretRefsLeavesOtherRefs(t *testing.T) {
-	s := "{api.stg.SECRET} {billing.dev.TOKEN} {api.dev_personal.FOO}"
-	assert.Equal(t, s, rewriteSecretRefsInValue(s, "api", "dev", "prd"))
-	assert.Equal(t, "{api.dev.SECRET}", rewriteSecretRefsInValue("{api.dev.SECRET}", "api", "dev", "dev"))
+	envs := []string{"dev", "stg", "prd", "prod-beta"}
+	assert.Equal(t, "{billing.dev.TOKEN}", rewriteSecretRefsInValue("{billing.dev.TOKEN}", "api", "prd", envs))
+	assert.Equal(t, "{api.dev_personal.FOO}", rewriteSecretRefsInValue("{api.dev_personal.FOO}", "api", "prd", envs))
+	assert.Equal(t, "${api.dev.BROWSERBASE_API_KEY}", rewriteSecretRefsInValue("${api.dev.BROWSERBASE_API_KEY}", "api", "dev", envs))
 }
 
 func TestRewriteSecretRefsInChangesCopiesValue(t *testing.T) {
+	envs := []string{"dev", "prd"}
 	changes := []models.ChangeRequest{{Name: "LINK", Value: "{api.dev.SECRET}"}}
-	got := rewriteSecretRefsInChanges(changes, "api", "dev", "prd")
+	got := rewriteSecretRefsInChanges(changes, "api", "prd", envs)
 	assert.Equal(t, "{api.prd.SECRET}", got[0].Value)
 	assert.Equal(t, "{api.dev.SECRET}", changes[0].Value)
 }
 
 func TestChangesForPropagateTargetDropsSourceOriginals(t *testing.T) {
+	envs := []string{"dev", "prd"}
 	del := false
 	changes := []models.ChangeRequest{{
 		Name:          "LINK",
@@ -338,14 +346,14 @@ func TestChangesForPropagateTargetDropsSourceOriginals(t *testing.T) {
 		OriginalValue: "old",
 		ShouldDelete:  &del,
 	}}
-	got := changesForPropagateTarget(changes, "api", "dev", "prd", true)
+	got := changesForPropagateTarget(changes, "api", "prd", envs, true)
 	assert.Equal(t, "{api.prd.SECRET}", got[0].Value)
 	assert.Nil(t, got[0].OriginalValue)
 	assert.Nil(t, got[0].OriginalName)
 	assert.Equal(t, "old", changes[0].OriginalValue)
 	assert.Equal(t, "LINK", changes[0].OriginalName)
 
-	got = changesForPropagateTarget(changes, "api", "dev", "prd", false)
+	got = changesForPropagateTarget(changes, "api", "prd", envs, false)
 	assert.Equal(t, "{api.dev.SECRET}", got[0].Value)
 	assert.Nil(t, got[0].OriginalValue)
 	assert.Nil(t, got[0].OriginalName)
@@ -358,7 +366,7 @@ func TestChangesForPropagateTargetKeepsOriginalNameOnDelete(t *testing.T) {
 		OriginalName: "LINK",
 		ShouldDelete: &del,
 	}}
-	got := changesForPropagateTarget(changes, "api", "dev", "prd", false)
+	got := changesForPropagateTarget(changes, "api", "prd", []string{"dev", "prd"}, false)
 	assert.Equal(t, "LINK", got[0].OriginalName)
 	assert.Nil(t, got[0].OriginalValue)
 }

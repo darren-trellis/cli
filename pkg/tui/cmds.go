@@ -204,7 +204,7 @@ func selectConfigCmd(opts models.ScopedOptions, project, config string) Cmd {
 	}
 }
 
-func saveSecretsCmd(opts models.ScopedOptions, project, config string, changes []models.ChangeRequest, also []string, rewriteRefs bool) Cmd {
+func saveSecretsCmd(opts models.ScopedOptions, project, config string, changes []models.ChangeRequest, also []string, rewriteRefs bool, envConfigs []string) Cmd {
 	return func() Msg {
 		computed, err := controllers.SetSecrets(withProjectConfig(opts, project, config), changes)
 		if err.Unwrap() != nil {
@@ -216,7 +216,7 @@ func saveSecretsCmd(opts models.ScopedOptions, project, config string, changes [
 			if extra == "" || extra == config {
 				continue
 			}
-			extraChanges := changesForPropagateTarget(changes, project, config, extra, rewriteRefs)
+			extraChanges := changesForPropagateTarget(changes, project, extra, envConfigs, rewriteRefs)
 			_, extraErr := controllers.SetSecrets(withProjectConfig(opts, project, extra), extraChanges)
 			if extraErr.IsNil() {
 				applied = append(applied, extra)
