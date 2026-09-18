@@ -69,6 +69,7 @@ func TestSaveModalYOpensPropagateWhenRootHasSiblings(t *testing.T) {
 	assert.Equal(t, "prd", mod.propagateTargets[1].name)
 	assert.True(t, mod.propagateTargets[1].locked)
 	assert.False(t, mod.propagateTargets[1].on)
+	assert.True(t, mod.propagateRewriteRefs)
 }
 
 func TestSaveModalYSavesImmediatelyForBranchConfig(t *testing.T) {
@@ -211,6 +212,8 @@ func TestPropagateModalCopy(t *testing.T) {
 	assert.NotContains(t, view, "$prd")
 	assert.Contains(t, view, "Apply (y)")
 	assert.Contains(t, view, "Cancel (c)")
+	assert.Contains(t, view, "Rewrite references for each environment")
+	assert.Contains(t, view, "[x]")
 	assert.NotContains(t, view, "This config only")
 	assert.NotContains(t, view, "dev_personal")
 	assert.Less(t, strings.Count(view, "\n")+1, 16)
@@ -231,7 +234,7 @@ func TestPropagateClickTogglesRow(t *testing.T) {
 	spec, ok := mod.currentModalSpec()
 	require.True(t, ok)
 	hits := spec.geometry(mod.width, mod.height, mod.cfg.Border).rows
-	require.Len(t, hits, 2)
+	require.Len(t, hits, 3)
 
 	next, cmd := mod.handleMouse(leftClick(hits[0].x, hits[0].y))
 	mod = next
@@ -259,4 +262,68 @@ func TestSecretsLoadedMsgDropsAppliedCaches(t *testing.T) {
 	assert.False(t, mod.configIsCached("api", "stg"))
 	assert.True(t, mod.configIsCached("api", "prd"))
 	assert.Equal(t, "Saved · applied to stg · failed on prd", mod.statusMsg)
+}
+
+func TestPropagateRTogglesRewriteRefs(t *testing.T) {
+	m := saveModalModel("dev", rootConfigs())
+	next, _ := m.handleSaveKey(runeKey('y'))
+	mod := next
+	assert.True(t, mod.propagateRewriteRefs)
+
+	next, _ = mod.handlePropagateKey(runeKey('r'))
+	mod = next
+	assert.False(t, mod.propagateRewriteRefs)
+	assert.Empty(t, mod.selectedPropagateConfigs())
+
+	view := modalText(mod)
+	assert.Contains(t, view, "[ ] Rewrite references for each environment")
+}
+
+func TestPropagateSpaceTogglesRewriteRow(t *testing.T) {
+	m := saveModalModel("dev", rootConfigs())
+	next, _ := m.handleSaveKey(runeKey('y'))
+	mod := next
+	mod.propagateIdx = len(mod.propagateTargets)
+
+	next, _ = mod.handlePropagateKey(runeKey(' '))
+	mod = next
+	assert.False(t, mod.propagateRewriteRefs)
+	assert.False(t, mod.propagateTargets[0].on)
+}
+
+func TestPropagateClickTogglesRewriteRow(t *testing.T) {
+	m := saveModalModel("dev", rootConfigs())
+	next, _ := m.handleSaveKey(runeKey('y'))
+	mod := next
+
+	spec, ok := mod.currentModalSpec()
+	require.True(t, ok)
+	hits := spec.geometry(mod.width, mod.height, mod.cfg.Border).rows
+	rewrite := hits[len(mod.propagateTargets)]
+	require.NotZero(t, rewrite.w)
+
+	next, cmd := mod.handleMouse(leftClick(rewrite.x, rewrite.y))
+	mod = next
+	assert.Nil(t, cmd)
+	assert.False(t, mod.propagateRewriteRefs)
+	assert.Empty(t, mod.selectedPropagateConfigs())
+}
+
+func TestRewriteSecretRefsRetargetsSourceConfig(t *testing.T) {
+	assert.Equal(t, "{api.prd.SECRET}", rewriteSecretRefsInValue("{api.dev.SECRET}", "api", "dev", "prd"))
+	assert.Equal(t, "${api.prd.SECRET}", rewriteSecretRefsInValue("${api.dev.SECRET}", "api", "dev", "prd"))
+	assert.Equal(t, "pre {api.prd.A} ${api.prd.B}", rewriteSecretRefsInValue("pre {api.dev.A} ${api.dev.B}", "api", "dev", "prd"))
+}
+
+func TestRewriteSecretRefsLeavesOtherRefs(t *testing.T) {
+	s := "{api.stg.SECRET} {billing.dev.TOKEN} {api.dev_personal.FOO}"
+	assert.Equal(t, s, rewriteSecretRefsInValue(s, "api", "dev", "prd"))
+	assert.Equal(t, "{api.dev.SECRET}", rewriteSecretRefsInValue("{api.dev.SECRET}", "api", "dev", "dev"))
+}
+
+func TestRewriteSecretRefsInChangesCopiesValue(t *testing.T) {
+	changes := []models.ChangeRequest{{Name: "LINK", Value: "{api.dev.SECRET}"}}
+	got := rewriteSecretRefsInChanges(changes, "api", "dev", "prd")
+	assert.Equal(t, "{api.prd.SECRET}", got[0].Value)
+	assert.Equal(t, "{api.dev.SECRET}", changes[0].Value)
 }

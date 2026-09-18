@@ -89,8 +89,9 @@ func TestPropagateModalRowRectsMatchTargets(t *testing.T) {
 	require.True(t, ok)
 	g := spec.geometry(m.width, m.height, true)
 
-	require.Len(t, g.rows, 2)
+	require.Len(t, g.rows, 3)
 	assert.NotEqual(t, g.rows[0].y, g.rows[1].y)
+	assert.Greater(t, g.rows[2].y, g.rows[1].y)
 	for i, r := range g.rows {
 		assert.True(t, r.contains(r.x, r.y), "row %d should be hit-testable", i)
 	}

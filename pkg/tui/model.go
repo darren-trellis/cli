@@ -133,8 +133,9 @@ type Model struct {
 	pendingDeleteProject string
 	pendingDeleteConfig  string
 
-	propagateTargets []propagateTarget
-	propagateIdx     int
+	propagateTargets     []propagateTarget
+	propagateIdx         int
+	propagateRewriteRefs bool
 
 	modalBtnIdx int
 

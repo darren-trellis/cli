@@ -17,6 +17,8 @@ package tui
 
 import (
 	"strings"
+
+	"github.com/DopplerHQ/cli/pkg/models"
 )
 
 type propagateTarget struct {
@@ -65,6 +67,11 @@ func (m Model) siblingPropagateTargets() []propagateTarget {
 func (m *Model) clearPropagate() {
 	m.propagateTargets = nil
 	m.propagateIdx = 0
+	m.propagateRewriteRefs = false
+}
+
+func (m Model) propagateNavLen() int {
+	return len(m.propagateTargets) + 1
 }
 
 func (m Model) selectedPropagateConfigs() []string {
@@ -78,20 +85,21 @@ func (m Model) selectedPropagateConfigs() []string {
 }
 
 func (m *Model) clampPropagateIdx() {
-	if len(m.propagateTargets) == 0 {
+	n := m.propagateNavLen()
+	if n == 0 {
 		m.propagateIdx = 0
 		return
 	}
 	if m.propagateIdx < 0 {
 		m.propagateIdx = 0
 	}
-	if m.propagateIdx >= len(m.propagateTargets) {
-		m.propagateIdx = len(m.propagateTargets) - 1
+	if m.propagateIdx >= n {
+		m.propagateIdx = n - 1
 	}
 }
 
 func (m *Model) movePropagateIdx(delta int) {
-	n := len(m.propagateTargets)
+	n := m.propagateNavLen()
 	if n == 0 {
 		m.propagateIdx = 0
 		return
@@ -103,6 +111,10 @@ func (m *Model) movePropagateIdx(delta int) {
 }
 
 func (m *Model) togglePropagateAt(idx int) {
+	if idx == len(m.propagateTargets) {
+		m.propagateRewriteRefs = !m.propagateRewriteRefs
+		return
+	}
 	if idx < 0 || idx >= len(m.propagateTargets) {
 		return
 	}
@@ -138,6 +150,7 @@ func (m *Model) toggleAllPropagate() {
 func (m Model) openPropagate() (Model, Cmd) {
 	m.propagateTargets = m.siblingPropagateTargets()
 	m.propagateIdx = 0
+	m.propagateRewriteRefs = true
 	m.modalBtnIdx = 0
 	m.setFocus(focusPropagate)
 	return m, nil
@@ -160,6 +173,8 @@ func (m Model) handlePropagateKey(msg keyMsg) (Model, Cmd) {
 	switch msg.Chord {
 	case "space":
 		m.togglePropagateAt(m.propagateIdx)
+	case "r", "R":
+		m.propagateRewriteRefs = !m.propagateRewriteRefs
 	case "a", "A":
 		m.toggleAllPropagate()
 	case "enter":
@@ -183,6 +198,37 @@ func (m Model) cancelPropagate() (Model, Cmd) {
 	m.pendingChanges = nil
 	m.setFocus(focusSecrets)
 	return m, nil
+}
+
+func rewriteSecretRefsInValue(s, project, fromConfig, toConfig string) string {
+	if s == "" || project == "" || fromConfig == "" || toConfig == "" || fromConfig == toConfig {
+		return s
+	}
+	return secretRefRe.ReplaceAllStringFunc(s, func(match string) string {
+		parts := secretRefRe.FindStringSubmatch(match)
+		if len(parts) != 4 || parts[1] != project || parts[2] != fromConfig {
+			return match
+		}
+		prefix := "{"
+		if strings.HasPrefix(match, "${") {
+			prefix = "${"
+		}
+		return prefix + parts[1] + "." + toConfig + "." + parts[3] + "}"
+	})
+}
+
+func rewriteSecretRefsInChanges(changes []models.ChangeRequest, project, fromConfig, toConfig string) []models.ChangeRequest {
+	if len(changes) == 0 || fromConfig == toConfig {
+		return changes
+	}
+	out := make([]models.ChangeRequest, len(changes))
+	for i, c := range changes {
+		out[i] = c
+		if v, ok := c.Value.(string); ok {
+			out[i].Value = rewriteSecretRefsInValue(v, project, fromConfig, toConfig)
+		}
+	}
+	return out
 }
 
 func formatSaveStatus(applied, failed []string) string {

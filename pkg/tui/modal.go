@@ -269,7 +269,17 @@ func (m Model) propagateModalSpec() modalSpec {
 		}
 		lines = append(lines, line)
 	}
-	lines = append(lines, plainLine(""), dimLine("Space toggles · a all except unsaved"))
+	rewriteIdx := len(m.propagateTargets)
+	rewriteBox := "[ ]"
+	if m.propagateRewriteRefs {
+		rewriteBox = "[x]"
+	}
+	rewrite := modalLine{text: rewriteBox + " Rewrite references for each environment", row: rewriteIdx}
+	if m.propagateIdx == rewriteIdx {
+		rewrite.kind = modalLineSelected
+	}
+	lines = append(lines, plainLine(""), rewrite)
+	lines = append(lines, plainLine(""), dimLine("Space toggles · a all except unsaved · r rewrite refs"))
 	return modalSpec{
 		title:   "Apply to other environments",
 		lines:   lines,

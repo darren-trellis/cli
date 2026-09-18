@@ -1390,13 +1390,14 @@ func (m Model) confirmSave() (Model, Cmd) {
 	}
 	changes := m.pendingChanges
 	extras := m.selectedPropagateConfigs()
+	rewriteRefs := m.propagateRewriteRefs
 	m.fetching = true
 	m.statusMsg = ""
 	m.errMsg = ""
 	m.pendingChanges = nil
 	m.clearPropagate()
 	m.setFocus(focusSecrets)
-	return m, Batch(m.spinner.Tick, saveSecretsCmd(m.opts, m.activeProject, m.activeConfig, changes, extras))
+	return m, Batch(m.spinner.Tick, saveSecretsCmd(m.opts, m.activeProject, m.activeConfig, changes, extras, rewriteRefs))
 }
 
 func (m Model) openSave() (Model, Cmd) {
