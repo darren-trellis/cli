@@ -21,7 +21,7 @@ import (
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +33,7 @@ func TestSaveModalCopyAndSize(t *testing.T) {
 	m.focus = focusSave
 	m.pendingChanges = []models.ChangeRequest{{Name: "FOO"}, {Name: "BAR"}}
 
-	view := m.renderSaveModal()
+	view := modalText(m)
 	assert.Contains(t, view, "Modified:")
 	assert.Contains(t, view, "FOO")
 	assert.Contains(t, view, "Save (y)")
@@ -48,8 +48,8 @@ func TestSaveModalYConfirms(t *testing.T) {
 	m.focus = focusSave
 	m.pendingChanges = []models.ChangeRequest{{Name: "FOO"}}
 
-	next, cmd := m.handleSaveKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	mod := next.(Model)
+	next, cmd := m.handleSaveKey(runeKey('y'))
+	mod := next
 	require.NotNil(t, cmd)
 	assert.True(t, mod.fetching)
 	assert.Empty(t, mod.pendingChanges)
@@ -61,16 +61,16 @@ func TestSaveModalNAndEscCancel(t *testing.T) {
 	m.focus = focusSave
 	m.pendingChanges = []models.ChangeRequest{{Name: "FOO"}}
 
-	next, cmd := m.handleSaveKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
-	mod := next.(Model)
+	next, cmd := m.handleSaveKey(runeKey('n'))
+	mod := next
 	assert.Nil(t, cmd)
 	assert.Equal(t, focusSecrets, mod.focus)
 	assert.Empty(t, mod.pendingChanges)
 
 	m.focus = focusSave
 	m.pendingChanges = []models.ChangeRequest{{Name: "FOO"}}
-	next, cmd = m.handleSaveKey(tea.KeyMsg{Type: tea.KeyEsc})
-	mod = next.(Model)
+	next, cmd = m.handleSaveKey(namedKey(tcell.KeyEsc))
+	mod = next
 	assert.Nil(t, cmd)
 	assert.Equal(t, focusSecrets, mod.focus)
 	assert.Empty(t, mod.pendingChanges)
@@ -83,8 +83,8 @@ func TestSaveModalEnterUsesHighlightedButton(t *testing.T) {
 	m.pendingChanges = []models.ChangeRequest{{Name: "FOO"}}
 	m.modalBtnIdx = 1
 
-	next, cmd := m.handleSaveKey(tea.KeyMsg{Type: tea.KeyEnter})
-	mod := next.(Model)
+	next, cmd := m.handleSaveKey(namedKey(tcell.KeyEnter))
+	mod := next
 	assert.Nil(t, cmd)
 	assert.Equal(t, focusSecrets, mod.focus)
 	assert.Empty(t, mod.pendingChanges)

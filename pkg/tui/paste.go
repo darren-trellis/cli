@@ -23,13 +23,12 @@ import (
 	"strings"
 
 	"github.com/DopplerHQ/cli/pkg/utils"
-	tea "github.com/charmbracelet/bubbletea"
 	"gopkg.in/yaml.v3"
 )
 
 var envLineRE = regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*)=(.*)$`)
 
-func (m Model) pasteSecrets() (tea.Model, tea.Cmd) {
+func (m Model) pasteSecrets() (Model, Cmd) {
 	if m.focus != focusSecrets && m.focus != focusSecretInsert {
 		m.errMsg = "Paste is only available in Secrets"
 		return m, nil

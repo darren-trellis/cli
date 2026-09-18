@@ -17,7 +17,6 @@ package tui
 
 import (
 	"github.com/DopplerHQ/cli/pkg/models"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 type secretsCacheEntry struct {
@@ -50,6 +49,13 @@ func (m *Model) putSecretsCache(project, config string, entry secretsCacheEntry)
 
 func (m *Model) rememberLoadedSecrets(project, config string, secrets []secretRow) {
 	m.putSecretsCache(project, config, secretsCacheEntry{secrets: secrets})
+	if project == "" || config == "" {
+		return
+	}
+	if m.secretNames == nil {
+		m.secretNames = map[string][]string{}
+	}
+	m.secretNames[secretsCacheKey(project, config)] = namesFromSecrets(secrets)
 }
 
 func (m Model) visibleFoldedConfigs() map[string]bool {
@@ -180,7 +186,7 @@ func (m Model) otherCachedConfig(skipProject, skipConfig string) (string, string
 	return "", "", false
 }
 
-func (m Model) unloadHighlightedConfig() (tea.Model, tea.Cmd) {
+func (m Model) unloadHighlightedConfig() (Model, Cmd) {
 	if m.focus != focusProjects {
 		m.errMsg = "Unload is only available in Projects"
 		return m, nil

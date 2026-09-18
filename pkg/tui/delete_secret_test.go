@@ -96,7 +96,7 @@ func TestSecretsDKDeletesInclusiveUp(t *testing.T) {
 func TestSecretsDeleteCommandDeletesCurrent(t *testing.T) {
 	m := secretsYankModel()
 	next, _ := m.executeCommand("secret delete")
-	mod := next.(Model)
+	mod := next
 	assert.False(t, mod.pendingSecretDelete)
 	assert.Equal(t, 1, markedDeleteCount(mod))
 	assert.True(t, mod.secrets[0].shouldDelete)

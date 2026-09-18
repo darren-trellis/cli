@@ -1,0 +1,34 @@
+name = "rose-pine-moon"
+
+[colors]
+background = "#232136"
+foreground = "#e0def4"
+selection_bg = "#44415a"
+selection_fg = "#e0def4"
+overlay_bg = "#2a273f"
+status_bg = "#2a283e"
+status_fg = "#908caa"
+border = "#56526e"
+window_focus_border = "#f6c177"
+search_match = { fg = "#232136", bg = "#f6c177" }
+dim = "#6e6a86"
+
+[levels]
+trace = "#6e6a86"
+debug = "#9ccfd8"
+info = "#3e8fb0"
+warn = "#f6c177"
+error = "#eb6f92"
+fatal = "#c4a7e7"
+unknown = "#e0def4"
+
+[ui]
+timestamp = "#9ccfd8"
+key = "#ea9a97"
+string = "#3e8fb0"
+number = "#f6c177"
+bool = "#c4a7e7"
+null = "#6e6a86"
+border_color = { fg = "#56526e", bg = "#232136" }
+border_width = 1
+border_padding = 1

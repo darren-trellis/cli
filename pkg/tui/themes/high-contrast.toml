@@ -1,0 +1,34 @@
+name = "high-contrast"
+
+[colors]
+background = "#000000"
+foreground = "#ffffff"
+selection_bg = "#005f87"
+selection_fg = "#ffffff"
+overlay_bg = "#000000"
+status_bg = "#121212"
+status_fg = "#ffffff"
+border = "#a8a8a8"
+window_focus_border = "#ffff00"
+search_match = { fg = "#000000", bg = "#ffff00" }
+dim = "#bcbcbc"
+
+[levels]
+trace = "#bcbcbc"
+debug = "#5fd7ff"
+info = "#5fff5f"
+warn = "#ffd75f"
+error = "#ff5f5f"
+fatal = "#ff5fff"
+unknown = "#ffffff"
+
+[ui]
+timestamp = "#5fd7ff"
+key = "#5fffff"
+string = "#5fff5f"
+number = "#ffaf5f"
+bool = "#ff5fff"
+null = "#bcbcbc"
+border_color = { fg = "#a8a8a8", bg = "#000000" }
+border_width = 1
+border_padding = 1

@@ -36,7 +36,11 @@ func tui(cmd *cobra.Command, args []string) {
 
 	cfg := configuration.TUIConfig()
 	if cmd.Flags().Changed("theme") {
-		cfg.Theme = cmd.Flag("theme").Value.String()
+		theme := cmd.Flag("theme").Value.String()
+		if err := tuiApp.CheckTheme(theme); err != nil {
+			utils.HandleError(err)
+		}
+		cfg.Theme = theme
 		configuration.TUISetTheme(cfg.Theme)
 	}
 	if cmd.Flags().Changed("sidebar") {
@@ -98,7 +102,7 @@ func tui(cmd *cobra.Command, args []string) {
 func init() {
 	tuiCmd.Flags().StringP("project", "p", "", "project (e.g. backend)")
 	tuiCmd.Flags().StringP("config", "c", "", "config (e.g. dev)")
-	tuiCmd.Flags().String("theme", "default", "TUI theme (default, cool, warm, mono, or a teleminator theme like catppuccin)")
+	tuiCmd.Flags().String("theme", "default", "TUI theme (default, cool, warm, mono, or a named theme like catppuccin, gruvbox, tokyo-night; an unknown name lists them all)")
 	tuiCmd.Flags().Bool("sidebar", true, "show projects sidebar")
 	tuiCmd.Flags().Int("sidebar-width", 0, "projects sidebar width in columns (0 = auto)")
 	tuiCmd.Flags().String("sidebar-position", "left", "projects sidebar side (left or right)")

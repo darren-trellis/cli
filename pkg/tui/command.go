@@ -18,8 +18,6 @@ package tui
 import (
 	"fmt"
 	"strings"
-
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 type commandInfo struct {
@@ -47,6 +45,7 @@ var commandCatalog = []commandInfo{
 	{"fold off", "Collapse project or env"},
 	{"fold toggle", "Fold/unfold project or env"},
 	{"edit", "Edit selected secret cell"},
+	{"secret open", "Jump to a Doppler secret reference in the selected value, or edit"},
 	{"secret add", "Add a secret"},
 	{"secret delete", "Delete/mark delete the current secret"},
 	{"delete", "Delete secrets with a motion, or a project/config"},
@@ -60,7 +59,7 @@ var commandCatalog = []commandInfo{
 	{"paste", "Paste secrets from clipboard"},
 	{"secret save", "Open save prompt (root configs can apply to other environments)"},
 	{"search", "Open search"},
-	{"search global", "Search secret keys and values across configs"},
+	{"search global", "Filter secret names across configs"},
 	{"search next", "Next search match (or next cached config)"},
 	{"search prev", "Previous search match (or previous cached config)"},
 	{"search clear", "Clear search"},
@@ -78,6 +77,8 @@ var commandCatalog = []commandInfo{
 	{"config load off", "Unload selected config"},
 	{"config load toggle", "Toggle load on selected config"},
 	{"config delete", "Delete selected config"},
+	{"config get", "Show TUI settings"},
+	{"config set", "Change a TUI setting"},
 	{"project delete", "Delete selected project"},
 	{"sidebar on", "Show projects sidebar"},
 	{"sidebar off", "Hide projects sidebar"},
@@ -111,7 +112,7 @@ func (m *Model) restoreCommandFocus() {
 	m.setFocus(f)
 }
 
-func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
+func (m Model) executeCommand(line string) (Model, Cmd) {
 	line = strings.TrimSpace(line)
 	if line == "" {
 		return m, nil
@@ -160,7 +161,7 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 		return m.execFilter(args)
 	case "config":
 		if len(args) == 0 {
-			m.errMsg = "usage: config create|rename|lock|load|delete"
+			m.errMsg = "usage: config create|rename|lock|load|delete|get|set"
 			return m, nil
 		}
 		switch args[0] {
@@ -176,6 +177,10 @@ func (m Model) executeCommand(line string) (tea.Model, tea.Cmd) {
 			return m.execOnOffToggle(args[1:], "config load", m.loadOn, m.loadOff, m.loadToggle)
 		case "delete":
 			return m.beginDeleteConfig()
+		case "get":
+			return m.execConfigGet(args[1:])
+		case "set":
+			return m.execConfigSet(args[1:])
 		default:
 			m.errMsg = "unknown config command"
 			return m, nil
@@ -220,7 +225,7 @@ func parseOnOffToggle(args []string) (on *bool, ok bool) {
 	}
 }
 
-func (m Model) execOnOffToggle(args []string, usage string, on, off, toggle func() (tea.Model, tea.Cmd)) (tea.Model, tea.Cmd) {
+func (m Model) execOnOffToggle(args []string, usage string, on, off, toggle func() (Model, Cmd)) (Model, Cmd) {
 	mode, ok := parseOnOffToggle(args)
 	if !ok {
 		m.errMsg = "usage: " + usage + " on|off|toggle"
@@ -235,27 +240,27 @@ func (m Model) execOnOffToggle(args []string, usage string, on, off, toggle func
 	return off()
 }
 
-func (m Model) lockOn() (tea.Model, tea.Cmd) {
+func (m Model) lockOn() (Model, Cmd) {
 	return m.setSelectedConfigLock(boolPtr(true))
 }
 
-func (m Model) lockOff() (tea.Model, tea.Cmd) {
+func (m Model) lockOff() (Model, Cmd) {
 	return m.setSelectedConfigLock(boolPtr(false))
 }
 
-func (m Model) lockToggle() (tea.Model, tea.Cmd) {
+func (m Model) lockToggle() (Model, Cmd) {
 	return m.setSelectedConfigLock(nil)
 }
 
-func (m Model) loadOn() (tea.Model, tea.Cmd) {
+func (m Model) loadOn() (Model, Cmd) {
 	return m.activateSelection()
 }
 
-func (m Model) loadOff() (tea.Model, tea.Cmd) {
+func (m Model) loadOff() (Model, Cmd) {
 	return m.unloadHighlightedConfig()
 }
 
-func (m Model) loadToggle() (tea.Model, tea.Cmd) {
+func (m Model) loadToggle() (Model, Cmd) {
 	if m.focus != focusProjects {
 		return m.activateSelection()
 	}
@@ -271,30 +276,30 @@ func (m Model) loadToggle() (tea.Model, tea.Cmd) {
 	return m.activateSelection()
 }
 
-func (m Model) foldOn() (tea.Model, tea.Cmd) {
+func (m Model) foldOn() (Model, Cmd) {
 	return m.setFold(boolPtr(true))
 }
 
-func (m Model) foldOff() (tea.Model, tea.Cmd) {
+func (m Model) foldOff() (Model, Cmd) {
 	return m.setFold(boolPtr(false))
 }
 
-func (m Model) sidebarOn() (tea.Model, tea.Cmd) {
+func (m Model) sidebarOn() (Model, Cmd) {
 	m.setSidebar(boolPtr(true))
 	return m, nil
 }
 
-func (m Model) sidebarOff() (tea.Model, tea.Cmd) {
+func (m Model) sidebarOff() (Model, Cmd) {
 	m.setSidebar(boolPtr(false))
 	return m, nil
 }
 
-func (m Model) sidebarToggle() (tea.Model, tea.Cmd) {
+func (m Model) sidebarToggle() (Model, Cmd) {
 	m.setSidebar(nil)
 	return m, nil
 }
 
-func (m Model) execNav(args []string) (tea.Model, tea.Cmd) {
+func (m Model) execNav(args []string) (Model, Cmd) {
 	if len(args) == 0 {
 		m.errMsg = "nav requires a direction"
 		return m, nil
@@ -340,7 +345,7 @@ func (m Model) execNav(args []string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) execFocus(args []string) (tea.Model, tea.Cmd) {
+func (m Model) execFocus(args []string) (Model, Cmd) {
 	if len(args) == 0 {
 		m.errMsg = "focus requires a target"
 		return m, nil
@@ -362,7 +367,7 @@ func (m Model) execFocus(args []string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) execSecret(args []string) (tea.Model, tea.Cmd) {
+func (m Model) execSecret(args []string) (Model, Cmd) {
 	if len(args) == 0 {
 		m.errMsg = "secret requires an action"
 		return m, nil
@@ -370,6 +375,8 @@ func (m Model) execSecret(args []string) (tea.Model, tea.Cmd) {
 	switch args[0] {
 	case "add":
 		return m.addSecret()
+	case "open":
+		return m.openSecretLink()
 	case "delete":
 		return m.deleteSecret()
 	case "undo":
@@ -384,7 +391,7 @@ func (m Model) execSecret(args []string) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m Model) execDelete() (tea.Model, tea.Cmd) {
+func (m Model) execDelete() (Model, Cmd) {
 	switch m.focus {
 	case focusSecrets:
 		m.beginSecretDelete()
@@ -398,7 +405,7 @@ func (m Model) execDelete() (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m Model) execProject(args []string) (tea.Model, tea.Cmd) {
+func (m Model) execProject(args []string) (Model, Cmd) {
 	if len(args) == 0 {
 		m.errMsg = "usage: project delete"
 		return m, nil
@@ -413,7 +420,7 @@ func (m Model) execProject(args []string) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m Model) execFilter(args []string) (tea.Model, tea.Cmd) {
+func (m Model) execFilter(args []string) (Model, Cmd) {
 	global := false
 	if len(args) > 0 {
 		switch args[0] {
@@ -430,7 +437,7 @@ func (m Model) execFilter(args []string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) execSearch(args []string) (tea.Model, tea.Cmd) {
+func (m Model) execSearch(args []string) (Model, Cmd) {
 	if len(args) == 0 {
 		m.beginSearch()
 		return m, nil
@@ -443,7 +450,7 @@ func (m Model) execSearch(args []string) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		var cmd tea.Cmd
+		var cmd Cmd
 		for i := 0; i < m.takeMotionCount(); i++ {
 			cmd = m.stepSearchMatch(1)
 		}
@@ -455,14 +462,13 @@ func (m Model) execSearch(args []string) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		var cmd tea.Cmd
+		var cmd Cmd
 		for i := 0; i < m.takeMotionCount(); i++ {
 			cmd = m.stepSearchMatch(-1)
 		}
 		return m, cmd
 	case "global":
-		m.beginGlobalSearch()
-		return m, nil
+		return m, m.beginGlobalSearch()
 	case "clear":
 		m.clearSearch()
 		m.statusMsg = ""
@@ -484,6 +490,33 @@ func formatKeyList(keys []string) string {
 	return strings.Join(parts, " / ")
 }
 
+func (m Model) formatHelpKeys(focus focusArea, cmd string) string {
+	if keys := formatKeyList(m.keys.BindingsForCommand(focus, cmd)); keys != "" {
+		return keys
+	}
+	if hint := operatorKeyHint(focus, cmd); hint != "" {
+		return hint
+	}
+	return ":" + cmd
+}
+
+func operatorKeyHint(focus focusArea, cmd string) string {
+	switch {
+	case focus == focusProjects && cmd == "yank name":
+		return "y n"
+	case focus == focusProjects && cmd == "yank yaml":
+		return "y y"
+	case focus == focusProjects && cmd == "yank json":
+		return "y j"
+	case focus == focusProjects && cmd == "yank env":
+		return "y e"
+	case focus == focusSecrets && cmd == "secret yank":
+		return "y n"
+	default:
+		return ""
+	}
+}
+
 func (m Model) renderHelpText() string {
 	var b strings.Builder
 	b.WriteString("Commands are bound to keys under tui.keys in ~/.doppler/.doppler.yaml\n")
@@ -493,10 +526,7 @@ func (m Model) renderHelpText() string {
 		b.WriteString(title)
 		b.WriteByte('\n')
 		for _, cmd := range cmds {
-			keys := formatKeyList(m.keys.BindingsForCommand(focus, cmd))
-			if keys == "" {
-				keys = "(unbound)"
-			}
+			keys := m.formatHelpKeys(focus, cmd)
 			help := ""
 			for _, info := range commandCatalog {
 				if info.name == cmd {
@@ -514,7 +544,7 @@ func (m Model) renderHelpText() string {
 
 	writeSection("Global:", focusSecrets, []string{
 		"quit", "help", "command", "command clear", "search", "search global", "search next", "search prev", "search clear",
-		"filter", "filter global", "sidebar toggle", "focus cycle", "focus prev", "focus projects", "focus secrets",
+		"filter", "filter global", "sidebar toggle", "config get", "config set", "focus cycle", "focus prev", "focus projects", "focus secrets",
 	})
 	writeSection("Navigation:", focusSecrets, []string{
 		"nav up", "nav down", "nav top", "nav bottom", "nav page up", "nav page down", "nav left", "nav right",
@@ -524,19 +554,21 @@ func (m Model) renderHelpText() string {
 		"yank name", "yank yaml", "yank json", "yank env",
 	})
 	writeSection("Secrets:", focusSecrets, []string{
-		"edit", "secret add", "delete", "secret undo", "yank", "secret yank", "paste", "secret save",
+		"edit", "secret open", "secret add", "delete", "secret undo", "yank", "secret yank", "paste", "secret save",
 	})
 	b.WriteString("Typing modes (search/filter/insert/create/rename) use Esc/Enter locally.\n")
 	b.WriteString("Command and search ↑/↓ (C-p/C-n) recall history; ↓ in : focuses suggestions.\n")
 	b.WriteString("Counts: 7j / 3k / 10G (G with a count jumps to that row).\n")
 	b.WriteString("Cached configs show + on the left; locked configs show $. Highlighting a cached config shows its secrets. n/N hops cached configs when not searching. Enter loads a config; Backspace unloads it. Click selects a sidebar row; double-click loads it. Folding a project or env keeps the active and loaded configs visible.\n")
-	b.WriteString("Search: / in the current pane; C-f keys and values across configs (Enter scans the workplace).\n")
+	b.WriteString("Search: / filter secret names across configs (typeahead); :search highlights in the current pane.\n")
 	b.WriteString("Filter: f this config; F every config (local applies after global).\n")
 	b.WriteString("Projects yank: y then n/y/j/e (name / yaml / json / env).\n")
 	b.WriteString("Projects delete: d on a project or branch config (root configs cannot be deleted).\n")
 	b.WriteString("Secrets yank: y[j|e] then motion (yy line, yn cell, y2j current+2 down, yjy json line).\n")
 	b.WriteString("Secrets delete: dd line, d2j current+2 down, 5dd 5 lines.\n")
 	b.WriteString("Secrets paste: p imports yaml/json/env from the clipboard.\n")
+	b.WriteString("Enter on a value like ${project.config.SECRET} jumps to that secret; i still edits.\n")
+	b.WriteString("While editing a value, { opens project.config.secret suggestions; Tab completes.\n")
 	b.WriteString("Saving a root config asks whether to apply the same changes to other environments.\n")
 	return b.String()
 }

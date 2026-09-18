@@ -297,9 +297,9 @@ func formatTreeRow(row treeRow, activeProject, activeConfig string) string {
 	name := label
 	switch {
 	case active:
-		name = activeEnvStyle.Render("*" + label)
+		name = "*" + label
 	case row.cached:
-		name = cachedConfigStyle.Render("+" + label)
+		name = "+" + label
 	}
 	if row.hasChildren {
 		icon := "▾ "

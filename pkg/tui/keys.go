@@ -18,10 +18,8 @@ package tui
 import (
 	"sort"
 	"strings"
-	"unicode"
 
 	"github.com/DopplerHQ/cli/pkg/models"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 // KeysConfig is the runtime keymap (defaults merged with user overrides).
@@ -52,8 +50,8 @@ func defaultBaseKeys() map[string]string {
 		"tab":      "focus cycle",
 		"backtab":  "focus prev",
 		"B":        "sidebar toggle",
-		"/":        "search",
 		"C-f":      "search global",
+		"/":        "search global",
 		"n":        "search next",
 		"N":        "search prev",
 		"esc":      "command clear",
@@ -81,7 +79,7 @@ func defaultProjectsKeys() map[string]string {
 
 func defaultSecretsKeys() map[string]string {
 	return map[string]string{
-		"enter": "edit",
+		"enter": "secret open",
 		"i":     "edit",
 		"a":     "edit",
 		"o":     "secret add",
@@ -199,60 +197,6 @@ func (k KeysConfig) BindingsForCommand(focus focusArea, command string) []string
 		return keys[i] < keys[j]
 	})
 	return keys
-}
-
-func encodeKey(msg tea.KeyMsg) (string, bool) {
-	s := msg.String()
-	if s == "" {
-		return "", false
-	}
-
-	switch s {
-	case "ctrl+c":
-		return "C-c", true
-	case " ", "space":
-		return "space", true
-	case "enter":
-		return "enter", true
-	case "esc", "escape":
-		return "esc", true
-	case "up", "down", "left", "right", "home", "end", "tab":
-		return s, true
-	case "pgup":
-		return "pageup", true
-	case "pgdown":
-		return "pagedown", true
-	case "shift+tab":
-		return "backtab", true
-	case "backspace":
-		return "backspace", true
-	case "delete":
-		return "delete-key", true
-	}
-
-	if strings.HasPrefix(s, "alt+") {
-		rest := strings.TrimPrefix(s, "alt+")
-		if rest == " " {
-			return "A-space", true
-		}
-		if len([]rune(rest)) == 1 {
-			r := []rune(rest)[0]
-			if unicode.IsLetter(r) {
-				return "A-" + string(unicode.ToLower(r)), true
-			}
-			return "A-" + rest, true
-		}
-	}
-
-	if strings.HasPrefix(s, "ctrl+") && len(s) == 6 {
-		return "C-" + strings.ToLower(string(s[5])), true
-	}
-
-	runes := []rune(s)
-	if len(runes) == 1 {
-		return s, true
-	}
-	return "", false
 }
 
 func displayKey(spec string) string {

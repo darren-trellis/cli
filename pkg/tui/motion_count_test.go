@@ -20,7 +20,6 @@ import (
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -37,20 +36,20 @@ func TestMotionCountMovesList(t *testing.T) {
 	}
 	m.secretIdx = 0
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'3'}})
-	mod := next.(Model)
+	next, _ := m.Update(runeKey('3'))
+	mod := next
 	assert.Equal(t, 3, mod.motionCount)
 	assert.Equal(t, 0, mod.secretIdx)
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
-	mod = next.(Model)
+	next, _ = mod.Update(runeKey('j'))
+	mod = next
 	assert.Equal(t, 0, mod.motionCount)
 	assert.Equal(t, 3, mod.secretIdx)
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
-	mod = next.(Model)
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
-	mod = next.(Model)
+	next, _ = mod.Update(runeKey('2'))
+	mod = next
+	next, _ = mod.Update(runeKey('k'))
+	mod = next
 	assert.Equal(t, 1, mod.secretIdx)
 }
 
@@ -66,13 +65,13 @@ func TestMotionCountGJumpsToRow(t *testing.T) {
 	}
 	m.secretIdx = 0
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
-	mod := next.(Model)
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
-	mod = next.(Model)
+	next, _ := m.Update(runeKey('2'))
+	mod := next
+	next, _ = mod.Update(runeKey('G'))
+	mod = next
 	assert.Equal(t, 1, mod.secretIdx)
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
-	mod = next.(Model)
+	next, _ = mod.Update(runeKey('G'))
+	mod = next
 	assert.Equal(t, 3, mod.secretIdx)
 }

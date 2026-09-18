@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"github.com/DopplerHQ/cli/pkg/utils"
-	tea "github.com/charmbracelet/bubbletea"
 	"gopkg.in/yaml.v3"
 )
 
@@ -94,15 +93,15 @@ func (m Model) yankPrompt() string {
 	return s
 }
 
-func (m Model) handleYankMotion(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleYankMotion(msg keyMsg) (Model, Cmd) {
 	if m.focus == focusSecrets {
 		return m.handleSecretsYankMotion(msg)
 	}
 	return m.handleProjectsYankMotion(msg)
 }
 
-func (m Model) handleProjectsYankMotion(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	chord, ok := encodeKey(msg)
+func (m Model) handleProjectsYankMotion(msg keyMsg) (Model, Cmd) {
+	chord, ok := msg.chord()
 	if !ok {
 		return m, nil
 	}
@@ -128,8 +127,8 @@ func (m Model) handleProjectsYankMotion(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m Model) handleSecretsYankMotion(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	chord, ok := encodeKey(msg)
+func (m Model) handleSecretsYankMotion(msg keyMsg) (Model, Cmd) {
+	chord, ok := msg.chord()
 	if !ok {
 		return m, nil
 	}
@@ -188,8 +187,8 @@ func (m Model) handleSecretsYankMotion(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m Model) handleSecretDeleteMotion(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	chord, ok := encodeKey(msg)
+func (m Model) handleSecretDeleteMotion(msg keyMsg) (Model, Cmd) {
+	chord, ok := msg.chord()
 	if !ok {
 		return m, nil
 	}
@@ -230,13 +229,13 @@ func (m Model) handleSecretDeleteMotion(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m Model) finishSecretDeleteRange(count, dir int, linewise bool) (tea.Model, tea.Cmd) {
+func (m Model) finishSecretDeleteRange(count, dir int, linewise bool) (Model, Cmd) {
 	idxs := m.filteredIndexes()
 	lo, hi := secretOpWindow(m.secretIdx, count, dir, len(idxs), linewise)
 	return m.finishSecretDeleteIndexRange(lo, hi)
 }
 
-func (m Model) finishSecretDeleteToIndex(n int, explicit bool) (tea.Model, tea.Cmd) {
+func (m Model) finishSecretDeleteToIndex(n int, explicit bool) (Model, Cmd) {
 	idxs := m.filteredIndexes()
 	end := len(idxs) - 1
 	if explicit {
@@ -245,7 +244,7 @@ func (m Model) finishSecretDeleteToIndex(n int, explicit bool) (tea.Model, tea.C
 	return m.finishSecretDeleteIndexRange(m.secretIdx, end)
 }
 
-func (m Model) finishSecretDeleteIndexRange(from, to int) (tea.Model, tea.Cmd) {
+func (m Model) finishSecretDeleteIndexRange(from, to int) (Model, Cmd) {
 	m.pendingSecretDelete = false
 	m.motionCount = 0
 
@@ -281,7 +280,7 @@ func (m Model) finishSecretDeleteIndexRange(from, to int) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) execYank(args []string) (tea.Model, tea.Cmd) {
+func (m Model) execYank(args []string) (Model, Cmd) {
 	if len(args) == 0 {
 		if m.focus != focusProjects && m.focus != focusSecrets {
 			m.errMsg = "yank operator is only available in Projects or Secrets"
@@ -303,7 +302,7 @@ func (m Model) execYank(args []string) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m Model) yankName() (tea.Model, tea.Cmd) {
+func (m Model) yankName() (Model, Cmd) {
 	var text string
 	row, ok := m.currentTreeRow()
 	if !ok {
@@ -328,7 +327,7 @@ func (m Model) yankName() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) yankSecretsFormat(format string) (tea.Model, tea.Cmd) {
+func (m Model) yankSecretsFormat(format string) (Model, Cmd) {
 	secrets, skipped := m.secretsMapForCopy()
 	if len(secrets) == 0 {
 		m.errMsg = "No secrets to copy"
@@ -356,13 +355,13 @@ func (m Model) yankSecretsFormat(format string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) finishSecretYankRange(count, dir int, linewise bool) (tea.Model, tea.Cmd) {
+func (m Model) finishSecretYankRange(count, dir int, linewise bool) (Model, Cmd) {
 	idxs := m.filteredIndexes()
 	lo, hi := secretOpWindow(m.secretIdx, count, dir, len(idxs), linewise)
 	return m.finishSecretYankIndexRange(lo, hi)
 }
 
-func (m Model) finishSecretYankToIndex(n int, explicit bool) (tea.Model, tea.Cmd) {
+func (m Model) finishSecretYankToIndex(n int, explicit bool) (Model, Cmd) {
 	idxs := m.filteredIndexes()
 	end := len(idxs) - 1
 	if explicit {
@@ -371,7 +370,7 @@ func (m Model) finishSecretYankToIndex(n int, explicit bool) (tea.Model, tea.Cmd
 	return m.finishSecretYankIndexRange(m.secretIdx, end)
 }
 
-func (m Model) finishSecretYankIndexRange(from, to int) (tea.Model, tea.Cmd) {
+func (m Model) finishSecretYankIndexRange(from, to int) (Model, Cmd) {
 	format := m.yankFormat
 	if format == "" {
 		format = "yaml"

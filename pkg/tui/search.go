@@ -21,8 +21,7 @@ import (
 	"sort"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/DopplerHQ/cli/pkg/configuration"
 )
 
 func searchableTreeText(row treeRow) string {
@@ -52,12 +51,13 @@ func (m *Model) clearSearch() {
 	if m.statusMsg == "No matches" || m.statusMsg == "Invalid regex" {
 		m.statusMsg = ""
 	}
+	m.rebuildTree()
 }
 
 func (m *Model) setSearchPrompt() {
 	if m.searchGlobal {
 		m.searchInput.Prompt = "g/ "
-		m.searchInput.Placeholder = "Keys and values…"
+		m.searchInput.Placeholder = "Secret names…"
 		return
 	}
 	m.searchInput.Prompt = "/ "
@@ -65,26 +65,24 @@ func (m *Model) setSearchPrompt() {
 }
 
 func (m *Model) beginSearch() {
-	m.searchGlobal = false
-	m.globalHits = nil
-	m.setSearchPrompt()
+	m.clearSearch()
 	m.searchPane = m.focus
 	if m.searchPane != focusProjects && m.searchPane != focusSecrets {
 		m.searchPane = focusSecrets
 	}
+	m.setSearchPrompt()
 	m.searchHistory.Reset()
 	m.setFocus(focusSearch)
 }
 
-func (m *Model) beginGlobalSearch() {
+func (m *Model) beginGlobalSearch() Cmd {
+	m.clearSearch()
 	m.searchGlobal = true
 	m.searchPane = focusSecrets
 	m.setSearchPrompt()
 	m.searchHistory.Reset()
-	if m.searchQuery != "" {
-		_ = m.applySearch(m.searchQuery, false)
-	}
 	m.setFocus(focusSearch)
+	return m.startNamesIndex()
 }
 
 func (m *Model) compileSearch(query string) error {
@@ -182,25 +180,48 @@ func secretMatchesSearch(s secretRow, re *regexp.Regexp) bool {
 	return re.MatchString(s.value)
 }
 
-func collectSecretHits(re *regexp.Regexp, project, config string, secrets []secretRow) []globalHit {
+func collectNameHits(re *regexp.Regexp, project, config string, names []string) []globalHit {
 	if re == nil || project == "" || config == "" {
 		return nil
 	}
 	var hits []globalHit
-	for _, s := range secrets {
-		if s.shouldDelete || strings.TrimSpace(s.name) == "" {
+	for _, name := range names {
+		if strings.TrimSpace(name) == "" {
 			continue
 		}
-		if secretMatchesSearch(s, re) {
-			hits = append(hits, globalHit{project: project, config: config, name: s.name})
+		if re.MatchString(name) {
+			hits = append(hits, globalHit{project: project, config: config, name: name})
 		}
 	}
 	return hits
 }
 
+func namesFromSecrets(secrets []secretRow) []string {
+	names := make([]string, 0, len(secrets))
+	for _, s := range secrets {
+		if s.shouldDelete || strings.TrimSpace(s.name) == "" {
+			continue
+		}
+		names = append(names, s.name)
+	}
+	return names
+}
+
+func (m Model) namesFor(project, config string) []string {
+	if secrets := m.configSecrets(project, config); secrets != nil {
+		return namesFromSecrets(secrets)
+	}
+	if names, ok := m.secretNames[secretsCacheKey(project, config)]; ok {
+		return names
+	}
+	return nil
+}
+
 func (m *Model) applyGlobalHits(jump bool) {
 	m.refreshGlobalMatches()
+	m.rebuildTree()
 	m.syncLocalMatchesFromGlobal()
+	m.clampSecretIdx()
 	if len(m.globalHits) == 0 {
 		m.searchMatchIdx = 0
 		if jump {
@@ -233,14 +254,28 @@ func (m *Model) refreshGlobalMatches() {
 	seen := map[string]bool{}
 	for _, project := range m.projects {
 		for _, cfg := range m.projectConfigs[project] {
+			if cfg.name == "" {
+				continue
+			}
 			key := secretsCacheKey(project, cfg.name)
-			secrets := m.configSecrets(project, cfg.name)
-			if secrets == nil {
+			names := m.namesFor(project, cfg.name)
+			if names == nil {
 				continue
 			}
 			seen[key] = true
-			m.globalHits = append(m.globalHits, collectSecretHits(m.searchRe, project, cfg.name, secrets)...)
+			m.globalHits = append(m.globalHits, collectNameHits(m.searchRe, project, cfg.name, names)...)
 		}
+	}
+	for key, names := range m.secretNames {
+		if seen[key] {
+			continue
+		}
+		project, config, ok := splitSecretsCacheKey(key)
+		if !ok {
+			continue
+		}
+		seen[key] = true
+		m.globalHits = append(m.globalHits, collectNameHits(m.searchRe, project, config, names)...)
 	}
 	for key, e := range m.secretsCache {
 		if seen[key] {
@@ -250,7 +285,7 @@ func (m *Model) refreshGlobalMatches() {
 		if !ok {
 			continue
 		}
-		m.globalHits = append(m.globalHits, collectSecretHits(m.searchRe, project, config, e.secrets)...)
+		m.globalHits = append(m.globalHits, collectNameHits(m.searchRe, project, config, namesFromSecrets(e.secrets))...)
 	}
 }
 
@@ -309,7 +344,7 @@ func (m *Model) selectSecretByName(name string) bool {
 	return false
 }
 
-func (m *Model) jumpToGlobalHit(matchPos int) tea.Cmd {
+func (m *Model) jumpToGlobalHit(matchPos int) Cmd {
 	if matchPos < 0 || matchPos >= len(m.globalHits) {
 		return nil
 	}
@@ -337,7 +372,7 @@ func (m *Model) jumpToGlobalHit(matchPos int) tea.Cmd {
 	m.fetching = true
 	m.statusMsg = ""
 	m.errMsg = ""
-	return tea.Batch(m.spinner.Tick, selectConfigCmd(m.opts, hit.project, hit.config))
+	return Batch(m.spinner.Tick, selectConfigCmd(m.opts, hit.project, hit.config))
 }
 
 func (m *Model) selectSearchMatch(matchPos int) {
@@ -364,7 +399,7 @@ func (m *Model) jumpToSearchMatch(matchPos int) {
 	}
 }
 
-func (m *Model) stepSearchMatch(delta int) tea.Cmd {
+func (m *Model) stepSearchMatch(delta int) Cmd {
 	if m.searchRe == nil {
 		return nil
 	}
@@ -412,84 +447,75 @@ func (m Model) searchStatusLabel() string {
 	return fmt.Sprintf("%d/%d %s%s", m.searchMatchIdx+1, n, prefix, m.searchQuery)
 }
 
-func baseTextStyle() lipgloss.Style {
-	style := lipgloss.NewStyle()
-	if background != "" {
-		style = style.Background(background)
-	}
-	if textColor != "" {
-		style = style.Foreground(textColor)
-	}
-	return style
-}
-
-func highlightMatches(text string, re *regexp.Regexp, base lipgloss.Style) string {
-	if re == nil || text == "" {
-		return base.Render(text)
-	}
-	matches := re.FindAllStringIndex(text, -1)
-	if len(matches) == 0 {
-		return base.Render(text)
-	}
-	var b strings.Builder
-	last := 0
-	for _, m := range matches {
-		if m[0] < last || m[0] >= m[1] {
+func (m Model) filteredSearchTree() (projects []string, configs map[string][]configRow) {
+	keep := map[string]bool{}
+	for _, h := range m.globalHits {
+		if h.project == "" || h.config == "" {
 			continue
 		}
-		if m[0] > last {
-			b.WriteString(base.Render(text[last:m[0]]))
-		}
-		b.WriteString(searchHitStyle.Render(text[m[0]:m[1]]))
-		last = m[1]
+		keep[secretsCacheKey(h.project, h.config)] = true
 	}
-	if last < len(text) {
-		b.WriteString(base.Render(text[last:]))
-	}
-	return b.String()
-}
 
-func highlightNeedleInDisplay(display, needle string, re *regexp.Regexp, base lipgloss.Style) string {
-	if re == nil || needle == "" {
-		return base.Render(display)
+	order := append([]string(nil), m.projects...)
+	seenProj := map[string]bool{}
+	for _, p := range m.projects {
+		seenProj[p] = true
 	}
-	offset := strings.LastIndex(display, needle)
-	if offset < 0 {
-		return base.Render(display)
-	}
-	matches := re.FindAllStringIndex(needle, -1)
-	if len(matches) == 0 {
-		return base.Render(display)
-	}
-	var b strings.Builder
-	last := 0
-	for _, m := range matches {
-		start := offset + m[0]
-		end := offset + m[1]
-		if start < last || start >= end {
+	var extra []string
+	for key := range keep {
+		proj, _, ok := splitSecretsCacheKey(key)
+		if !ok || seenProj[proj] {
 			continue
 		}
-		if start > last {
-			b.WriteString(base.Render(display[last:start]))
+		extra = append(extra, proj)
+		seenProj[proj] = true
+	}
+	sort.Strings(extra)
+	order = append(order, extra...)
+
+	configs = map[string][]configRow{}
+	for _, p := range order {
+		var rows []configRow
+		seen := map[string]bool{}
+		for _, c := range m.projectConfigs[p] {
+			if !keep[secretsCacheKey(p, c.name)] {
+				continue
+			}
+			rows = append(rows, c)
+			seen[c.name] = true
 		}
-		b.WriteString(searchHitStyle.Render(display[start:end]))
-		last = end
+		for key := range keep {
+			proj, cfg, ok := splitSecretsCacheKey(key)
+			if !ok || proj != p || seen[cfg] {
+				continue
+			}
+			rows = append(rows, configRow{name: cfg})
+			seen[cfg] = true
+		}
+		if len(rows) == 0 {
+			continue
+		}
+		configs[p] = rows
+		projects = append(projects, p)
 	}
-	if last < len(display) {
-		b.WriteString(base.Render(display[last:]))
-	}
-	return b.String()
+	return projects, configs
 }
 
-func (m *Model) startWorkplaceSearch() tea.Cmd {
-	if m.searchQuery == "" || m.searchRe == nil {
+func (m *Model) startNamesIndex() Cmd {
+	return m.startWorkplaceIndex(false)
+}
+
+func (m *Model) startWorkplaceIndex(refresh bool) Cmd {
+	if m.workplaceIndexing {
 		return nil
 	}
-	m.stashCurrentSecrets()
-	m.searchGen++
-	gen := m.searchGen
-	m.fetching = true
-	m.statusMsg = ""
+	if m.namesIndexDone {
+		return nil
+	}
+	if len(m.projects) == 0 {
+		return nil
+	}
+	m.workplaceIndexing = true
 	m.errMsg = ""
 
 	projects := append([]string(nil), m.projects...)
@@ -497,62 +523,109 @@ func (m *Model) startWorkplaceSearch() tea.Cmd {
 	for p, cfgs := range m.projectConfigs {
 		known[p] = append([]configRow(nil), cfgs...)
 	}
-	cached := make(map[string][]secretRow, len(m.secretsCache))
-	for k, e := range m.secretsCache {
-		cached[k] = append([]secretRow(nil), e.secrets...)
+	haveNames := map[string]bool{}
+	if !refresh {
+		for k := range m.secretNames {
+			haveNames[k] = true
+		}
+		for k := range m.secretsCache {
+			haveNames[k] = true
+		}
+		if m.activeProject != "" && m.activeConfig != "" {
+			haveNames[secretsCacheKey(m.activeProject, m.activeConfig)] = true
+		}
 	}
-	return tea.Batch(m.spinner.Tick, workplaceSearchCmd(m.opts, gen, m.searchQuery, m.cfg.CaseMode, projects, known, cached))
+	return Batch(m.spinner.Tick, workplaceIndexCmd(m.opts, projects, known, haveNames, refresh))
 }
 
-func (m Model) applyWorkplaceSearch(msg workplaceSearchMsg) (tea.Model, tea.Cmd) {
-	if msg.gen != m.searchGen || !m.searchGlobal {
-		return m, nil
-	}
-	m.fetching = false
+func (m Model) applyWorkplaceSearch(msg workplaceSearchMsg) (Model, Cmd) {
 	if msg.err != nil {
-		m.errMsg = msg.err.Error()
+		m.workplaceIndexing = false
+		if m.searchGlobal || m.focus == focusSearch {
+			m.errMsg = msg.err.Error()
+		}
 		return m, nil
 	}
+	if m.secretNames == nil {
+		m.secretNames = map[string][]string{}
+	}
+	listed := map[string]bool{}
 	for project, cfgs := range msg.configs {
-		if _, ok := m.projectConfigs[project]; !ok {
+		if msg.refresh || m.projectConfigs[project] == nil {
 			m.projectConfigs[project] = cfgs
 		}
+		for _, c := range cfgs {
+			if c.name == "" {
+				continue
+			}
+			listed[secretsCacheKey(project, c.name)] = true
+		}
 	}
-	for key, secrets := range msg.fetched {
-		project, config, ok := splitSecretsCacheKey(key)
-		if !ok {
-			continue
+	if msg.refresh {
+		for key := range m.secretNames {
+			project, _, ok := splitSecretsCacheKey(key)
+			if !ok {
+				continue
+			}
+			if _, ok := msg.configs[project]; ok && !listed[key] {
+				delete(m.secretNames, key)
+			}
 		}
-		if m.configIsDirty(project, config) {
-			continue
+		for key, names := range msg.names {
+			m.secretNames[key] = names
 		}
-		if _, ok := m.secretsCache[key]; ok {
-			continue
+	} else {
+		for key, names := range msg.names {
+			if _, ok := m.secretNames[key]; !ok {
+				m.secretNames[key] = names
+			}
 		}
-		m.putSecretsCache(project, config, secretsCacheEntry{secrets: secrets})
 	}
+	m.overlayLiveSecretNames()
+	m.workplaceIndexing = false
+	m.namesIndexDone = true
+	m.persistNamesIndex()
+	if m.searchGlobal && m.searchQuery != "" {
+		wasFocus := m.focus
+		m.applyGlobalHits(false)
+		if wasFocus == focusSearch {
+			m.setFocus(focusSearch)
+		}
+	} else if m.searchGlobal {
+		m.rebuildTree()
+	}
+	if m.focus == focusSecretInsert {
+		m.refreshSecretRefCompletions()
+	}
+	return m, nil
+}
 
-	keep := globalHit{}
-	if m.searchMatchIdx >= 0 && m.searchMatchIdx < len(m.globalHits) {
-		keep = m.globalHits[m.searchMatchIdx]
+func (m *Model) overlayLiveSecretNames() {
+	if m.secretNames == nil {
+		m.secretNames = map[string][]string{}
 	}
-	m.globalHits = msg.hits
-	sortGlobalHits(m.globalHits, m.projects, m.projectConfigs)
-	m.syncLocalMatchesFromGlobal()
-	if len(m.globalHits) == 0 {
-		m.searchMatchIdx = 0
-		m.statusMsg = "No matches"
-		return m, nil
+	for key, e := range m.secretsCache {
+		m.secretNames[key] = namesFromSecrets(e.secrets)
 	}
-	idx := 0
-	for i, h := range m.globalHits {
-		if h == keep {
-			idx = i
-			break
-		}
+	if m.activeProject != "" && m.activeConfig != "" {
+		m.secretNames[secretsCacheKey(m.activeProject, m.activeConfig)] = namesFromSecrets(m.secrets)
 	}
-	m.statusMsg = fmt.Sprintf("Match %d/%d", idx+1, len(m.globalHits))
-	return m, m.jumpToGlobalHit(idx)
+}
+
+func (m *Model) loadNamesIndex() {
+	names, ok := configuration.LoadTUINamesIndex(m.opts.Token.Value, m.opts.APIHost.Value)
+	if !ok {
+		return
+	}
+	m.secretNames = names
+	m.overlayLiveSecretNames()
+}
+
+func (m Model) persistNamesIndex() {
+	if !m.sessionEnabled {
+		return
+	}
+	configuration.SaveTUINamesIndex(m.opts.Token.Value, m.opts.APIHost.Value, m.secretNames)
 }
 
 func sortGlobalHits(hits []globalHit, projects []string, configs map[string][]configRow) {

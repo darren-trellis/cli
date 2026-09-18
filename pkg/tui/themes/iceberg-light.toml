@@ -1,0 +1,34 @@
+name = "iceberg-light"
+
+[colors]
+background = "#e8e9ec"
+foreground = "#33374c"
+selection_bg = "#c9cdd7"
+selection_fg = "#33374c"
+overlay_bg = "#dcdfe7"
+status_bg = "#dcdfe7"
+status_fg = "#575f78"
+border = "#adb1c4"
+window_focus_border = "#2d539e"
+search_match = { fg = "#e8e9ec", bg = "#2d539e" }
+dim = "#8389a3"
+
+[levels]
+trace = "#8389a3"
+debug = "#3f83a6"
+info = "#668e3d"
+warn = "#c57339"
+error = "#cc517a"
+fatal = "#7759b4"
+unknown = "#33374c"
+
+[ui]
+timestamp = "#3f83a6"
+key = "#2d539e"
+string = "#668e3d"
+number = "#c57339"
+bool = "#7759b4"
+null = "#8389a3"
+border_color = { fg = "#adb1c4", bg = "#e8e9ec" }
+border_width = 1
+border_padding = 1

@@ -1,0 +1,34 @@
+name = "melange"
+
+[colors]
+background = "#292522"
+foreground = "#ece1d7"
+selection_bg = "#403a36"
+selection_fg = "#ece1d7"
+overlay_bg = "#34302c"
+status_bg = "#1a1713"
+status_fg = "#c1a78e"
+border = "#5a524c"
+window_focus_border = "#ebc06d"
+search_match = { fg = "#292522", bg = "#ebc06d" }
+dim = "#867462"
+
+[levels]
+trace = "#867462"
+debug = "#a3a9ce"
+info = "#85b695"
+warn = "#ebc06d"
+error = "#d47766"
+fatal = "#cf9bc2"
+unknown = "#ece1d7"
+
+[ui]
+timestamp = "#a3a9ce"
+key = "#89b3b6"
+string = "#85b695"
+number = "#ebb275"
+bool = "#cf9bc2"
+null = "#867462"
+border_color = { fg = "#5a524c", bg = "#292522" }
+border_width = 1
+border_padding = 1

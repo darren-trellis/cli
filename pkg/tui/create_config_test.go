@@ -20,7 +20,6 @@ import (
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -47,7 +46,7 @@ func TestBeginCreateConfigPrefillsEnvironment(t *testing.T) {
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
 
 	next, _ := m.beginCreateConfig()
-	mod := next.(Model)
+	mod := next
 	assert.Equal(t, focusCreateConfig, mod.focus)
 	assert.Equal(t, "api", mod.createConfigProject)
 	assert.Equal(t, "dev", mod.createConfigEnv)
@@ -66,8 +65,8 @@ func TestCreateConfigKeybindingFromProjects(t *testing.T) {
 	m.rebuildTree()
 	m.treeIdx = 0
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
-	mod := next.(Model)
+	next, _ := m.Update(runeKey('o'))
+	mod := next
 	assert.Equal(t, focusCreateConfig, mod.focus)
 	assert.Equal(t, "api", mod.createConfigProject)
 }
@@ -81,7 +80,7 @@ func TestSubmitCreateConfigRequiresEnvironment(t *testing.T) {
 	m.createConfigInput.SetValue("orphan")
 
 	next, cmd := m.submitCreateConfig()
-	mod := next.(Model)
+	mod := next
 	assert.Nil(t, cmd)
 	assert.Contains(t, mod.errMsg, "environment")
 	require.False(t, mod.fetching)
@@ -96,7 +95,7 @@ func TestSubmitCreateConfigInfersEnvironment(t *testing.T) {
 	m.createConfigInput.SetValue("dev_feature")
 
 	next, cmd := m.submitCreateConfig()
-	mod := next.(Model)
+	mod := next
 	require.NotNil(t, cmd)
 	assert.True(t, mod.fetching)
 	assert.Equal(t, focusProjects, mod.focus)
@@ -118,7 +117,7 @@ func TestBeginRenameConfig(t *testing.T) {
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev_personal")
 
 	next, _ := m.beginRenameConfig()
-	mod := next.(Model)
+	mod := next
 	assert.Equal(t, focusCreateConfig, mod.focus)
 	assert.Equal(t, configPromptRename, mod.configPromptMode)
 	assert.Equal(t, "api", mod.createConfigProject)
@@ -139,8 +138,8 @@ func TestRenameConfigKeybindingFromProjects(t *testing.T) {
 	m.rebuildTree()
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
 
-	next, _ := m.handleNavKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
-	mod := next.(Model)
+	next, _ := m.handleNavKey(runeKey('r'))
+	mod := next
 	assert.Equal(t, focusCreateConfig, mod.focus)
 	assert.Equal(t, configPromptRename, mod.configPromptMode)
 	assert.Equal(t, "dev", mod.renameFromConfig)
@@ -156,7 +155,7 @@ func TestSubmitRenameConfigNoopSameName(t *testing.T) {
 	m.createConfigInput.SetValue("dev")
 
 	next, cmd := m.submitRenameConfig()
-	mod := next.(Model)
+	mod := next
 	assert.Nil(t, cmd)
 	assert.Equal(t, focusProjects, mod.focus)
 	assert.Equal(t, configPromptCreate, mod.configPromptMode)
@@ -168,11 +167,11 @@ func TestConfigLockRequiresOnOffToggle(t *testing.T) {
 	m.focus = focusProjects
 
 	next, _ := m.executeCommand("config lock")
-	mod := next.(Model)
+	mod := next
 	assert.Contains(t, mod.errMsg, "config lock on|off|toggle")
 
 	next, _ = m.executeCommand("config unlock")
-	mod = next.(Model)
+	mod = next
 	assert.NotContains(t, mod.errMsg, "unknown")
 }
 
@@ -188,8 +187,8 @@ func TestConfigLockToggleKeybinding(t *testing.T) {
 	m.rebuildTree()
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
 
-	next, cmd := m.handleNavKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'L'}})
-	mod := next.(Model)
+	next, cmd := m.handleNavKey(runeKey('L'))
+	mod := next
 	require.NotNil(t, cmd)
 	assert.True(t, mod.fetching)
 }
@@ -207,7 +206,7 @@ func TestSetSelectedConfigLockAlreadyLocked(t *testing.T) {
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "prd")
 
 	next, cmd := m.setSelectedConfigLock(boolPtr(true))
-	mod := next.(Model)
+	mod := next
 	assert.Nil(t, cmd)
 	assert.Contains(t, mod.statusMsg, "already locked")
 }
@@ -231,7 +230,7 @@ func TestConfigLockMsgUpdatesTree(t *testing.T) {
 		config: "dev",
 		locked: true,
 	})
-	mod := next.(Model)
+	mod := next
 	assert.False(t, mod.fetching)
 	assert.Equal(t, "Locked dev", mod.statusMsg)
 	assert.True(t, configIsLocked(mod.projectConfigs["api"], "dev"))

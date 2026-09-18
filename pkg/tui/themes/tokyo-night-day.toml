@@ -1,0 +1,34 @@
+name = "tokyo-night-day"
+
+[colors]
+background = "#e1e2e7"
+foreground = "#3760bf"
+selection_bg = "#b6bfe2"
+selection_fg = "#3760bf"
+overlay_bg = "#d0d5e3"
+status_bg = "#d0d5e3"
+status_fg = "#6172b0"
+border = "#a8aecb"
+window_focus_border = "#2e7de9"
+search_match = { fg = "#e1e2e7", bg = "#2e7de9" }
+dim = "#848cb5"
+
+[levels]
+trace = "#848cb5"
+debug = "#007197"
+info = "#587539"
+warn = "#8c6c3e"
+error = "#f52a65"
+fatal = "#9854f1"
+unknown = "#3760bf"
+
+[ui]
+timestamp = "#007197"
+key = "#2e7de9"
+string = "#587539"
+number = "#b15c00"
+bool = "#9854f1"
+null = "#848cb5"
+border_color = { fg = "#a8aecb", bg = "#e1e2e7" }
+border_width = 1
+border_padding = 1

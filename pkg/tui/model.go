@@ -22,11 +22,6 @@ import (
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
-	"github.com/charmbracelet/bubbles/cursor"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 type focusArea int
@@ -87,10 +82,10 @@ type Model struct {
 	filter       string
 	globalFilter string
 	filterGlobal bool
-	filterInput  textinput.Model
+	filterInput  textField
 
 	searchQuery       string
-	searchInput       textinput.Model
+	searchInput       textField
 	searchRe          *regexp.Regexp
 	searchPane        focusArea
 	searchMatches     []int
@@ -99,14 +94,17 @@ type Model struct {
 	searchGen         uint64
 	globalHits        []globalHit
 	pendingSearchName string
+	secretNames       map[string][]string
+	workplaceIndexing bool
+	namesIndexDone    bool
 
-	createConfigInput   textinput.Model
+	createConfigInput   textField
 	createConfigProject string
 	createConfigEnv     string
 	configPromptMode    configPromptKind // create or rename
 	renameFromConfig    string
 
-	commandInput        textinput.Model
+	commandInput        textField
 	commandReturnFocus  focusArea
 	commandHistory      inputHistory
 	searchHistory       inputHistory
@@ -118,12 +116,12 @@ type Model struct {
 	yankFormatLocked    bool
 	motionCount         int
 
-	cellInput textinput.Model
+	cellInput textField
 
 	fetching  bool
 	statusMsg string
 	errMsg    string
-	spinner   spinner.Model
+	spinner   spinnerState
 
 	activeProject string
 	activeConfig  string
@@ -142,7 +140,7 @@ type Model struct {
 
 	lastSidebarClick sidebarClick
 
-	helpViewport  viewport.Model
+	helpViewport  textScroll
 	configModTime time.Time
 
 	sessionEnabled bool
@@ -151,34 +149,11 @@ type Model struct {
 func newModel(opts models.ScopedOptions, cfg configuration.TUISettings) Model {
 	cfg = configuration.NormalizeTUISettings(cfg)
 
-	fi := textinput.New()
-	fi.Placeholder = "Filter secrets…"
-	fi.CharLimit = 128
-	fi.Prompt = "f "
-
-	si := textinput.New()
-	si.Placeholder = "Search regex…"
-	si.CharLimit = 256
-	si.Prompt = "/ "
-
-	cci := textinput.New()
-	cci.Placeholder = "New config (e.g. dev_personal)…"
-	cci.CharLimit = 128
-	cci.Prompt = "+ "
-
-	cmi := textinput.New()
-	cmi.Placeholder = "command…"
-	cmi.CharLimit = 256
-	cmi.Prompt = ": "
-
-	ci := textinput.New()
-	ci.CharLimit = 4096
-	ci.Prompt = ""
-	ci.Placeholder = ""
-	_ = ci.Cursor.SetMode(cursor.CursorStatic)
-
-	sp := spinner.New()
-	sp.Spinner = spinner.Dot
+	fi := newTextField("f ", "Filter secrets…", 128)
+	si := newTextField("/ ", "Search regex…", 256)
+	cci := newTextField("+ ", "New config (e.g. dev_personal)…", 128)
+	cmi := newTextField(": ", "command…", 256)
+	ci := newTextField("", "", 4096)
 
 	m := Model{
 		opts:              opts,
@@ -192,10 +167,10 @@ func newModel(opts models.ScopedOptions, cfg configuration.TUISettings) Model {
 		keys:              MergeKeys(cfg.Keys),
 		cellInput:         ci,
 		secretCol:         colName,
-		spinner:           sp,
 		fetching:          true,
 		projectConfigs:    map[string][]configRow{},
 		secretsCache:      map[string]secretsCacheEntry{},
+		secretNames:       map[string][]string{},
 		expanded:          map[string]bool{},
 		expandedEnvs:      map[string]bool{},
 	}
@@ -203,22 +178,32 @@ func newModel(opts models.ScopedOptions, cfg configuration.TUISettings) Model {
 	return m
 }
 
-func (m Model) Init() tea.Cmd {
+func (m Model) Init() Cmd {
 	loadOpts := m.opts
 	if configuration.ShouldRestoreTUISession(m.opts) {
 		if session, ok := configuration.LoadTUISession(); ok {
 			loadOpts = configuration.ApplyTUISession(m.opts, session)
 		}
 	}
-	cmds := []tea.Cmd{m.spinner.Tick, loadCmd(loadOpts, m.opts)}
+	cmds := []Cmd{m.spinner.Tick, loadCmd(loadOpts, m.opts)}
 	if m.cfg.Autoreload {
 		cmds = append(cmds, watchConfigCmd())
 	}
-	return tea.Batch(cmds...)
+	return Batch(cmds...)
 }
 
 func (m Model) filteredIndexes() []int {
-	return filterSecretIndexes(m.secrets, m.globalFilter, m.filter, m.cfg.CaseMode)
+	idxs := filterSecretIndexes(m.secrets, m.globalFilter, m.filter, m.cfg.CaseMode)
+	if !m.searchGlobal || m.searchRe == nil || m.searchQuery == "" {
+		return idxs
+	}
+	var out []int
+	for _, i := range idxs {
+		if m.secrets[i].isDirty() || m.searchRe.MatchString(m.secrets[i].name) {
+			out = append(out, i)
+		}
+	}
+	return out
 }
 
 func (m Model) panelChrome() int {
@@ -406,7 +391,15 @@ func (m *Model) rebuildTree() {
 		m.expandedEnvs = map[string]bool{}
 	}
 
-	m.tree = buildProjectTree(m.projects, m.projectConfigs, m.expanded, m.expandedEnvs, m.activeProject, m.activeConfig, m.visibleFoldedConfigs())
+	projects := m.projects
+	configs := m.projectConfigs
+	keep := m.visibleFoldedConfigs()
+	if m.searchGlobal && m.searchRe != nil && m.searchQuery != "" {
+		projects, configs = m.filteredSearchTree()
+		keep = nil
+	}
+
+	m.tree = buildProjectTree(projects, configs, m.expanded, m.expandedEnvs, m.activeProject, m.activeConfig, keep)
 	m.annotateTreeCache()
 	m.treeIdx = findTreeIndex(m.tree, kind, project, config)
 	if m.treeIdx >= len(m.tree) {
@@ -463,6 +456,10 @@ func (m *Model) setFocus(f focusArea) {
 	m.searchInput.Blur()
 	m.createConfigInput.Blur()
 	m.commandInput.Blur()
+
+	if f != focusCommand {
+		m.completions.Clear()
+	}
 
 	m.focus = f
 	switch f {

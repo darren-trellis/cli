@@ -99,6 +99,12 @@ func (s secretRow) previewValue() string {
 	return v
 }
 
+// previewValueUnlimited is the row's value flattened to one line, with no
+// length cap; the table truncates it to the column width.
+func (s secretRow) previewValueUnlimited() string {
+	return strings.ReplaceAll(s.displayValue(), "\n", " ")
+}
+
 func (s *secretRow) undo() {
 	s.shouldDelete = false
 	s.isTouched = false

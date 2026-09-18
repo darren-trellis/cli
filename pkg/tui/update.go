@@ -22,29 +22,25 @@ import (
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/utils"
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type configWatchMsg struct{}
 
-func watchConfigCmd() tea.Cmd {
-	return tea.Tick(time.Second, func(time.Time) tea.Msg {
+func watchConfigCmd() Cmd {
+	return Tick(time.Second, func(time.Time) Msg {
 		return configWatchMsg{}
 	})
 }
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg Msg) (Model, Cmd) {
 	next, cmd := m.update(msg)
-	mod := next.(Model)
-	mod.syncScrollOffsets()
-	return mod, cmd
+	next.syncScrollOffsets()
+	return next, cmd
 }
 
-func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) update(msg Msg) (Model, Cmd) {
 	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
+	case windowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		m.filterInput.Width = max(10, m.width-2)
@@ -56,11 +52,10 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.helpViewport.Height = min(24, m.height-8)
 		return m, nil
 
-	case spinner.TickMsg:
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		if m.fetching {
-			return m, cmd
+	case spinnerTickMsg:
+		m.spinner.advance()
+		if m.fetching || m.workplaceIndexing {
+			return m, m.spinner.Tick
 		}
 		return m, nil
 
@@ -89,7 +84,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.rebuildTree()
 		m.treeIdx = findTreeIndex(m.tree, treeConfig, msg.activeProject, msg.activeConfig)
 		m.persistSession()
-		return m, nil
+		return m, m.startWorkplaceIndex(true)
 
 	case projectSelectedMsg:
 		m.fetching = false
@@ -131,6 +126,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.treeIdx = findTreeIndex(m.tree, treeProject, msg.project, "")
 			m.setFocus(focusProjects)
 		}
+		m.applyPendingSecretName()
 		m.persistSession()
 		return m, nil
 
@@ -217,9 +213,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.statusMsg = formatSaveStatus(msg.applied, msg.failed)
 		}
-		if m.searchGlobal && m.pendingSearchName != "" {
-			m.selectSecretByName(m.pendingSearchName)
-			m.pendingSearchName = ""
+		if m.pendingSearchName != "" {
+			m.applyPendingSecretName()
+		} else if m.searchGlobal {
 			m.syncLocalMatchesFromGlobal()
 			m.setFocus(focusSecrets)
 		}
@@ -232,23 +228,23 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case quitNowMsg:
-		return m, tea.Quit
+		return m, Quit
 
-	case tea.MouseMsg:
+	case mouseMsg:
 		return m.handleMouse(msg)
 
-	case tea.KeyMsg:
+	case keyMsg:
 		return m.handleKey(msg)
 	}
 
 	return m, nil
 }
 
-func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKey(msg keyMsg) (Model, Cmd) {
 	if m.fetching {
 		switch msg.String() {
-		case "ctrl+c":
-			return m, tea.Quit
+		case "C-c":
+			return m, Quit
 		case "esc":
 			if m.searchGlobal {
 				m.fetching = false
@@ -288,7 +284,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleHelpKey(msg keyMsg) (Model, Cmd) {
 	buttons := m.helpModalButtons()
 	if delta, ok := modalCycleDelta(msg.String()); ok {
 		m.cycleModalButton(len(buttons), delta)
@@ -299,21 +295,21 @@ func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.activateFocusedModalButton()
 	case "esc", "q":
 		m.setFocus(focusSecrets)
-	case "ctrl+c":
-		return m, tea.Quit
+	case "C-c":
+		return m, Quit
 	case "j", "down":
 		m.helpViewport.LineDown(1)
 	case "k", "up":
 		m.helpViewport.LineUp(1)
-	case "pgdown":
+	case "pagedown":
 		m.helpViewport.ViewDown()
-	case "pgup":
+	case "pageup":
 		m.helpViewport.ViewUp()
 	}
 	return m, nil
 }
 
-func (m Model) handleSaveKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleSaveKey(msg keyMsg) (Model, Cmd) {
 	buttons := m.saveModalButtons()
 	if delta, ok := modalCycleDelta(msg.String()); ok {
 		m.cycleModalButton(len(buttons), delta)
@@ -329,13 +325,13 @@ func (m Model) handleSaveKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.setFocus(focusSecrets)
 		m.pendingChanges = nil
 		return m, nil
-	case "ctrl+c":
-		return m, tea.Quit
+	case "C-c":
+		return m, Quit
 	}
 	return m, nil
 }
 
-func (m Model) handleSwitchConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleSwitchConfirmKey(msg keyMsg) (Model, Cmd) {
 	buttons := m.switchConfirmButtons()
 	if delta, ok := modalCycleDelta(msg.String()); ok {
 		m.cycleModalButton(len(buttons), delta)
@@ -352,13 +348,13 @@ func (m Model) handleSwitchConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.clearUnsavedConfirm()
 		m.setFocus(focusSecrets)
 		return m, nil
-	case "ctrl+c":
-		return m, tea.Quit
+	case "C-c":
+		return m, Quit
 	}
 	return m, nil
 }
 
-func (m Model) activateFocusedModalButton() (tea.Model, tea.Cmd) {
+func (m Model) activateFocusedModalButton() (Model, Cmd) {
 	switch m.focus {
 	case focusHelp:
 		m.setFocus(focusSecrets)
@@ -406,7 +402,7 @@ func (m *Model) clearUnsavedConfirm() {
 	m.clearPropagate()
 }
 
-func (m Model) confirmSwitchSave() (tea.Model, tea.Cmd) {
+func (m Model) confirmSwitchSave() (Model, Cmd) {
 	if !m.pendingQuit {
 		m.clearUnsavedConfirm()
 		m.setFocus(focusSecrets)
@@ -421,15 +417,15 @@ func (m Model) confirmSwitchSave() (tea.Model, tea.Cmd) {
 	m.statusMsg = ""
 	m.errMsg = ""
 	m.setFocus(focusSecrets)
-	return m, tea.Batch(m.spinner.Tick, saveAllDirtyCmd(m.opts, groups))
+	return m, Batch(m.spinner.Tick, saveAllDirtyCmd(m.opts, groups))
 }
 
-func (m Model) confirmSwitchDiscard() (tea.Model, tea.Cmd) {
+func (m Model) confirmSwitchDiscard() (Model, Cmd) {
 	m.clearUnsavedConfirm()
-	return m, tea.Quit
+	return m, Quit
 }
 
-func (m Model) openQuitConfirm() (tea.Model, tea.Cmd) {
+func (m Model) openQuitConfirm() (Model, Cmd) {
 	if m.inSecretInsert() {
 		m.applyCellToSelection()
 	}
@@ -444,10 +440,10 @@ func (m Model) openQuitConfirm() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) requestQuit() (tea.Model, tea.Cmd) {
+func (m Model) requestQuit() (Model, Cmd) {
 	m.stashCurrentSecrets()
 	if !m.hasDirtySecrets() {
-		return m, tea.Quit
+		return m, Quit
 	}
 	return m.openQuitConfirm()
 }
@@ -472,28 +468,27 @@ func (m *Model) commitFilterInput() {
 	}
 }
 
-func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleFilterKey(msg keyMsg) (Model, Cmd) {
 	switch msg.String() {
-	case "tab", "shift+tab", "enter", "esc":
+	case "tab", "backtab", "enter", "esc":
 		m.commitFilterInput()
 		m.secretIdx = 0
 		m.setFocus(focusSecrets)
 		return m, nil
-	case "ctrl+c":
-		return m, tea.Quit
+	case "C-c":
+		return m, Quit
 	}
 
-	var cmd tea.Cmd
-	m.filterInput, cmd = m.filterInput.Update(msg)
+	m.filterInput.Update(msg)
 	m.commitFilterInput()
 	m.clampSecretIdx()
 	if m.searchPane == focusSecrets && m.searchRe != nil {
 		m.refreshSearchMatches()
 	}
-	return m, cmd
+	return m, nil
 }
 
-func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleSearchKey(msg keyMsg) (Model, Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.clearSearch()
@@ -509,17 +504,17 @@ func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.recordSearchHistory(query)
 		m.errMsg = ""
 		if m.searchGlobal {
-			cmd := m.startWorkplaceSearch()
+			cmd := Batch(m.startNamesIndex(), m.jumpToGlobalHit(m.searchMatchIdx))
 			m.setFocus(focusSecrets)
 			return m, cmd
 		}
 		m.setFocus(m.searchPane)
 		return m, nil
-	case "tab", "shift+tab":
+	case "tab", "backtab":
 		m.setFocus(m.searchPane)
 		return m, nil
-	case "ctrl+c":
-		return m, tea.Quit
+	case "C-c":
+		return m, Quit
 	}
 	if step := historyStep(msg.String()); step != 0 {
 		current := m.searchInput.Value()
@@ -534,17 +529,22 @@ func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			applyHistoryValue(&m.searchInput, next)
 			_ = m.applySearch(next, false)
 		}
+		if m.searchGlobal {
+			return m, m.startNamesIndex()
+		}
 		return m, nil
 	}
 
 	m.searchHistory.Reset()
-	var cmd tea.Cmd
-	m.searchInput, cmd = m.searchInput.Update(msg)
+	m.searchInput.Update(msg)
 	_ = m.applySearch(m.searchInput.Value(), false)
-	return m, cmd
+	if m.searchGlobal {
+		return m, m.startNamesIndex()
+	}
+	return m, nil
 }
 
-func (m Model) handleCreateConfigKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleCreateConfigKey(msg keyMsg) (Model, Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.createConfigInput.SetValue("")
@@ -559,16 +559,15 @@ func (m Model) handleCreateConfigKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.submitRenameConfig()
 		}
 		return m.submitCreateConfig()
-	case "ctrl+c":
-		return m, tea.Quit
+	case "C-c":
+		return m, Quit
 	}
 
-	var cmd tea.Cmd
-	m.createConfigInput, cmd = m.createConfigInput.Update(msg)
-	return m, cmd
+	m.createConfigInput.Update(msg)
+	return m, nil
 }
 
-func (m Model) submitCreateConfig() (tea.Model, tea.Cmd) {
+func (m Model) submitCreateConfig() (Model, Cmd) {
 	name := strings.TrimSpace(m.createConfigInput.Value())
 	project := m.createConfigProject
 	environment := m.createConfigEnv
@@ -598,10 +597,10 @@ func (m Model) submitCreateConfig() (tea.Model, tea.Cmd) {
 	m.renameFromConfig = ""
 	m.configPromptMode = configPromptCreate
 	m.setFocus(focusProjects)
-	return m, tea.Batch(m.spinner.Tick, createConfigCmd(m.opts, project, name, environment))
+	return m, Batch(m.spinner.Tick, createConfigCmd(m.opts, project, name, environment))
 }
 
-func (m Model) submitRenameConfig() (tea.Model, tea.Cmd) {
+func (m Model) submitRenameConfig() (Model, Cmd) {
 	name := strings.TrimSpace(m.createConfigInput.Value())
 	project := m.createConfigProject
 	from := m.renameFromConfig
@@ -630,7 +629,7 @@ func (m Model) submitRenameConfig() (tea.Model, tea.Cmd) {
 	m.renameFromConfig = ""
 	m.configPromptMode = configPromptCreate
 	m.setFocus(focusProjects)
-	return m, tea.Batch(m.spinner.Tick, renameConfigCmd(m.opts, project, from, name))
+	return m, Batch(m.spinner.Tick, renameConfigCmd(m.opts, project, from, name))
 }
 
 func inferEnvironmentFromConfigName(name string) string {
@@ -641,17 +640,32 @@ func inferEnvironmentFromConfigName(name string) string {
 	return name[:idx]
 }
 
-func (m Model) handleInsertKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleInsertKey(msg keyMsg) (Model, Cmd) {
 	switch msg.String() {
 	case "esc":
+		m.completions.Clear()
 		m.applyCellToSelection()
 		m.setFocus(focusSecrets)
 		return m, nil
 	case "enter":
+		if m.secretCol == colValue && m.completions.Browsed && m.completions.SelectedItem() != nil {
+			m.applyCompletionTo(&m.cellInput)
+			m.applyCellToSelection()
+			m.refreshSecretRefCompletions()
+			return m, nil
+		}
+		m.completions.Clear()
 		m.applyCellToSelection()
 		m.setFocus(focusSecrets)
 		return m, nil
 	case "tab":
+		if m.secretCol == colValue && len(m.completions.Items) > 0 {
+			m.tabCompleteField(&m.cellInput, true)
+			m.applyCellToSelection()
+			m.refreshSecretRefCompletions()
+			return m, nil
+		}
+		m.completions.Clear()
 		m.applyCellToSelection()
 		if m.secretCol == colName {
 			m.secretCol = colValue
@@ -661,7 +675,14 @@ func (m Model) handleInsertKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.loadCellFromSelection()
 		m.cellInput.Focus()
 		return m, nil
-	case "shift+tab":
+	case "backtab":
+		if m.secretCol == colValue && len(m.completions.Items) > 0 {
+			m.tabCompleteField(&m.cellInput, false)
+			m.applyCellToSelection()
+			m.refreshSecretRefCompletions()
+			return m, nil
+		}
+		m.completions.Clear()
 		m.applyCellToSelection()
 		if m.secretCol == colValue {
 			m.secretCol = colName
@@ -671,40 +692,52 @@ func (m Model) handleInsertKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.loadCellFromSelection()
 		m.cellInput.Focus()
 		return m, nil
-	case "ctrl+c":
-		return m, tea.Quit
+	case "up":
+		if m.secretCol == colValue && len(m.completions.Items) > 0 {
+			m.completions.Step(-1)
+			return m, nil
+		}
+	case "down":
+		if m.secretCol == colValue && len(m.completions.Items) > 0 {
+			m.completions.Step(1)
+			return m, nil
+		}
+	case "C-c":
+		return m, Quit
 	}
 
 	idx, ok := m.selectedSecretIndex()
 	if ok && m.secretCol == colValue &&
 		m.secrets[idx].originalVisibility == "restricted" && !m.secrets[idx].isTouched {
-		if msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace || msg.Type == tea.KeyBackspace || msg.Type == tea.KeyDelete {
+		if msg.isTextRune() || msg.Chord == "space" || msg.Chord == "backspace" || msg.Chord == "delete-key" {
 			m.secrets[idx].isTouched = true
 			m.cellInput.SetValue("")
 		}
 	}
 
-	var cmd tea.Cmd
-	m.cellInput, cmd = m.cellInput.Update(msg)
+	m.cellInput.Update(msg)
 	if m.secretCol == colName {
 		normalized := normalizeSecretName(m.cellInput.Value())
 		if normalized != m.cellInput.Value() {
 			m.cellInput.SetValue(normalized)
 			m.cellInput.SetCursor(len(normalized))
 		}
+		m.completions.Clear()
+	} else {
+		m.refreshSecretRefCompletions()
 	}
 	m.applyCellToSelection()
-	return m, cmd
+	return m, nil
 }
 
-func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleNavKey(msg keyMsg) (Model, Cmd) {
 	if m.pendingYank {
 		return m.handleYankMotion(msg)
 	}
 	if m.pendingSecretDelete {
 		return m.handleSecretDeleteMotion(msg)
 	}
-	chord, ok := encodeKey(msg)
+	chord, ok := msg.chord()
 	if !ok {
 		return m, nil
 	}
@@ -762,7 +795,7 @@ func (m *Model) takeMotionCountExplicit() (int, bool) {
 	return n, true
 }
 
-func (m Model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleCommandKey(msg keyMsg) (Model, Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.commandInput.SetValue("")
@@ -784,12 +817,12 @@ func (m Model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.tabComplete(true)
 		m.completions.Browsed = len(m.completions.Items) > 0
 		return m, nil
-	case "shift+tab":
+	case "backtab":
 		m.tabComplete(false)
 		m.completions.Browsed = len(m.completions.Items) > 0
 		return m, nil
-	case "ctrl+c":
-		return m, tea.Quit
+	case "C-c":
+		return m, Quit
 	}
 	if step := historyStep(msg.String()); step != 0 {
 		if m.stepCommandCompletions(step) {
@@ -813,10 +846,9 @@ func (m Model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.applySelectedCompletion()
 	}
 	m.commandHistory.Reset()
-	var cmd tea.Cmd
-	m.commandInput, cmd = m.commandInput.Update(msg)
+	m.commandInput.Update(msg)
 	m.refreshCompletions()
-	return m, cmd
+	return m, nil
 }
 
 func (m *Model) stepCommandCompletions(step int) bool {
@@ -909,11 +941,11 @@ func (m Model) pageSize() int {
 	}
 }
 
-func (m Model) toggleFold() (tea.Model, tea.Cmd) {
+func (m Model) toggleFold() (Model, Cmd) {
 	return m.setFold(nil)
 }
 
-func (m Model) setFold(on *bool) (tea.Model, tea.Cmd) {
+func (m Model) setFold(on *bool) (Model, Cmd) {
 	row, ok := m.currentTreeRow()
 	if !ok {
 		return m, nil
@@ -929,7 +961,7 @@ func (m Model) setFold(on *bool) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m Model) setEnvFold(project, rootConfig string, on *bool) (tea.Model, tea.Cmd) {
+func (m Model) setEnvFold(project, rootConfig string, on *bool) (Model, Cmd) {
 	current := isEnvExpanded(m.expandedEnvs, project, rootConfig)
 	want := !current
 	if on != nil {
@@ -948,7 +980,7 @@ func (m Model) setEnvFold(project, rootConfig string, on *bool) (tea.Model, tea.
 	return m, nil
 }
 
-func (m Model) setProjectFold(project string, on *bool) (tea.Model, tea.Cmd) {
+func (m Model) setProjectFold(project string, on *bool) (Model, Cmd) {
 	if project == "" {
 		return m, nil
 	}
@@ -981,10 +1013,10 @@ func (m Model) setProjectFold(project string, on *bool) (tea.Model, tea.Cmd) {
 	m.fetching = true
 	m.errMsg = ""
 	m.treeIdx = findTreeIndex(m.tree, treeProject, project, "")
-	return m, tea.Batch(m.spinner.Tick, fetchProjectConfigsCmd(m.opts, project))
+	return m, Batch(m.spinner.Tick, fetchProjectConfigsCmd(m.opts, project))
 }
 
-func (m Model) activateSelection() (tea.Model, tea.Cmd) {
+func (m Model) activateSelection() (Model, Cmd) {
 	if m.focus != focusProjects {
 		return m, nil
 	}
@@ -1005,7 +1037,7 @@ func (m Model) activateSelection() (tea.Model, tea.Cmd) {
 		}
 		m.fetching = true
 		m.errMsg = ""
-		return m, tea.Batch(m.spinner.Tick, selectConfigCmd(m.opts, row.project, row.config))
+		return m, Batch(m.spinner.Tick, selectConfigCmd(m.opts, row.project, row.config))
 	}
 	if row.project == "" {
 		return m, nil
@@ -1029,14 +1061,14 @@ func (m Model) activateSelection() (tea.Model, tea.Cmd) {
 		}
 		m.fetching = true
 		m.errMsg = ""
-		return m, tea.Batch(m.spinner.Tick, selectConfigCmd(m.opts, row.project, preferred))
+		return m, Batch(m.spinner.Tick, selectConfigCmd(m.opts, row.project, preferred))
 	}
 	m.fetching = true
 	m.errMsg = ""
-	return m, tea.Batch(m.spinner.Tick, selectProjectCmd(m.opts, row.project, m.activeConfig))
+	return m, Batch(m.spinner.Tick, selectProjectCmd(m.opts, row.project, m.activeConfig))
 }
 
-func (m Model) addSecret() (tea.Model, tea.Cmd) {
+func (m Model) addSecret() (Model, Cmd) {
 	if m.inSecretInsert() {
 		m.applyCellToSelection()
 	}
@@ -1051,7 +1083,7 @@ func (m Model) addSecret() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) beginCreateConfig() (tea.Model, tea.Cmd) {
+func (m Model) beginCreateConfig() (Model, Cmd) {
 	if len(m.tree) == 0 || m.treeIdx < 0 || m.treeIdx >= len(m.tree) {
 		m.errMsg = "Select a project first"
 		return m, nil
@@ -1082,7 +1114,7 @@ func (m Model) beginCreateConfig() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) beginRenameConfig() (tea.Model, tea.Cmd) {
+func (m Model) beginRenameConfig() (Model, Cmd) {
 	if len(m.tree) == 0 || m.treeIdx < 0 || m.treeIdx >= len(m.tree) {
 		m.errMsg = "Select a config to rename"
 		return m, nil
@@ -1106,7 +1138,7 @@ func (m Model) beginRenameConfig() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) beginDeleteSelection() (tea.Model, tea.Cmd) {
+func (m Model) beginDeleteSelection() (Model, Cmd) {
 	row, ok := m.currentTreeRow()
 	if !ok {
 		m.errMsg = "Nothing to delete"
@@ -1118,7 +1150,7 @@ func (m Model) beginDeleteSelection() (tea.Model, tea.Cmd) {
 	return m.beginDeleteConfig()
 }
 
-func (m Model) beginDeleteProject() (tea.Model, tea.Cmd) {
+func (m Model) beginDeleteProject() (Model, Cmd) {
 	row, ok := m.currentTreeRow()
 	if !ok || row.project == "" {
 		m.errMsg = "Select a project to delete"
@@ -1133,7 +1165,7 @@ func (m Model) beginDeleteProject() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) beginDeleteConfig() (tea.Model, tea.Cmd) {
+func (m Model) beginDeleteConfig() (Model, Cmd) {
 	row, ok := m.currentTreeRow()
 	if !ok || row.kind != treeConfig || row.config == "" {
 		m.errMsg = "Select a config to delete"
@@ -1156,7 +1188,7 @@ func (m Model) deletingProject() bool {
 	return m.pendingDeleteProject != "" && m.pendingDeleteConfig == ""
 }
 
-func (m Model) handleDeleteConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleDeleteConfirmKey(msg keyMsg) (Model, Cmd) {
 	buttons := m.deleteConfirmButtons()
 	if delta, ok := modalCycleDelta(msg.String()); ok {
 		m.cycleModalButton(len(buttons), delta)
@@ -1171,8 +1203,8 @@ func (m Model) handleDeleteConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.clearPendingDelete()
 		m.setFocus(focusProjects)
 		return m, nil
-	case "ctrl+c":
-		return m, tea.Quit
+	case "C-c":
+		return m, Quit
 	}
 	return m, nil
 }
@@ -1182,14 +1214,14 @@ func (m *Model) clearPendingDelete() {
 	m.pendingDeleteConfig = ""
 }
 
-func (m Model) confirmPendingDelete() (tea.Model, tea.Cmd) {
+func (m Model) confirmPendingDelete() (Model, Cmd) {
 	if m.deletingProject() {
 		return m.confirmDeleteProject()
 	}
 	return m.confirmDeleteConfig()
 }
 
-func (m Model) confirmDeleteProject() (tea.Model, tea.Cmd) {
+func (m Model) confirmDeleteProject() (Model, Cmd) {
 	project := m.pendingDeleteProject
 	stayProject := m.activeProject
 	oldProjects := append([]string(nil), m.projects...)
@@ -1198,10 +1230,10 @@ func (m Model) confirmDeleteProject() (tea.Model, tea.Cmd) {
 	m.statusMsg = ""
 	m.errMsg = ""
 	m.setFocus(focusProjects)
-	return m, tea.Batch(m.spinner.Tick, deleteProjectCmd(m.opts, project, oldProjects, stayProject))
+	return m, Batch(m.spinner.Tick, deleteProjectCmd(m.opts, project, oldProjects, stayProject))
 }
 
-func (m Model) confirmDeleteConfig() (tea.Model, tea.Cmd) {
+func (m Model) confirmDeleteConfig() (Model, Cmd) {
 	project := m.pendingDeleteProject
 	config := m.pendingDeleteConfig
 	env := m.configEnvironment(project, config)
@@ -1211,7 +1243,7 @@ func (m Model) confirmDeleteConfig() (tea.Model, tea.Cmd) {
 	m.statusMsg = ""
 	m.errMsg = ""
 	m.setFocus(focusProjects)
-	return m, tea.Batch(m.spinner.Tick, deleteConfigCmd(m.opts, project, config, stay, env))
+	return m, Batch(m.spinner.Tick, deleteConfigCmd(m.opts, project, config, stay, env))
 }
 
 func (m Model) configIsRoot(project, name string) bool {
@@ -1236,7 +1268,7 @@ func (m *Model) removeProjectState(project string) {
 
 // setSelectedConfigLock locks/unlocks the selected config.
 // lock == nil toggles based on current state.
-func (m Model) setSelectedConfigLock(lock *bool) (tea.Model, tea.Cmd) {
+func (m Model) setSelectedConfigLock(lock *bool) (Model, Cmd) {
 	if len(m.tree) == 0 || m.treeIdx < 0 || m.treeIdx >= len(m.tree) {
 		m.errMsg = "Select a config"
 		return m, nil
@@ -1264,7 +1296,7 @@ func (m Model) setSelectedConfigLock(lock *bool) (tea.Model, tea.Cmd) {
 	m.errMsg = ""
 	m.statusMsg = ""
 	m.fetching = true
-	return m, tea.Batch(m.spinner.Tick, setConfigLockCmd(m.opts, row.project, row.config, shouldLock))
+	return m, Batch(m.spinner.Tick, setConfigLockCmd(m.opts, row.project, row.config, shouldLock))
 }
 
 func boolPtr(v bool) *bool { return &v }
@@ -1291,7 +1323,7 @@ func (m *Model) deleteSecretAt(idx int) {
 	m.noteSecretEdit(idx)
 }
 
-func (m Model) deleteSecret() (tea.Model, tea.Cmd) {
+func (m Model) deleteSecret() (Model, Cmd) {
 	idx, ok := m.selectedSecretIndex()
 	if !ok {
 		return m, nil
@@ -1301,7 +1333,7 @@ func (m Model) deleteSecret() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) undoSecret() (tea.Model, tea.Cmd) {
+func (m Model) undoSecret() (Model, Cmd) {
 	idx, ok := m.popUndoTarget()
 	if !ok {
 		return m, nil
@@ -1336,7 +1368,7 @@ func (m *Model) popUndoTarget() (int, bool) {
 	return idx, true
 }
 
-func (m Model) yankSecret() (tea.Model, tea.Cmd) {
+func (m Model) yankSecret() (Model, Cmd) {
 	idx, ok := m.selectedSecretIndex()
 	if !ok {
 		return m, nil
@@ -1350,7 +1382,7 @@ func (m Model) yankSecret() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) confirmSave() (tea.Model, tea.Cmd) {
+func (m Model) confirmSave() (Model, Cmd) {
 	if len(m.pendingChanges) == 0 {
 		m.setFocus(focusSecrets)
 		m.pendingChanges = nil
@@ -1364,10 +1396,10 @@ func (m Model) confirmSave() (tea.Model, tea.Cmd) {
 	m.pendingChanges = nil
 	m.clearPropagate()
 	m.setFocus(focusSecrets)
-	return m, tea.Batch(m.spinner.Tick, saveSecretsCmd(m.opts, m.activeProject, m.activeConfig, changes, extras))
+	return m, Batch(m.spinner.Tick, saveSecretsCmd(m.opts, m.activeProject, m.activeConfig, changes, extras))
 }
 
-func (m Model) openSave() (tea.Model, tea.Cmd) {
+func (m Model) openSave() (Model, Cmd) {
 	if m.inSecretInsert() {
 		m.applyCellToSelection()
 	}
@@ -1378,7 +1410,7 @@ func (m Model) openSave() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleMouse(msg mouseMsg) (Model, Cmd) {
 	if m.fetching {
 		return m, nil
 	}
@@ -1398,18 +1430,17 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if scroll < 1 {
 		scroll = 1
 	}
-	if msg.Button == tea.MouseButtonWheelUp {
+	switch msg.Action {
+	case mouseWheelUp:
 		m.focusPanelAt(msg.X, msg.Y, layout)
 		m.moveList(-scroll)
 		return m, nil
-	}
-	if msg.Button == tea.MouseButtonWheelDown {
+	case mouseWheelDown:
 		m.focusPanelAt(msg.X, msg.Y, layout)
 		m.moveList(scroll)
 		return m, nil
-	}
-
-	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
+	case mouseLeftClick:
+	default:
 		return m, nil
 	}
 
@@ -1441,7 +1472,7 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			m.secretIdx = idx
 			nameW, _ := m.secretColumnWidths(layout.secrets.w)
 			relX := msg.X - layout.secrets.x - 1
-			if relX >= nameW+lipgloss.Width(secretColSep) {
+			if relX >= nameW+textWidth(secretColSep) {
 				m.secretCol = colValue
 			} else {
 				m.secretCol = colName
@@ -1484,25 +1515,23 @@ func absInt(v int) int {
 	return v
 }
 
-func (m Model) handleModalMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
+func (m Model) handleModalMouse(msg mouseMsg) (Model, Cmd) {
+	if msg.Action != mouseLeftClick {
 		return m, nil
 	}
-	buttons := m.currentModalButtons()
-	modal := m.currentModalView()
-	if modal == "" || len(buttons) == 0 {
+	spec, ok := m.currentModalSpec()
+	if !ok {
 		return m, nil
 	}
-	ox := max(0, (m.width-lipgloss.Width(modal))/2)
-	oy := max(0, (m.height-lipgloss.Height(modal))/2)
-	for i, r := range buttonHitRects(modal, buttons, ox, oy) {
+	g := spec.geometry(m.width, m.height, m.cfg.Border)
+	for i, r := range g.buttons {
 		if r.contains(msg.X, msg.Y) {
 			m.modalBtnIdx = i
 			return m.activateFocusedModalButton()
 		}
 	}
 	if m.focus == focusPropagate {
-		for i, r := range propagateRowHitRects(modal, m.propagateTargets, ox, oy) {
+		for i, r := range g.rows {
 			if r.contains(msg.X, msg.Y) {
 				m.propagateIdx = i
 				m.togglePropagateAt(i)
@@ -1522,7 +1551,7 @@ func (m *Model) focusPanelAt(x, y int, layout layoutRegions) {
 	}
 }
 
-func (m Model) handleConfigWatch() (tea.Model, tea.Cmd) {
+func (m Model) handleConfigWatch() (Model, Cmd) {
 	if !m.cfg.Autoreload {
 		return m, nil
 	}
@@ -1545,7 +1574,9 @@ func (m Model) handleConfigWatch() (tea.Model, tea.Cmd) {
 		newCfg.Theme = m.cfg.Theme
 	}
 	if newCfg.Theme != m.cfg.Theme {
-		_ = applyTheme(newCfg.Theme)
+		if err := applyTheme(newCfg.Theme); err != nil {
+			newCfg.Theme = m.cfg.Theme
+		}
 	}
 	m.cfg = newCfg
 	m.keys = MergeKeys(newCfg.Keys)

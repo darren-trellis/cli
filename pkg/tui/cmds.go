@@ -17,12 +17,10 @@ package tui
 
 import (
 	"context"
-	"regexp"
 	"sync"
 
 	"github.com/DopplerHQ/cli/pkg/controllers"
 	"github.com/DopplerHQ/cli/pkg/models"
-	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -79,11 +77,9 @@ type secretsLoadedMsg struct {
 }
 
 type workplaceSearchMsg struct {
-	gen     uint64
-	query   string
-	hits    []globalHit
-	fetched map[string][]secretRow
+	names   map[string][]string
 	configs map[string][]configRow
+	refresh bool
 	err     error
 }
 
@@ -98,8 +94,8 @@ func withProjectConfig(opts models.ScopedOptions, project, config string) models
 	return opts
 }
 
-func loadCmd(opts, fallback models.ScopedOptions) tea.Cmd {
-	return func() tea.Msg {
+func loadCmd(opts, fallback models.ScopedOptions) Cmd {
+	return func() Msg {
 		msg := loadOnce(opts)
 		if _, ok := msg.(errMsg); ok && !sameLoadTarget(opts, fallback) {
 			return loadOnce(fallback)
@@ -112,7 +108,7 @@ func sameLoadTarget(a, b models.ScopedOptions) bool {
 	return a.EnclaveProject.Value == b.EnclaveProject.Value && a.EnclaveConfig.Value == b.EnclaveConfig.Value
 }
 
-func loadOnce(opts models.ScopedOptions) tea.Msg {
+func loadOnce(opts models.ScopedOptions) Msg {
 	var projectIDs []string
 	var configInfos []models.ConfigInfo
 	var computed map[string]models.ComputedSecret
@@ -149,8 +145,8 @@ func loadOnce(opts models.ScopedOptions) tea.Msg {
 	}
 }
 
-func selectProjectCmd(opts models.ScopedOptions, project string, preferredConfig string) tea.Cmd {
-	return func() tea.Msg {
+func selectProjectCmd(opts models.ScopedOptions, project string, preferredConfig string) Cmd {
+	return func() Msg {
 		configInfos, err := controllers.GetConfigs(withProject(opts, project))
 		if err.Unwrap() != nil {
 			return errMsg{err.Unwrap()}
@@ -178,8 +174,8 @@ func selectProjectCmd(opts models.ScopedOptions, project string, preferredConfig
 	}
 }
 
-func fetchProjectConfigsCmd(opts models.ScopedOptions, project string) tea.Cmd {
-	return func() tea.Msg {
+func fetchProjectConfigsCmd(opts models.ScopedOptions, project string) Cmd {
+	return func() Msg {
 		configInfos, err := controllers.GetConfigs(withProject(opts, project))
 		if err.Unwrap() != nil {
 			return errMsg{err.Unwrap()}
@@ -192,8 +188,8 @@ func fetchProjectConfigsCmd(opts models.ScopedOptions, project string) tea.Cmd {
 	}
 }
 
-func selectConfigCmd(opts models.ScopedOptions, project, config string) tea.Cmd {
-	return func() tea.Msg {
+func selectConfigCmd(opts models.ScopedOptions, project, config string) Cmd {
+	return func() Msg {
 		computed, err := controllers.GetSecrets(withProjectConfig(opts, project, config))
 		if err.Unwrap() != nil {
 			return errMsg{err.Unwrap()}
@@ -206,8 +202,8 @@ func selectConfigCmd(opts models.ScopedOptions, project, config string) tea.Cmd 
 	}
 }
 
-func saveSecretsCmd(opts models.ScopedOptions, project, config string, changes []models.ChangeRequest, also []string) tea.Cmd {
-	return func() tea.Msg {
+func saveSecretsCmd(opts models.ScopedOptions, project, config string, changes []models.ChangeRequest, also []string) Cmd {
+	return func() Msg {
 		computed, err := controllers.SetSecrets(withProjectConfig(opts, project, config), changes)
 		if err.Unwrap() != nil {
 			return errMsg{err.Unwrap()}
@@ -237,8 +233,8 @@ func saveSecretsCmd(opts models.ScopedOptions, project, config string, changes [
 
 type quitNowMsg struct{}
 
-func saveAllDirtyCmd(opts models.ScopedOptions, groups []dirtyGroup) tea.Cmd {
-	return func() tea.Msg {
+func saveAllDirtyCmd(opts models.ScopedOptions, groups []dirtyGroup) Cmd {
+	return func() Msg {
 		for _, g := range groups {
 			if len(g.changes) == 0 {
 				continue
@@ -252,8 +248,8 @@ func saveAllDirtyCmd(opts models.ScopedOptions, groups []dirtyGroup) tea.Cmd {
 	}
 }
 
-func createConfigCmd(opts models.ScopedOptions, project, name, environment string) tea.Cmd {
-	return func() tea.Msg {
+func createConfigCmd(opts models.ScopedOptions, project, name, environment string) Cmd {
+	return func() Msg {
 		info, err := controllers.CreateConfig(withProject(opts, project), name, environment)
 		if err.Unwrap() != nil {
 			return errMsg{err.Unwrap()}
@@ -278,8 +274,8 @@ func createConfigCmd(opts models.ScopedOptions, project, name, environment strin
 	}
 }
 
-func renameConfigCmd(opts models.ScopedOptions, project, from, to string) tea.Cmd {
-	return func() tea.Msg {
+func renameConfigCmd(opts models.ScopedOptions, project, from, to string) Cmd {
+	return func() Msg {
 		info, err := controllers.UpdateConfig(withProjectConfig(opts, project, from), to)
 		if err.Unwrap() != nil {
 			return errMsg{err.Unwrap()}
@@ -304,8 +300,8 @@ func renameConfigCmd(opts models.ScopedOptions, project, from, to string) tea.Cm
 	}
 }
 
-func deleteConfigCmd(opts models.ScopedOptions, project, config, stayConfig, env string) tea.Cmd {
-	return func() tea.Msg {
+func deleteConfigCmd(opts models.ScopedOptions, project, config, stayConfig, env string) Cmd {
+	return func() Msg {
 		err := controllers.DeleteConfig(withProjectConfig(opts, project, config))
 		if err.Unwrap() != nil {
 			return errMsg{err.Unwrap()}
@@ -352,8 +348,8 @@ func pickConfigAfterDelete(configs []configRow, env string) string {
 	return ""
 }
 
-func deleteProjectCmd(opts models.ScopedOptions, deleted string, oldProjects []string, stayProject string) tea.Cmd {
-	return func() tea.Msg {
+func deleteProjectCmd(opts models.ScopedOptions, deleted string, oldProjects []string, stayProject string) Cmd {
+	return func() Msg {
 		err := controllers.DeleteProject(withProject(opts, deleted))
 		if err.Unwrap() != nil {
 			return errMsg{err.Unwrap()}
@@ -444,8 +440,8 @@ func containsString(items []string, want string) bool {
 	return false
 }
 
-func setConfigLockCmd(opts models.ScopedOptions, project, config string, lock bool) tea.Cmd {
-	return func() tea.Msg {
+func setConfigLockCmd(opts models.ScopedOptions, project, config string, lock bool) Cmd {
+	return func() Msg {
 		scoped := withProjectConfig(opts, project, config)
 		var info models.ConfigInfo
 		var err controllers.Error
@@ -472,42 +468,30 @@ func setConfigLockCmd(opts models.ScopedOptions, project, config string, lock bo
 	}
 }
 
-func workplaceSearchCmd(
+func workplaceIndexCmd(
 	opts models.ScopedOptions,
-	gen uint64,
-	query, caseMode string,
 	projects []string,
 	known map[string][]configRow,
-	cached map[string][]secretRow,
-) tea.Cmd {
-	return func() tea.Msg {
-		pattern := query
-		if searchShouldIgnoreCase(query, caseMode) {
-			pattern = "(?i)" + query
-		}
-		re, err := regexp.Compile(pattern)
-		if err != nil {
-			return workplaceSearchMsg{gen: gen, query: query, err: err}
-		}
-
-		type searchJob struct {
+	haveNames map[string]bool,
+	refresh bool,
+) Cmd {
+	return func() Msg {
+		type nameJob struct {
 			project string
 			config  string
-			secrets []secretRow
-			fetch   bool
 		}
 
 		var mu sync.Mutex
 		fetchedConfigs := map[string][]configRow{}
-		var jobs []searchJob
+		var jobs []nameJob
 
 		gCfg, _ := errgroup.WithContext(context.Background())
-		gCfg.SetLimit(8)
+		gCfg.SetLimit(16)
 		for _, project := range projects {
 			project := project
 			gCfg.Go(func() error {
 				cfgs, ok := known[project]
-				if !ok {
+				if refresh || !ok {
 					infos, cerr := controllers.GetConfigs(withProject(opts, project))
 					if cerr.Unwrap() != nil {
 						return nil
@@ -523,59 +507,42 @@ func workplaceSearchCmd(
 						continue
 					}
 					key := secretsCacheKey(project, cfg.name)
-					secrets, have := cached[key]
-					jobs = append(jobs, searchJob{
-						project: project,
-						config:  cfg.name,
-						secrets: secrets,
-						fetch:   !have,
-					})
+					if !refresh && haveNames[key] {
+						continue
+					}
+					jobs = append(jobs, nameJob{project: project, config: cfg.name})
 				}
 				mu.Unlock()
 				return nil
 			})
 		}
 		if waitErr := gCfg.Wait(); waitErr != nil {
-			return workplaceSearchMsg{gen: gen, query: query, err: waitErr}
+			return workplaceSearchMsg{err: waitErr}
 		}
 
-		var hits []globalHit
-		fetchedSecrets := map[string][]secretRow{}
-		gSec, _ := errgroup.WithContext(context.Background())
-		gSec.SetLimit(8)
+		names := map[string][]string{}
+		gNames, _ := errgroup.WithContext(context.Background())
+		gNames.SetLimit(16)
 		for _, job := range jobs {
 			job := job
-			gSec.Go(func() error {
-				secrets := job.secrets
-				if job.fetch {
-					computed, serr := controllers.GetSecrets(withProjectConfig(opts, job.project, job.config))
-					if serr.Unwrap() != nil {
-						return nil
-					}
-					secrets = secretsFromComputed(computed)
-					mu.Lock()
-					fetchedSecrets[secretsCacheKey(job.project, job.config)] = secrets
-					mu.Unlock()
-				}
-				found := collectSecretHits(re, job.project, job.config, secrets)
-				if len(found) == 0 {
+			gNames.Go(func() error {
+				listed, nerr := controllers.GetSecretNames(withProjectConfig(opts, job.project, job.config))
+				if nerr.Unwrap() != nil {
 					return nil
 				}
 				mu.Lock()
-				hits = append(hits, found...)
+				names[secretsCacheKey(job.project, job.config)] = listed
 				mu.Unlock()
 				return nil
 			})
 		}
-		if waitErr := gSec.Wait(); waitErr != nil {
-			return workplaceSearchMsg{gen: gen, query: query, err: waitErr}
+		if waitErr := gNames.Wait(); waitErr != nil {
+			return workplaceSearchMsg{err: waitErr}
 		}
 		return workplaceSearchMsg{
-			gen:     gen,
-			query:   query,
-			hits:    hits,
-			fetched: fetchedSecrets,
+			names:   names,
 			configs: fetchedConfigs,
+			refresh: refresh,
 		}
 	}
 }

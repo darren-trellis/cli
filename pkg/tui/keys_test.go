@@ -20,36 +20,48 @@ import (
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 )
 
 func TestEncodeKey(t *testing.T) {
-	chord, ok := encodeKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	chord, ok := runeKey('j').chord()
 	require.True(t, ok)
 	assert.Equal(t, "j", chord)
 
-	chord, ok = encodeKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	chord, ok = runeKey('G').chord()
 	require.True(t, ok)
 	assert.Equal(t, "G", chord)
 
-	chord, ok = encodeKey(tea.KeyMsg{Type: tea.KeyCtrlC})
+	chord, ok = namedKey(tcell.KeyCtrlC).chord()
 	require.True(t, ok)
 	assert.Equal(t, "C-c", chord)
 
-	chord, ok = encodeKey(tea.KeyMsg{Type: tea.KeyUp})
+	chord, ok = namedKey(tcell.KeyUp).chord()
 	require.True(t, ok)
 	assert.Equal(t, "up", chord)
 
-	chord, ok = encodeKey(tea.KeyMsg{Type: tea.KeyPgDown})
+	chord, ok = namedKey(tcell.KeyPgDn).chord()
 	require.True(t, ok)
 	assert.Equal(t, "pagedown", chord)
 
-	chord, ok = encodeKey(tea.KeyMsg{Type: tea.KeySpace})
+	chord, ok = runeKey(' ').chord()
 	require.True(t, ok)
 	assert.Equal(t, "space", chord)
+
+	// Terminals deliver Tab/Enter/Backspace as C-i/C-m/C-h; the named binding wins.
+	chord, _ = namedKey(tcell.KeyTab).chord()
+	assert.Equal(t, "tab", chord)
+	chord, _ = namedKey(tcell.KeyEnter).chord()
+	assert.Equal(t, "enter", chord)
+	chord, _ = namedKey(tcell.KeyBacktab).chord()
+	assert.Equal(t, "backtab", chord)
+
+	chord, ok = encodeKeyEvent(tcell.NewEventKey(tcell.KeyRune, 'F', tcell.ModAlt)).chord()
+	require.True(t, ok)
+	assert.Equal(t, "A-f", chord)
 }
 
 func TestMergeKeysUnbindAndOverlay(t *testing.T) {
@@ -87,7 +99,7 @@ func TestMergeKeysUnbindAndOverlay(t *testing.T) {
 
 	cmd, ok = keys.Resolve(focusSecrets, "enter")
 	require.True(t, ok)
-	assert.Equal(t, "edit", cmd)
+	assert.Equal(t, "secret open", cmd)
 }
 
 func TestResolveDefaultOverlays(t *testing.T) {
@@ -137,17 +149,17 @@ func TestExecuteCommandNavAndRemap(t *testing.T) {
 	m.secretIdx = 3
 
 	next, _ := m.executeCommand("nav top")
-	assert.Equal(t, 0, next.(Model).secretIdx)
+	assert.Equal(t, 0, next.secretIdx)
 
-	next, _ = next.(Model).executeCommand("nav bottom")
-	assert.Equal(t, 9, next.(Model).secretIdx)
+	next, _ = next.executeCommand("nav bottom")
+	assert.Equal(t, 9, next.secretIdx)
 
 	m.keys = MergeKeys(&models.TUIKeysOptions{
 		Bindings: map[string]string{"x": "nav top"},
 	})
 	m.secretIdx = 5
-	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
-	assert.Equal(t, 0, next.(Model).secretIdx)
+	next, _ = m.Update(runeKey('x'))
+	assert.Equal(t, 0, next.secretIdx)
 }
 
 func TestHelpIncludesRemappedBinding(t *testing.T) {
@@ -163,6 +175,17 @@ func TestHelpIncludesRemappedBinding(t *testing.T) {
 	assert.Contains(t, help, "Exit the TUI")
 }
 
+func TestDefaultHelpHasNoUnbound(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	help := m.renderHelpText()
+	assert.NotContains(t, help, "(unbound)")
+	assert.Contains(t, help, ":config get")
+	assert.Contains(t, help, ":config set")
+	assert.Contains(t, help, ":search")
+	assert.Contains(t, help, "y n")
+	assert.Contains(t, help, "y y")
+}
+
 func TestCommandPrompt(t *testing.T) {
 	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
 	m.fetching = false
@@ -170,13 +193,13 @@ func TestCommandPrompt(t *testing.T) {
 	m.width = 80
 	m.height = 24
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
-	mod := next.(Model)
+	next, _ := m.Update(runeKey(':'))
+	mod := next
 	assert.Equal(t, focusCommand, mod.focus)
 
 	mod.commandInput.SetValue("help")
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	mod = next.(Model)
+	next, _ = mod.Update(namedKey(tcell.KeyEnter))
+	mod = next
 	assert.Equal(t, focusHelp, mod.focus)
 }
 
@@ -185,19 +208,19 @@ func TestCommandModeRestoresSidebarFocus(t *testing.T) {
 	m.fetching = false
 	m.focus = focusProjects
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
-	mod := next.(Model)
+	next, _ := m.Update(runeKey(':'))
+	mod := next
 	assert.Equal(t, focusCommand, mod.focus)
 	assert.Equal(t, focusProjects, mod.commandReturnFocus)
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	mod = next.(Model)
+	next, _ = mod.Update(namedKey(tcell.KeyEsc))
+	mod = next
 	assert.Equal(t, focusProjects, mod.focus)
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
-	mod = next.(Model)
+	next, _ = mod.Update(runeKey(':'))
+	mod = next
 	mod.commandInput.SetValue("help")
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	mod = next.(Model)
+	next, _ = mod.Update(namedKey(tcell.KeyEnter))
+	mod = next
 	assert.Equal(t, focusHelp, mod.focus)
 }

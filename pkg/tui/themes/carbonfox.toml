@@ -1,0 +1,34 @@
+name = "carbonfox"
+
+[colors]
+background = "#161616"
+foreground = "#f2f4f8"
+selection_bg = "#2a2a2a"
+selection_fg = "#f2f4f8"
+overlay_bg = "#0c0c0c"
+status_bg = "#0c0c0c"
+status_fg = "#b6b8bb"
+border = "#353535"
+window_focus_border = "#78a9ff"
+search_match = { fg = "#161616", bg = "#78a9ff" }
+dim = "#6e6f70"
+
+[levels]
+trace = "#6e6f70"
+debug = "#33b1ff"
+info = "#25be6a"
+warn = "#3ddbd9"
+error = "#ee5396"
+fatal = "#be95ff"
+unknown = "#f2f4f8"
+
+[ui]
+timestamp = "#33b1ff"
+key = "#78a9ff"
+string = "#25be6a"
+number = "#3ddbd9"
+bool = "#be95ff"
+null = "#6e6f70"
+border_color = { fg = "#353535", bg = "#161616" }
+border_width = 1
+border_padding = 1

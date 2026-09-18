@@ -16,9 +16,11 @@ limitations under the License.
 package tui
 
 import (
+	"io/fs"
+	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,6 +35,10 @@ func TestApplyTheme(t *testing.T) {
 	err := applyTheme("nope")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown theme")
+
+	assert.NoError(t, CheckTheme("cool"))
+	assert.NoError(t, CheckTheme(""))
+	assert.Error(t, CheckTheme("nope"))
 }
 
 func TestTeleminatorThemesLoaded(t *testing.T) {
@@ -46,8 +52,8 @@ func TestTeleminatorThemesLoaded(t *testing.T) {
 	require.NoError(t, applyTheme("catppuccin"))
 	assert.Equal(t, themes["catppuccin"].Accent, accent)
 	assert.Equal(t, themes["catppuccin"].Background, background)
-	assert.Equal(t, lipgloss.Color("#1e1e2e"), themes["catppuccin"].SearchMatchFg)
-	assert.Equal(t, lipgloss.Color("#f9e2af"), themes["catppuccin"].SearchMatchBg)
+	assert.Equal(t, tcell.GetColor("#1e1e2e"), themes["catppuccin"].SearchMatchFg)
+	assert.Equal(t, tcell.GetColor("#f9e2af"), themes["catppuccin"].SearchMatchBg)
 
 	require.NoError(t, applyTheme("tokyo-night"))
 	assert.Equal(t, themes["tokyo-night"].Accent, accent)
@@ -72,12 +78,12 @@ error = { fg = "#ff0000", bg = "#200000" }
 `))
 	require.NoError(t, err)
 	assert.Equal(t, "example", theme.Name)
-	assert.Equal(t, lipgloss.Color("#ffcc00"), theme.Accent)
-	assert.Equal(t, lipgloss.Color("#00ff00"), theme.ActiveEnv)
-	assert.Equal(t, lipgloss.Color("#ff0000"), theme.Error)
-	assert.Equal(t, lipgloss.Color("#f0c000"), theme.Dirty)
-	assert.Equal(t, lipgloss.Color("#111111"), theme.SearchMatchFg)
-	assert.Equal(t, lipgloss.Color("#ffcc00"), theme.SearchMatchBg)
+	assert.Equal(t, tcell.GetColor("#ffcc00"), theme.Accent)
+	assert.Equal(t, tcell.GetColor("#00ff00"), theme.ActiveEnv)
+	assert.Equal(t, tcell.GetColor("#ff0000"), theme.Error)
+	assert.Equal(t, tcell.GetColor("#f0c000"), theme.Dirty)
+	assert.Equal(t, tcell.GetColor("#111111"), theme.SearchMatchFg)
+	assert.Equal(t, tcell.GetColor("#ffcc00"), theme.SearchMatchBg)
 
 	theme, err = parseTeleminatorTheme([]byte(`
 name = "override"
@@ -89,5 +95,43 @@ active_env = "#abcdef"
 info = "#00ff00"
 `))
 	require.NoError(t, err)
-	assert.Equal(t, lipgloss.Color("#abcdef"), theme.ActiveEnv)
+	assert.Equal(t, tcell.GetColor("#abcdef"), theme.ActiveEnv)
+}
+
+func TestEmbeddedThemesAllParse(t *testing.T) {
+	entries, err := fs.ReadDir(embeddedThemeFS, "themes")
+	require.NoError(t, err)
+
+	count := 0
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".toml") {
+			continue
+		}
+		count++
+		data, err := embeddedThemeFS.ReadFile("themes/" + entry.Name())
+		require.NoError(t, err, entry.Name())
+
+		theme, err := parseTeleminatorTheme(data)
+		require.NoError(t, err, entry.Name())
+
+		// The file name is the name users type for --theme, so it must match.
+		assert.Equal(t, strings.TrimSuffix(entry.Name(), ".toml"), theme.Name)
+		assert.Contains(t, themes, theme.Name)
+
+		// Every theme needs enough colour to render a legible pane.
+		for name, c := range map[string]tcell.Color{
+			"background":   theme.Background,
+			"text":         theme.Text,
+			"accent":       theme.Accent,
+			"dim":          theme.Dim,
+			"selection_bg": theme.SelectionBg,
+			"error":        theme.Error,
+		} {
+			assert.NotEqual(t, tcell.ColorDefault, c, "%s: %s unset", entry.Name(), name)
+		}
+
+		require.NoError(t, applyTheme(theme.Name), entry.Name())
+	}
+	assert.Greater(t, count, 40, "embedded themes should still be present")
+	require.NoError(t, applyTheme(defaultThemeName))
 }

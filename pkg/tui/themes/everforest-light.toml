@@ -1,0 +1,34 @@
+name = "everforest-light"
+
+[colors]
+background = "#fdf6e3"
+foreground = "#5c6a72"
+selection_bg = "#e6e2cc"
+selection_fg = "#5c6a72"
+overlay_bg = "#f4f0d9"
+status_bg = "#efebd4"
+status_fg = "#829181"
+border = "#bdc3af"
+window_focus_border = "#dfa000"
+search_match = { fg = "#fdf6e3", bg = "#dfa000" }
+dim = "#939f91"
+
+[levels]
+trace = "#939f91"
+debug = "#3a94c5"
+info = "#8da101"
+warn = "#dfa000"
+error = "#f85552"
+fatal = "#df69ba"
+unknown = "#5c6a72"
+
+[ui]
+timestamp = "#3a94c5"
+key = "#35a77c"
+string = "#8da101"
+number = "#f57d26"
+bool = "#df69ba"
+null = "#939f91"
+border_color = { fg = "#bdc3af", bg = "#fdf6e3" }
+border_width = 1
+border_padding = 1

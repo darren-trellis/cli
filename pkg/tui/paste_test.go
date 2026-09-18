@@ -71,6 +71,6 @@ func TestPasteRejectedOutsideSecrets(t *testing.T) {
 	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
 	m.focus = focusProjects
 	next, _ := m.pasteSecrets()
-	mod := next.(Model)
+	mod := next
 	assert.Contains(t, mod.errMsg, "Secrets")
 }

@@ -21,8 +21,7 @@ import (
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -58,8 +57,8 @@ func TestSiblingRootConfigsIgnoresBranchesAndSelf(t *testing.T) {
 func TestSaveModalYOpensPropagateWhenRootHasSiblings(t *testing.T) {
 	m := saveModalModel("dev", rootConfigs())
 
-	next, cmd := m.handleSaveKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	mod := next.(Model)
+	next, cmd := m.handleSaveKey(runeKey('y'))
+	mod := next
 	assert.Nil(t, cmd)
 	assert.Equal(t, focusPropagate, mod.focus)
 	assert.Equal(t, []models.ChangeRequest{{Name: "FOO"}}, mod.pendingChanges)
@@ -75,8 +74,8 @@ func TestSaveModalYOpensPropagateWhenRootHasSiblings(t *testing.T) {
 func TestSaveModalYSavesImmediatelyForBranchConfig(t *testing.T) {
 	m := saveModalModel("dev_personal", rootConfigs())
 
-	next, cmd := m.handleSaveKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	mod := next.(Model)
+	next, cmd := m.handleSaveKey(runeKey('y'))
+	mod := next
 	require.NotNil(t, cmd)
 	assert.True(t, mod.fetching)
 	assert.Equal(t, focusSecrets, mod.focus)
@@ -86,18 +85,18 @@ func TestSaveModalYSavesImmediatelyForBranchConfig(t *testing.T) {
 
 func TestPropagateSpaceTogglesUnlockedOnly(t *testing.T) {
 	m := saveModalModel("dev", rootConfigs())
-	next, _ := m.handleSaveKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	mod := next.(Model)
+	next, _ := m.handleSaveKey(runeKey('y'))
+	mod := next
 
-	next, _ = mod.handlePropagateKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
-	mod = next.(Model)
+	next, _ = mod.handlePropagateKey(runeKey(' '))
+	mod = next
 	assert.True(t, mod.propagateTargets[0].on)
 	assert.Equal(t, []string{"stg"}, mod.selectedPropagateConfigs())
 
-	next, _ = mod.handlePropagateKey(tea.KeyMsg{Type: tea.KeyDown})
-	mod = next.(Model)
-	next, _ = mod.handlePropagateKey(tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}})
-	mod = next.(Model)
+	next, _ = mod.handlePropagateKey(namedKey(tcell.KeyDown))
+	mod = next
+	next, _ = mod.handlePropagateKey(runeKey(' '))
+	mod = next
 	assert.True(t, mod.propagateTargets[1].on)
 	assert.Equal(t, []string{"stg", "prd"}, mod.selectedPropagateConfigs())
 }
@@ -105,21 +104,21 @@ func TestPropagateSpaceTogglesUnlockedOnly(t *testing.T) {
 func TestPropagateKeysViaUpdate(t *testing.T) {
 	m := saveModalModel("dev", rootConfigs())
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	mod := next.(Model)
+	next, _ := m.Update(runeKey('y'))
+	mod := next
 	require.Equal(t, focusPropagate, mod.focus)
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}})
-	mod = next.(Model)
+	next, _ = mod.Update(runeKey(' '))
+	mod = next
 	assert.True(t, mod.propagateTargets[0].on)
 	assert.Equal(t, []string{"stg"}, mod.selectedPropagateConfigs())
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
-	mod = next.(Model)
+	next, _ = mod.Update(runeKey('a'))
+	mod = next
 	assert.Equal(t, []string{"stg", "prd"}, mod.selectedPropagateConfigs())
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'A'}})
-	mod = next.(Model)
+	next, _ = mod.Update(runeKey('A'))
+	mod = next
 	assert.Empty(t, mod.selectedPropagateConfigs())
 }
 
@@ -130,27 +129,27 @@ func TestPropagateATogglesAllUnlocked(t *testing.T) {
 		{Name: "ci", Environment: "ci", Root: true},
 		{Name: "prd", Environment: "prd", Root: true, Locked: true},
 	})
-	next, _ := m.handleSaveKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	mod := next.(Model)
+	next, _ := m.handleSaveKey(runeKey('y'))
+	mod := next
 
-	next, _ = mod.handlePropagateKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
-	mod = next.(Model)
+	next, _ = mod.handlePropagateKey(runeKey('a'))
+	mod = next
 	assert.Equal(t, []string{"stg", "ci", "prd"}, mod.selectedPropagateConfigs())
 	assert.True(t, mod.propagateTargets[2].on)
 
-	next, _ = mod.handlePropagateKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
-	mod = next.(Model)
+	next, _ = mod.handlePropagateKey(runeKey('a'))
+	mod = next
 	assert.Empty(t, mod.selectedPropagateConfigs())
 }
 
 func TestPropagateYWithNoneSelectedSavesCurrentOnly(t *testing.T) {
 	m := saveModalModel("dev", rootConfigs())
-	next, _ := m.handleSaveKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	mod := next.(Model)
+	next, _ := m.handleSaveKey(runeKey('y'))
+	mod := next
 	assert.Empty(t, mod.selectedPropagateConfigs())
 
-	next, cmd := mod.handlePropagateKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	mod = next.(Model)
+	next, cmd := mod.handlePropagateKey(runeKey('y'))
+	mod = next
 	require.NotNil(t, cmd)
 	assert.True(t, mod.fetching)
 	assert.Empty(t, mod.pendingChanges)
@@ -160,13 +159,13 @@ func TestPropagateYWithNoneSelectedSavesCurrentOnly(t *testing.T) {
 
 func TestPropagateYKeepsSelectedSiblings(t *testing.T) {
 	m := saveModalModel("dev", rootConfigs())
-	next, _ := m.handleSaveKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	mod := next.(Model)
+	next, _ := m.handleSaveKey(runeKey('y'))
+	mod := next
 	mod.togglePropagateAt(0)
 	assert.Equal(t, []string{"stg"}, mod.selectedPropagateConfigs())
 
-	next, cmd := mod.handlePropagateKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	mod = next.(Model)
+	next, cmd := mod.handlePropagateKey(runeKey('y'))
+	mod = next
 	require.NotNil(t, cmd)
 	assert.True(t, mod.fetching)
 	assert.Empty(t, mod.pendingChanges)
@@ -174,12 +173,12 @@ func TestPropagateYKeepsSelectedSiblings(t *testing.T) {
 
 func TestPropagateCancelAbandonsSave(t *testing.T) {
 	m := saveModalModel("dev", rootConfigs())
-	next, _ := m.handleSaveKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	mod := next.(Model)
+	next, _ := m.handleSaveKey(runeKey('y'))
+	mod := next
 	mod.togglePropagateAt(0)
 
-	next, cmd := mod.handlePropagateKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
-	mod = next.(Model)
+	next, cmd := mod.handlePropagateKey(runeKey('c'))
+	mod = next
 	assert.Nil(t, cmd)
 	assert.Equal(t, focusSecrets, mod.focus)
 	assert.Empty(t, mod.pendingChanges)
@@ -192,8 +191,8 @@ func TestPropagateSkipsDirtySiblings(t *testing.T) {
 	stg[0].value = "new"
 	m.putSecretsCache("api", "stg", secretsCacheEntry{secrets: stg})
 
-	next, _ := m.handleSaveKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	mod := next.(Model)
+	next, _ := m.handleSaveKey(runeKey('y'))
+	mod := next
 	require.True(t, mod.propagateTargets[0].dirty)
 	mod.togglePropagateAt(0)
 	assert.False(t, mod.propagateTargets[0].on)
@@ -202,10 +201,10 @@ func TestPropagateSkipsDirtySiblings(t *testing.T) {
 
 func TestPropagateModalCopy(t *testing.T) {
 	m := saveModalModel("dev", rootConfigs())
-	next, _ := m.handleSaveKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	mod := next.(Model)
+	next, _ := m.handleSaveKey(runeKey('y'))
+	mod := next
 
-	view := mod.renderPropagateModal()
+	view := modalText(mod)
 	assert.Contains(t, view, "Apply to other environments")
 	assert.Contains(t, view, "stg")
 	assert.Contains(t, view, "prd")
@@ -226,22 +225,16 @@ func TestFormatSaveStatus(t *testing.T) {
 
 func TestPropagateClickTogglesRow(t *testing.T) {
 	m := saveModalModel("dev", rootConfigs())
-	next, _ := m.handleSaveKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	mod := next.(Model)
+	next, _ := m.handleSaveKey(runeKey('y'))
+	mod := next
 
-	modal := mod.renderPropagateModal()
-	ox := max(0, (mod.width-lipgloss.Width(modal))/2)
-	oy := max(0, (mod.height-lipgloss.Height(modal))/2)
-	hits := propagateRowHitRects(modal, mod.propagateTargets, ox, oy)
+	spec, ok := mod.currentModalSpec()
+	require.True(t, ok)
+	hits := spec.geometry(mod.width, mod.height, mod.cfg.Border).rows
 	require.Len(t, hits, 2)
 
-	next, cmd := mod.handleMouse(tea.MouseMsg{
-		X:      hits[0].x,
-		Y:      hits[0].y,
-		Action: tea.MouseActionPress,
-		Button: tea.MouseButtonLeft,
-	})
-	mod = next.(Model)
+	next, cmd := mod.handleMouse(leftClick(hits[0].x, hits[0].y))
+	mod = next
 	assert.Nil(t, cmd)
 	assert.True(t, mod.propagateTargets[0].on)
 	assert.Equal(t, []string{"stg"}, mod.selectedPropagateConfigs())
@@ -262,7 +255,7 @@ func TestSecretsLoadedMsgDropsAppliedCaches(t *testing.T) {
 		applied:       []string{"stg"},
 		failed:        []string{"prd"},
 	})
-	mod := next.(Model)
+	mod := next
 	assert.False(t, mod.configIsCached("api", "stg"))
 	assert.True(t, mod.configIsCached("api", "prd"))
 	assert.Equal(t, "Saved · applied to stg · failed on prd", mod.statusMsg)

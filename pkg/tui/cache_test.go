@@ -20,8 +20,7 @@ import (
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/ansi"
+	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -79,7 +78,7 @@ func TestSecretsLoadedKeepsSidebarFocus(t *testing.T) {
 		activeProject: "api",
 		activeConfig:  "prd",
 	})
-	mod := next.(Model)
+	mod := next
 	assert.Equal(t, focusProjects, mod.focus)
 	assert.Equal(t, "prd", mod.activeConfig)
 }
@@ -89,7 +88,7 @@ func TestActivateCachedConfigDoesNotFetch(t *testing.T) {
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "prd")
 
 	next, cmd := m.activateSelection()
-	mod := next.(Model)
+	mod := next
 	assert.Nil(t, cmd)
 	assert.Equal(t, focusProjects, mod.focus)
 	assert.Equal(t, "prd", mod.activeConfig)
@@ -110,7 +109,7 @@ func TestStepCachedConfigSkipsUncached(t *testing.T) {
 func TestSearchNextWithoutQueryHopsCached(t *testing.T) {
 	m := cachedSidebarModel()
 	next, _ := m.executeCommand("search next")
-	mod := next.(Model)
+	mod := next
 	assert.Equal(t, "prd", mod.activeConfig)
 }
 
@@ -121,7 +120,7 @@ func TestSearchNextWithQueryKeepsMatches(t *testing.T) {
 	require.NoError(t, m.applySearch("DEV", true))
 
 	next, _ := m.executeCommand("search next")
-	mod := next.(Model)
+	mod := next
 	assert.Equal(t, "dev", mod.activeConfig)
 	assert.Contains(t, mod.statusMsg, "Match")
 }
@@ -155,7 +154,7 @@ func TestSidebarMarksCachedConfigs(t *testing.T) {
 	m := cachedSidebarModel()
 	m.width = 80
 	m.height = 24
-	out := ansi.Strip(m.renderProjectTree(40, 20))
+	out := renderSidebar(t, m)
 	assert.Contains(t, out, "*dev")
 	assert.Contains(t, out, "+prd")
 	assert.NotContains(t, out, "+dev_personal")
@@ -170,15 +169,15 @@ func TestBackspaceUnloadsCachedConfig(t *testing.T) {
 	m.revealHighlightedConfig()
 	require.True(t, m.configIsCached("api", "prd"))
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
-	mod := next.(Model)
+	next, _ := m.Update(namedKey(tcell.KeyBackspace2))
+	mod := next
 	assert.False(t, mod.configIsCached("api", "prd"))
 	assert.True(t, mod.configIsCached("api", "dev"))
 	assert.Equal(t, "dev", mod.activeConfig)
 	assert.Equal(t, "DEV", mod.secrets[0].name)
 	assert.Equal(t, findTreeIndex(mod.tree, treeConfig, "api", "prd"), mod.treeIdx)
 	assert.Contains(t, mod.statusMsg, "Unloaded api / prd")
-	assert.NotContains(t, ansi.Strip(mod.renderProjectTree(40, 20)), "+prd")
+	assert.NotContains(t, renderSidebar(t, mod), "+prd")
 }
 
 func TestBackspaceUnloadsLastCachedConfig(t *testing.T) {
@@ -188,7 +187,7 @@ func TestBackspaceUnloadsLastCachedConfig(t *testing.T) {
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
 
 	next, _ := m.unloadHighlightedConfig()
-	mod := next.(Model)
+	mod := next
 	assert.False(t, mod.configIsCached("api", "dev"))
 	assert.Empty(t, mod.activeConfig)
 	assert.Empty(t, mod.secrets)
@@ -201,7 +200,7 @@ func TestBackspaceRefusesDirtyCachedConfig(t *testing.T) {
 	m.stashCurrentSecrets()
 
 	next, _ := m.unloadHighlightedConfig()
-	mod := next.(Model)
+	mod := next
 	assert.True(t, mod.configIsCached("api", "dev"))
 	assert.Equal(t, "dev", mod.activeConfig)
 	assert.Contains(t, mod.errMsg, "unsaved")
@@ -212,7 +211,7 @@ func TestBackspaceOnUncachedConfigDoesNothing(t *testing.T) {
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev_personal")
 
 	next, _ := m.unloadHighlightedConfig()
-	mod := next.(Model)
+	mod := next
 	assert.True(t, mod.configIsCached("api", "dev"))
 	assert.Equal(t, "dev", mod.activeConfig)
 	assert.Contains(t, mod.errMsg, "not loaded")
@@ -223,41 +222,36 @@ func TestConfigLoadCommands(t *testing.T) {
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "prd")
 
 	next, _ := m.executeCommand("config load off")
-	mod := next.(Model)
+	mod := next
 	assert.False(t, mod.configIsCached("api", "prd"))
 
 	next, _ = mod.executeCommand("config load on")
-	mod = next.(Model)
+	mod = next
 	assert.True(t, mod.fetching || mod.activeConfig == "prd")
 
 	m = cachedSidebarModel()
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "prd")
 	next, _ = m.executeCommand("config load toggle")
-	mod = next.(Model)
+	mod = next
 	assert.False(t, mod.configIsCached("api", "prd"))
 
 	next, _ = mod.executeCommand("config load toggle")
-	mod = next.(Model)
+	mod = next
 	assert.True(t, mod.fetching || mod.configIsCached("api", "prd") || mod.activeConfig == "prd")
 }
 
 func TestNKeyHopsCachedWhenNotSearching(t *testing.T) {
 	m := cachedSidebarModel()
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
-	mod := next.(Model)
+	next, _ := m.Update(runeKey('n'))
+	mod := next
 	assert.Equal(t, "prd", mod.activeConfig)
 }
 
-func sidebarRowClick(m Model, idx int) tea.MouseMsg {
+func sidebarRowClick(m Model, idx int) mouseMsg {
 	layout := m.computeLayout()
 	visible := max(1, layout.projects.h-m.panelChrome())
 	start := clampScrollOffset(m.treeOffset, m.treeIdx, visible, len(m.tree))
-	return tea.MouseMsg{
-		X:      layout.projects.x + 2,
-		Y:      layout.projects.y + 1 + (idx - start),
-		Action: tea.MouseActionPress,
-		Button: tea.MouseButtonLeft,
-	}
+	return leftClick(layout.projects.x+2, layout.projects.y+1+(idx-start))
 }
 
 func TestSidebarSingleClickSelectsWithoutLoading(t *testing.T) {
@@ -270,14 +264,14 @@ func TestSidebarSingleClickSelectsWithoutLoading(t *testing.T) {
 	cfgIdx := findTreeIndex(m.tree, treeConfig, "api", "dev_personal")
 
 	next, cmd := m.handleMouse(sidebarRowClick(m, webIdx))
-	mod := next.(Model)
+	mod := next
 	assert.Nil(t, cmd)
 	assert.False(t, mod.fetching)
 	assert.Equal(t, webIdx, mod.treeIdx)
 	assert.Equal(t, "api", mod.activeProject)
 
 	next, cmd = mod.handleMouse(sidebarRowClick(mod, cfgIdx))
-	mod = next.(Model)
+	mod = next
 	assert.Nil(t, cmd)
 	assert.False(t, mod.fetching)
 	assert.Equal(t, cfgIdx, mod.treeIdx)
@@ -294,12 +288,12 @@ func TestSidebarDoubleClickLoads(t *testing.T) {
 	click := sidebarRowClick(m, webIdx)
 
 	next, cmd := m.handleMouse(click)
-	mod := next.(Model)
+	mod := next
 	assert.Nil(t, cmd)
 	assert.False(t, mod.fetching)
 
 	next, cmd = mod.handleMouse(click)
-	mod = next.(Model)
+	mod = next
 	require.NotNil(t, cmd)
 	assert.True(t, mod.fetching)
 }

@@ -1,0 +1,34 @@
+name = "catppuccin-macchiato"
+
+[colors]
+background = "#24273a"
+foreground = "#cad3f5"
+selection_bg = "#494d64"
+selection_fg = "#cad3f5"
+overlay_bg = "#1e2030"
+status_bg = "#181926"
+status_fg = "#a5adcb"
+border = "#5b6078"
+window_focus_border = "#eed49f"
+search_match = { fg = "#24273a", bg = "#eed49f" }
+dim = "#6e738d"
+
+[levels]
+trace = "#6e738d"
+debug = "#8aadf4"
+info = "#a6da95"
+warn = "#eed49f"
+error = "#ed8796"
+fatal = "#c6a0f6"
+unknown = "#cad3f5"
+
+[ui]
+timestamp = "#8aadf4"
+key = "#91d7e3"
+string = "#a6da95"
+number = "#f5a97f"
+bool = "#c6a0f6"
+null = "#6e738d"
+border_color = { fg = "#5b6078", bg = "#24273a" }
+border_width = 1
+border_padding = 1

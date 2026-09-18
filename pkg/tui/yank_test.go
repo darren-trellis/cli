@@ -21,7 +21,7 @@ import (
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,13 +62,13 @@ func TestYankOperatorSequence(t *testing.T) {
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
 	m.secrets = []secretRow{newSecretRow("FOO", "bar", "masked")}
 
-	next, _ := m.handleNavKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	mod := next.(Model)
+	next, _ := m.handleNavKey(runeKey('y'))
+	mod := next
 	assert.True(t, mod.pendingYank)
 	assert.Equal(t, "y", mod.statusMsg)
 
-	next, _ = mod.handleNavKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
-	mod = next.(Model)
+	next, _ = mod.handleNavKey(runeKey('n'))
+	mod = next
 	assert.False(t, mod.pendingYank)
 	assert.Equal(t, "Copied name", mod.statusMsg)
 }
@@ -85,8 +85,8 @@ func TestSecretsYStartsYankOperator(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "yank", cmd)
 
-	next, _ := m.handleNavKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	mod := next.(Model)
+	next, _ := m.handleNavKey(runeKey('y'))
+	mod := next
 	assert.True(t, mod.pendingYank)
 	assert.Equal(t, "y", mod.statusMsg)
 }
@@ -99,10 +99,10 @@ func TestSecretsYankCell(t *testing.T) {
 	m.secretIdx = 0
 	m.secretCol = colValue
 
-	next, _ := m.handleNavKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	mod := next.(Model)
-	next, _ = mod.handleNavKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
-	mod = next.(Model)
+	next, _ := m.handleNavKey(runeKey('y'))
+	mod := next
+	next, _ = mod.handleNavKey(runeKey('n'))
+	mod = next
 	assert.False(t, mod.pendingYank)
 	assert.Equal(t, "Copied to clipboard", mod.statusMsg)
 }
@@ -113,7 +113,7 @@ func TestYankOperatorStartsInSecrets(t *testing.T) {
 	m.focus = focusSecrets
 
 	next, _ := m.executeCommand("yank")
-	mod := next.(Model)
+	mod := next
 	assert.True(t, mod.pendingYank)
 	assert.Equal(t, "y", mod.statusMsg)
 }
@@ -131,7 +131,7 @@ func TestYankNameConfig(t *testing.T) {
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
 
 	next, _ := m.yankName()
-	mod := next.(Model)
+	mod := next
 	assert.Equal(t, "Copied name", mod.statusMsg)
 }
 
@@ -157,7 +157,7 @@ func TestYankCommandDirect(t *testing.T) {
 	m.secrets = []secretRow{newSecretRow("A", "x", "masked")}
 
 	next, _ := m.executeCommand("yank env")
-	mod := next.(Model)
+	mod := next
 	assert.Contains(t, mod.statusMsg, "Copied 1 secrets (env)")
 }
 
@@ -285,17 +285,17 @@ func secretsYankModel() Model {
 
 func sendKeys(m Model, chords ...string) Model {
 	for _, chord := range chords {
-		var msg tea.KeyMsg
+		var msg keyMsg
 		switch chord {
 		case "down":
-			msg = tea.KeyMsg{Type: tea.KeyDown}
+			msg = namedKey(tcell.KeyDown)
 		case "up":
-			msg = tea.KeyMsg{Type: tea.KeyUp}
+			msg = namedKey(tcell.KeyUp)
 		default:
-			msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(chord)}
+			msg = chordKey(chord)
 		}
 		next, _ := m.Update(msg)
-		m = next.(Model)
+		m = next
 	}
 	return m
 }

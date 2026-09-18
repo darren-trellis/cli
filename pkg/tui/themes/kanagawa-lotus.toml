@@ -1,0 +1,34 @@
+name = "kanagawa-lotus"
+
+[colors]
+background = "#f2ecbc"
+foreground = "#545464"
+selection_bg = "#e4d794"
+selection_fg = "#545464"
+overlay_bg = "#e7dba0"
+status_bg = "#e7dba0"
+status_fg = "#716e61"
+border = "#c9c093"
+window_focus_border = "#cc6d00"
+search_match = { fg = "#f2ecbc", bg = "#cc6d00" }
+dim = "#8a8980"
+
+[levels]
+trace = "#8a8980"
+debug = "#4d699b"
+info = "#6f894e"
+warn = "#de9800"
+error = "#c84053"
+fatal = "#624c83"
+unknown = "#545464"
+
+[ui]
+timestamp = "#4d699b"
+key = "#4e8ca2"
+string = "#6f894e"
+number = "#cc6d00"
+bool = "#624c83"
+null = "#8a8980"
+border_color = { fg = "#c9c093", bg = "#f2ecbc" }
+border_width = 1
+border_padding = 1

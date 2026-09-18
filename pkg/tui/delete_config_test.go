@@ -20,7 +20,7 @@ import (
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +39,7 @@ func TestBeginDeleteConfigRejectsRoot(t *testing.T) {
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
 
 	next, cmd := m.beginDeleteConfig()
-	mod := next.(Model)
+	mod := next
 	assert.Nil(t, cmd)
 	assert.Equal(t, focusProjects, mod.focus)
 	assert.Contains(t, mod.errMsg, "root")
@@ -58,8 +58,8 @@ func TestBeginDeleteConfigOpensConfirm(t *testing.T) {
 	m.rebuildTree()
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev_personal")
 
-	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
-	mod := next.(Model)
+	next, cmd := m.Update(runeKey('d'))
+	mod := next
 	assert.Nil(t, cmd)
 	assert.Equal(t, focusDeleteConfirm, mod.focus)
 	assert.Equal(t, "api", mod.pendingDeleteProject)
@@ -73,8 +73,8 @@ func TestDeleteConfirmEscCancels(t *testing.T) {
 	m.pendingDeleteProject = "api"
 	m.pendingDeleteConfig = "dev_personal"
 
-	next, _ := m.handleDeleteConfirmKey(tea.KeyMsg{Type: tea.KeyEsc})
-	mod := next.(Model)
+	next, _ := m.handleDeleteConfirmKey(namedKey(tcell.KeyEsc))
+	mod := next
 	assert.Equal(t, focusProjects, mod.focus)
 	assert.Empty(t, mod.pendingDeleteConfig)
 }
@@ -86,8 +86,8 @@ func TestDeleteConfirmDStartsDelete(t *testing.T) {
 	m.pendingDeleteProject = "api"
 	m.pendingDeleteConfig = "dev_personal"
 
-	next, cmd := m.handleDeleteConfirmKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
-	mod := next.(Model)
+	next, cmd := m.handleDeleteConfirmKey(runeKey('d'))
+	mod := next
 	require.NotNil(t, cmd)
 	assert.True(t, mod.fetching)
 	assert.Empty(t, mod.pendingDeleteConfig)
@@ -105,14 +105,14 @@ func TestBeginDeleteProjectOpensConfirm(t *testing.T) {
 	m.rebuildTree()
 	m.treeIdx = findTreeIndex(m.tree, treeProject, "api", "")
 
-	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
-	mod := next.(Model)
+	next, cmd := m.Update(runeKey('d'))
+	mod := next
 	assert.Nil(t, cmd)
 	assert.Equal(t, focusDeleteConfirm, mod.focus)
 	assert.Equal(t, "api", mod.pendingDeleteProject)
 	assert.Empty(t, mod.pendingDeleteConfig)
 	assert.True(t, mod.deletingProject())
-	assert.Contains(t, mod.renderDeleteConfirmModal(), "Delete Project")
+	assert.Contains(t, modalText(mod), "Delete Project")
 }
 
 func TestProjectDeletedMsgRemovesProject(t *testing.T) {
@@ -136,7 +136,7 @@ func TestProjectDeletedMsgRemovesProject(t *testing.T) {
 		deleted:   "api",
 		highlight: "web",
 	})
-	mod := next.(Model)
+	mod := next
 	assert.Equal(t, []string{"web"}, mod.projects)
 	assert.Nil(t, mod.projectConfigs["api"])
 	assert.Equal(t, "web", mod.activeProject)

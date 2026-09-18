@@ -20,7 +20,7 @@ import (
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +33,7 @@ func TestCommandClearClearsStatusBar(t *testing.T) {
 	m.searchRe = nil
 
 	mod, _ := m.executeCommand("command clear")
-	out := mod.(Model)
+	out := mod
 	assert.Empty(t, out.statusMsg)
 	assert.Empty(t, out.errMsg)
 	assert.Empty(t, out.searchQuery)
@@ -47,8 +47,8 @@ func TestEscRunsCommandClear(t *testing.T) {
 	m.statusMsg = "hello"
 	m.focus = focusSecrets
 
-	mod, _ := m.handleNavKey(tea.KeyMsg{Type: tea.KeyEsc})
-	out := mod.(Model)
+	mod, _ := m.handleNavKey(namedKey(tcell.KeyEsc))
+	out := mod
 	assert.Empty(t, out.statusMsg)
 }
 
@@ -110,6 +110,8 @@ func TestSuggestionsHideNestedUntilParentTyped(t *testing.T) {
 	assert.True(t, texts["lock"])
 	assert.True(t, texts["load"])
 	assert.True(t, texts["delete"])
+	assert.True(t, texts["get"])
+	assert.True(t, texts["set"])
 	assert.False(t, texts["on"])
 	assert.False(t, texts["off"])
 	assert.False(t, texts["toggle"])
@@ -149,6 +151,7 @@ func TestTabCompleteAppliesSuggestion(t *testing.T) {
 	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
 	m.beginCommand()
 	m.commandInput.SetValue("qui")
+	m.commandInput.CursorEnd()
 	m.refreshCompletions()
 	require.NotEmpty(t, m.completions.Items)
 
@@ -164,7 +167,7 @@ func TestCommandModeShowsCompletions(t *testing.T) {
 	require.NotEmpty(t, m.completions.Items)
 	assert.Greater(t, m.completions.DesiredHeight(20), 0)
 
-	view := m.View()
+	view := renderModel(t, m)
 	assert.Contains(t, view, "suggestions")
 	assert.NotContains(t, view, "nav up")
 }

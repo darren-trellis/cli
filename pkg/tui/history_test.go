@@ -20,7 +20,7 @@ import (
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -71,20 +71,20 @@ func TestCommandHistoryUpDown(t *testing.T) {
 	m.commandHistory = newInputHistory([]string{"help", "sidebar toggle"})
 	m.beginCommand()
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyUp})
-	mod := next.(Model)
+	next, _ := m.Update(namedKey(tcell.KeyUp))
+	mod := next
 	assert.Equal(t, "sidebar toggle", mod.commandInput.Value())
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyUp})
-	mod = next.(Model)
+	next, _ = mod.Update(namedKey(tcell.KeyUp))
+	mod = next
 	assert.Equal(t, "help", mod.commandInput.Value())
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyDown})
-	mod = next.(Model)
+	next, _ = mod.Update(namedKey(tcell.KeyDown))
+	mod = next
 	assert.Equal(t, "sidebar toggle", mod.commandInput.Value())
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyDown})
-	mod = next.(Model)
+	next, _ = mod.Update(namedKey(tcell.KeyDown))
+	mod = next
 	assert.Equal(t, "", mod.commandInput.Value())
 }
 
@@ -95,31 +95,31 @@ func TestCommandDownFocusesSuggestions(t *testing.T) {
 	m.beginCommand()
 	require.NotEmpty(t, m.completions.Items)
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	mod := next.(Model)
+	next, _ := m.Update(namedKey(tcell.KeyDown))
+	mod := next
 	assert.True(t, mod.completions.Browsed)
 	require.NotNil(t, mod.completions.Selected)
 	assert.Equal(t, 0, *mod.completions.Selected)
 	assert.Equal(t, "", mod.commandInput.Value())
 
 	first := *mod.completions.Selected
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyDown})
-	mod = next.(Model)
+	next, _ = mod.Update(namedKey(tcell.KeyDown))
+	mod = next
 	require.NotNil(t, mod.completions.Selected)
 	assert.Equal(t, first+1, *mod.completions.Selected)
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyUp})
-	mod = next.(Model)
+	next, _ = mod.Update(namedKey(tcell.KeyUp))
+	mod = next
 	require.NotNil(t, mod.completions.Selected)
 	assert.Equal(t, first, *mod.completions.Selected)
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyUp})
-	mod = next.(Model)
+	next, _ = mod.Update(namedKey(tcell.KeyUp))
+	mod = next
 	assert.False(t, mod.completions.Browsed)
 	assert.Nil(t, mod.completions.Selected)
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyUp})
-	mod = next.(Model)
+	next, _ = mod.Update(namedKey(tcell.KeyUp))
+	mod = next
 	assert.Equal(t, "help", mod.commandInput.Value())
 }
 
@@ -134,8 +134,8 @@ func TestSearchHistoryUpAppliesQuery(t *testing.T) {
 	m.searchHistory = newInputHistory([]string{"BETA"})
 	m.beginSearch()
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyUp})
-	mod := next.(Model)
+	next, _ := m.Update(namedKey(tcell.KeyUp))
+	mod := next
 	assert.Equal(t, "BETA", mod.searchInput.Value())
 	assert.Equal(t, []int{1}, mod.searchMatches)
 }
@@ -146,8 +146,8 @@ func TestCommandEnterRecordsHistory(t *testing.T) {
 	m.beginCommand()
 	m.commandInput.SetValue("help")
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	mod := next.(Model)
+	next, _ := m.Update(namedKey(tcell.KeyEnter))
+	mod := next
 	assert.Equal(t, []string{"help"}, mod.commandHistory.Items())
 	assert.Equal(t, focusHelp, mod.focus)
 }

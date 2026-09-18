@@ -21,8 +21,7 @@ import (
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,7 +45,7 @@ func TestActivateSelectionDoesNotPromptWhenDirty(t *testing.T) {
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "prd")
 
 	next, cmd := m.activateSelection()
-	mod := next.(Model)
+	mod := next
 	require.NotNil(t, cmd)
 	assert.True(t, mod.fetching)
 	assert.NotEqual(t, focusSwitchConfirm, mod.focus)
@@ -63,7 +62,7 @@ func TestQuitPromptsWhenDirty(t *testing.T) {
 	m.secrets[0].value = "new"
 
 	next, cmd := m.requestQuit()
-	mod := next.(Model)
+	mod := next
 	assert.Nil(t, cmd)
 	assert.Equal(t, focusSwitchConfirm, mod.focus)
 	assert.True(t, mod.pendingQuit)
@@ -87,8 +86,8 @@ func TestQuitConfirmEscCancels(t *testing.T) {
 	m.pendingQuit = true
 	m.quitDirty = []dirtyGroup{{project: "api", config: "dev", changes: []models.ChangeRequest{{Name: "FOO"}}}}
 
-	next, _ := m.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyEsc})
-	mod := next.(Model)
+	next, _ := m.handleSwitchConfirmKey(namedKey(tcell.KeyEsc))
+	mod := next
 	assert.Equal(t, focusSecrets, mod.focus)
 	assert.False(t, mod.pendingQuit)
 	assert.Empty(t, mod.quitDirty)
@@ -100,7 +99,7 @@ func TestQuitConfirmDiscardQuits(t *testing.T) {
 	m.focus = focusSwitchConfirm
 	m.pendingQuit = true
 
-	_, cmd := m.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
+	_, cmd := m.handleSwitchConfirmKey(runeKey('d'))
 	require.NotNil(t, cmd)
 }
 
@@ -111,8 +110,8 @@ func TestQuitConfirmLetterShortcuts(t *testing.T) {
 	m.pendingQuit = true
 	m.modalBtnIdx = 1
 
-	next, _ := m.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
-	mod := next.(Model)
+	next, _ := m.handleSwitchConfirmKey(runeKey('c'))
+	mod := next
 	assert.Equal(t, focusSecrets, mod.focus)
 	assert.False(t, mod.pendingQuit)
 }
@@ -123,28 +122,28 @@ func TestSwitchConfirmTabCyclesButtons(t *testing.T) {
 	m.focus = focusSwitchConfirm
 	m.modalBtnIdx = 0
 
-	next, _ := m.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyTab})
-	mod := next.(Model)
+	next, _ := m.handleSwitchConfirmKey(namedKey(tcell.KeyTab))
+	mod := next
 	assert.Equal(t, 1, mod.modalBtnIdx)
 
-	next, _ = mod.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyTab})
-	mod = next.(Model)
+	next, _ = mod.handleSwitchConfirmKey(namedKey(tcell.KeyTab))
+	mod = next
 	assert.Equal(t, 2, mod.modalBtnIdx)
 
-	next, _ = mod.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyTab})
-	mod = next.(Model)
+	next, _ = mod.handleSwitchConfirmKey(namedKey(tcell.KeyTab))
+	mod = next
 	assert.Equal(t, 0, mod.modalBtnIdx)
 
-	next, _ = mod.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyShiftTab})
-	mod = next.(Model)
+	next, _ = mod.handleSwitchConfirmKey(namedKey(tcell.KeyBacktab))
+	mod = next
 	assert.Equal(t, 2, mod.modalBtnIdx)
 
-	next, _ = mod.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyRight})
-	mod = next.(Model)
+	next, _ = mod.handleSwitchConfirmKey(namedKey(tcell.KeyRight))
+	mod = next
 	assert.Equal(t, 0, mod.modalBtnIdx)
 
-	next, _ = mod.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyLeft})
-	mod = next.(Model)
+	next, _ = mod.handleSwitchConfirmKey(namedKey(tcell.KeyLeft))
+	mod = next
 	assert.Equal(t, 2, mod.modalBtnIdx)
 }
 
@@ -157,18 +156,12 @@ func TestQuitConfirmMouseClicksDiscard(t *testing.T) {
 	m.pendingQuit = true
 	m.quitDirty = []dirtyGroup{{project: "api", config: "dev", changes: []models.ChangeRequest{{Name: "FOO"}}}}
 
-	modal := m.renderSwitchConfirmModal()
-	ox := (m.width - lipgloss.Width(modal)) / 2
-	oy := (m.height - lipgloss.Height(modal)) / 2
-	hits := buttonHitRects(modal, m.switchConfirmButtons(), ox, oy)
+	spec, ok := m.currentModalSpec()
+	require.True(t, ok)
+	hits := spec.geometry(m.width, m.height, m.cfg.Border).buttons
 	require.Len(t, hits, 3)
 
-	_, cmd := m.handleMouse(tea.MouseMsg{
-		X:      hits[1].x,
-		Y:      hits[1].y,
-		Action: tea.MouseActionPress,
-		Button: tea.MouseButtonLeft,
-	})
+	_, cmd := m.handleMouse(leftClick(hits[1].x, hits[1].y))
 	require.NotNil(t, cmd)
 }
 
@@ -179,8 +172,8 @@ func TestQuitConfirmCancelButton(t *testing.T) {
 	m.pendingQuit = true
 	m.modalBtnIdx = 2
 
-	next, cmd := m.handleSwitchConfirmKey(tea.KeyMsg{Type: tea.KeyEnter})
-	mod := next.(Model)
+	next, cmd := m.handleSwitchConfirmKey(namedKey(tcell.KeyEnter))
+	mod := next
 	assert.Nil(t, cmd)
 	assert.Equal(t, focusSecrets, mod.focus)
 	assert.False(t, mod.pendingQuit)
@@ -196,7 +189,7 @@ func TestQuitConfirmModalCopyAndSize(t *testing.T) {
 		{project: "api", config: "dev", changes: []models.ChangeRequest{{Name: "FOO"}, {Name: "BAR"}}},
 	}
 
-	view := m.renderSwitchConfirmModal()
+	view := modalText(m)
 	assert.NotContains(t, view, "You have unsaved")
 	assert.Contains(t, view, "Modified:")
 	assert.Contains(t, view, "api / dev")
@@ -225,7 +218,7 @@ func TestActivateSameConfigSkipsFetch(t *testing.T) {
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
 
 	next, cmd := m.activateSelection()
-	mod := next.(Model)
+	mod := next
 	assert.Nil(t, cmd)
 	assert.Equal(t, focusProjects, mod.focus)
 	assert.NotEqual(t, focusSwitchConfirm, mod.focus)

@@ -17,8 +17,6 @@ package tui
 
 import (
 	"strings"
-
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 type propagateTarget struct {
@@ -137,7 +135,7 @@ func (m *Model) toggleAllPropagate() {
 	}
 }
 
-func (m Model) openPropagate() (tea.Model, tea.Cmd) {
+func (m Model) openPropagate() (Model, Cmd) {
 	m.propagateTargets = m.siblingPropagateTargets()
 	m.propagateIdx = 0
 	m.modalBtnIdx = 0
@@ -145,30 +143,22 @@ func (m Model) openPropagate() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) requestSaveConfirm() (tea.Model, tea.Cmd) {
+func (m Model) requestSaveConfirm() (Model, Cmd) {
 	if m.shouldAskPropagate() {
 		return m.openPropagate()
 	}
 	return m.confirmSave()
 }
 
-func (m Model) handlePropagateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handlePropagateKey(msg keyMsg) (Model, Cmd) {
 	buttons := m.propagateModalButtons()
 	if delta, ok := modalCycleDelta(msg.String()); ok {
 		m.cycleModalButton(len(buttons), delta)
 		return m, nil
 	}
 
-	chord, ok := encodeKey(msg)
-	if !ok {
-		chord = msg.String()
-	}
-	if msg.Type == tea.KeySpace {
-		chord = "space"
-	}
-
-	switch chord {
-	case "space", " ":
+	switch msg.Chord {
+	case "space":
 		m.togglePropagateAt(m.propagateIdx)
 	case "a", "A":
 		m.toggleAllPropagate()
@@ -182,13 +172,13 @@ func (m Model) handlePropagateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.movePropagateIdx(1)
 	case "k", "up":
 		m.movePropagateIdx(-1)
-	case "C-c", "ctrl+c":
-		return m, tea.Quit
+	case "C-c":
+		return m, Quit
 	}
 	return m, nil
 }
 
-func (m Model) cancelPropagate() (tea.Model, tea.Cmd) {
+func (m Model) cancelPropagate() (Model, Cmd) {
 	m.clearPropagate()
 	m.pendingChanges = nil
 	m.setFocus(focusSecrets)

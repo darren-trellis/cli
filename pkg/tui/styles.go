@@ -15,149 +15,146 @@ limitations under the License.
 */
 package tui
 
-import "github.com/charmbracelet/lipgloss"
-
-var (
-	accent     lipgloss.Color
-	dim        lipgloss.Color
-	background lipgloss.Color
-	textColor  lipgloss.Color
-
-	panelStyle           lipgloss.Style
-	activePanelStyle     lipgloss.Style
-	listPanelStyle       lipgloss.Style
-	activeListPanelStyle lipgloss.Style
-	titleStyle           lipgloss.Style
-	activeTitleStyle     lipgloss.Style
-	selectedStyle       lipgloss.Style
-	selectedActiveStyle lipgloss.Style
-	searchHitStyle      lipgloss.Style
-	activeEnvStyle      lipgloss.Style
-	cachedConfigStyle   lipgloss.Style
-	selectedCachedStyle lipgloss.Style
-	dimStyle         lipgloss.Style
-	dirtyStyle       lipgloss.Style
-	deleteStyle      lipgloss.Style
-	errorStyle       lipgloss.Style
-	statusStyle      lipgloss.Style
-	statusBarStyle   lipgloss.Style
-	modalStyle       lipgloss.Style
-	buttonStyle      lipgloss.Style
-	buttonFocusStyle lipgloss.Style
-	helpStyle        lipgloss.Style
-	appStyle         lipgloss.Style
-
-	roundedBorder = lipgloss.RoundedBorder()
+import (
+	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
 )
 
+// Raw theme colours, kept separately from the composed styles below because a
+// few call sites (borders, scrollbars) need the colour rather than a style.
+var (
+	accent      tcell.Color
+	dim         tcell.Color
+	background  tcell.Color
+	textColor   tcell.Color
+	borderColor tcell.Color
+	selectionBg tcell.Color
+	activeEnv   tcell.Color
+
+	baseStyle           tcell.Style
+	dimStyle            tcell.Style
+	dirtyStyle          tcell.Style
+	deleteStyle         tcell.Style
+	errorStyle          tcell.Style
+	statusStyle         tcell.Style
+	helpStyle           tcell.Style
+	titleStyle          tcell.Style
+	activeTitleStyle    tcell.Style
+	selectedStyle       tcell.Style
+	selectedActiveStyle tcell.Style
+	selectedCachedStyle tcell.Style
+	activeEnvStyle      tcell.Style
+	cachedConfigStyle   tcell.Style
+	searchHitStyle      tcell.Style
+	borderStyle         tcell.Style
+	activeBorderStyle   tcell.Style
+	buttonStyle         tcell.Style
+	buttonFocusStyle    tcell.Style
+	scrollTrackStyle    tcell.Style
+	scrollThumbStyle    tcell.Style
+
+	currentTheme Theme
+)
+
+// fallbackSelectionBg is used when a theme leaves selection_bg unset; a
+// selected row still has to read as selected on a default background.
+const fallbackSelectionBg = 237
+
 func rebuildStyles(theme Theme) {
+	currentTheme = theme
+
 	accent = theme.Accent
 	dim = theme.Dim
 	background = theme.Background
 	textColor = theme.Text
 
-	borderColor := theme.Border
-	if borderColor == "" {
+	borderColor = theme.Border
+	if borderColor == tcell.ColorDefault {
 		borderColor = theme.Dim
 	}
 
-	panelStyle = lipgloss.NewStyle().
-		Border(roundedBorder).
-		BorderForeground(borderColor).
-		Padding(0, 1)
-
-	activePanelStyle = panelStyle.BorderForeground(theme.Accent)
-
-	listPanelStyle = lipgloss.NewStyle().
-		Border(roundedBorder).
-		BorderForeground(borderColor)
-
-	activeListPanelStyle = listPanelStyle.BorderForeground(theme.Accent)
-
-	titleStyle = lipgloss.NewStyle().Foreground(theme.Title).Bold(true)
-	activeTitleStyle = titleStyle.Foreground(theme.Accent)
-
-	selectedStyle = lipgloss.NewStyle().Foreground(theme.SelectionFg).Bold(true)
-	selectionBg := theme.SelectionBg
-	if selectionBg == "" {
-		selectionBg = lipgloss.Color("237")
+	selectionBg = theme.SelectionBg
+	if selectionBg == tcell.ColorDefault {
+		selectionBg = tcell.PaletteColor(fallbackSelectionBg)
 	}
-	selectedStyle = selectedStyle.Background(selectionBg)
 
-	activeEnv := theme.ActiveEnv
-	if activeEnv == "" {
+	activeEnv = theme.ActiveEnv
+	if activeEnv == tcell.ColorDefault {
 		activeEnv = theme.Accent
 	}
-	activeEnvStyle = lipgloss.NewStyle().Foreground(activeEnv).Bold(true)
-	selectedActiveStyle = lipgloss.NewStyle().
+
+	base := tcell.StyleDefault.Background(background)
+
+	baseStyle = base.Foreground(theme.Text)
+	dimStyle = base.Foreground(theme.Dim)
+	dirtyStyle = base.Foreground(theme.Dirty)
+	deleteStyle = base.Foreground(theme.Delete)
+	errorStyle = base.Foreground(theme.Error)
+	statusStyle = base.Foreground(theme.Text)
+	helpStyle = base.Foreground(theme.Dim)
+
+	titleStyle = base.Foreground(theme.Title).Bold(true)
+	activeTitleStyle = base.Foreground(theme.Accent).Bold(true)
+
+	borderStyle = base.Foreground(borderColor)
+	activeBorderStyle = base.Foreground(theme.Accent)
+
+	selectedStyle = tcell.StyleDefault.
+		Background(selectionBg).
+		Foreground(theme.SelectionFg).
+		Bold(true)
+	selectedActiveStyle = tcell.StyleDefault.
+		Background(selectionBg).
 		Foreground(activeEnv).
-		Bold(true).
-		Background(selectionBg)
-	cachedConfigStyle = lipgloss.NewStyle().Foreground(theme.Accent).Bold(true)
-	selectedCachedStyle = lipgloss.NewStyle().
+		Bold(true)
+	selectedCachedStyle = tcell.StyleDefault.
+		Background(selectionBg).
 		Foreground(theme.Accent).
-		Bold(true).
-		Background(selectionBg)
+		Bold(true)
+
+	activeEnvStyle = base.Foreground(activeEnv).Bold(true)
+	cachedConfigStyle = base.Foreground(theme.Accent).Bold(true)
+
 	hitBg := theme.SearchMatchBg
-	if hitBg == "" {
+	if hitBg == tcell.ColorDefault {
 		hitBg = theme.Accent
 	}
 	hitFg := theme.SearchMatchFg
-	if hitFg == "" {
+	if hitFg == tcell.ColorDefault {
 		hitFg = theme.SelectionFg
 	}
-	if hitFg == "" {
+	if hitFg == tcell.ColorDefault {
 		hitFg = theme.Text
 	}
-	searchHitStyle = lipgloss.NewStyle().Background(hitBg).Foreground(hitFg)
+	searchHitStyle = tcell.StyleDefault.Background(hitBg).Foreground(hitFg)
 
-	dimStyle = lipgloss.NewStyle().Foreground(theme.Dim)
-	dirtyStyle = lipgloss.NewStyle().Foreground(theme.Dirty)
-	deleteStyle = lipgloss.NewStyle().Foreground(theme.Delete)
-	errorStyle = lipgloss.NewStyle().Foreground(theme.Error)
-	statusStyle = lipgloss.NewStyle().Foreground(theme.Text)
-	helpStyle = lipgloss.NewStyle().Foreground(theme.Dim)
-	statusBarStyle = lipgloss.NewStyle()
-
-	modalStyle = lipgloss.NewStyle().
-		Border(roundedBorder).
-		BorderForeground(theme.Accent).
-		Padding(1, 2).
-		Width(60)
-
-	buttonStyle = lipgloss.NewStyle().
-		Foreground(theme.Dim).
-		Padding(0, 1)
-	buttonFocusStyle = lipgloss.NewStyle().
+	buttonStyle = base.Foreground(theme.Dim)
+	buttonFocusStyle = tcell.StyleDefault.
+		Background(selectionBg).
 		Foreground(theme.SelectionFg).
-		Bold(true).
-		Padding(0, 1)
-	if theme.SelectionBg != "" {
-		buttonFocusStyle = buttonFocusStyle.Background(theme.SelectionBg)
-	} else {
-		buttonFocusStyle = buttonFocusStyle.Background(lipgloss.Color("237"))
-	}
+		Bold(true)
 
-	appStyle = lipgloss.NewStyle().Foreground(theme.Text)
-	if theme.Background != "" {
-		bg := theme.Background
-		appStyle = appStyle.Background(bg)
-		panelStyle = panelStyle.Background(bg).BorderBackground(bg)
-		activePanelStyle = activePanelStyle.Background(bg).BorderBackground(bg)
-		listPanelStyle = listPanelStyle.Background(bg).BorderBackground(bg)
-		activeListPanelStyle = activeListPanelStyle.Background(bg).BorderBackground(bg)
-		modalStyle = modalStyle.Background(bg).BorderBackground(bg)
-		buttonStyle = buttonStyle.Background(bg)
-		statusBarStyle = statusBarStyle.Background(bg)
-		helpStyle = helpStyle.Background(bg)
-		statusStyle = statusStyle.Background(bg)
-		errorStyle = errorStyle.Background(bg)
-		dimStyle = dimStyle.Background(bg)
-		dirtyStyle = dirtyStyle.Background(bg)
-		deleteStyle = deleteStyle.Background(bg)
-		activeEnvStyle = activeEnvStyle.Background(bg)
-		cachedConfigStyle = cachedConfigStyle.Background(bg)
-		titleStyle = titleStyle.Background(bg)
-		activeTitleStyle = activeTitleStyle.Background(bg)
+	scrollTrackStyle = base.Foreground(theme.Dim)
+	scrollThumbStyle = base.Foreground(theme.Accent)
+
+	applyTviewStyles(theme)
+}
+
+// applyTviewStyles points tview's own chrome (box borders, titles, default
+// backgrounds) at the active theme so built-in widgets match the panes we draw
+// ourselves.
+func applyTviewStyles(theme Theme) {
+	tview.Styles = tview.Theme{
+		PrimitiveBackgroundColor:    theme.Background,
+		ContrastBackgroundColor:     selectionBg,
+		MoreContrastBackgroundColor: selectionBg,
+		BorderColor:                 borderColor,
+		TitleColor:                  theme.Title,
+		GraphicsColor:               borderColor,
+		PrimaryTextColor:            theme.Text,
+		SecondaryTextColor:          theme.Accent,
+		TertiaryTextColor:           theme.Dim,
+		InverseTextColor:            theme.SelectionFg,
+		ContrastSecondaryTextColor:  theme.Dim,
 	}
 }

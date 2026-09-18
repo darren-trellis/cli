@@ -19,7 +19,6 @@ import (
 	"strings"
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
-	"github.com/charmbracelet/bubbles/textinput"
 )
 
 const maxInputHistory = 200
@@ -125,16 +124,16 @@ func (h *inputHistory) Next(current string) (string, bool) {
 
 func historyStep(msg string) int {
 	switch msg {
-	case "up", "ctrl+p":
+	case "up", "C-p":
 		return -1
-	case "down", "ctrl+n":
+	case "down", "C-n":
 		return 1
 	default:
 		return 0
 	}
 }
 
-func applyHistoryValue(input *textinput.Model, value string) {
+func applyHistoryValue(input *textField, value string) {
 	input.SetValue(value)
 	input.CursorEnd()
 }

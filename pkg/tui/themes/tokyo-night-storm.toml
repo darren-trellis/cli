@@ -1,0 +1,34 @@
+name = "tokyo-night-storm"
+
+[colors]
+background = "#24283b"
+foreground = "#c0caf5"
+selection_bg = "#364a82"
+selection_fg = "#c0caf5"
+overlay_bg = "#1f2335"
+status_bg = "#1f2335"
+status_fg = "#a9b1d6"
+border = "#414868"
+window_focus_border = "#7aa2f7"
+search_match = { fg = "#24283b", bg = "#7aa2f7" }
+dim = "#565f89"
+
+[levels]
+trace = "#565f89"
+debug = "#7dcfff"
+info = "#9ece6a"
+warn = "#e0af68"
+error = "#f7768e"
+fatal = "#bb9af7"
+unknown = "#c0caf5"
+
+[ui]
+timestamp = "#7dcfff"
+key = "#7aa2f7"
+string = "#9ece6a"
+number = "#ff9e64"
+bool = "#bb9af7"
+null = "#565f89"
+border_color = { fg = "#414868", bg = "#24283b" }
+border_width = 1
+border_padding = 1

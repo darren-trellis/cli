@@ -21,9 +21,7 @@ import (
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/ansi"
+	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -81,12 +79,12 @@ func TestFilterStatusLabel(t *testing.T) {
 func TestExecFilterOpensLocalOrGlobal(t *testing.T) {
 	m := newModel(models.ScopedOptions{}, configuration.TUISettings{})
 	next, _ := m.executeCommand("filter")
-	mod := next.(Model)
+	mod := next
 	assert.Equal(t, focusFilter, mod.focus)
 	assert.False(t, mod.filterGlobal)
 
 	next, _ = mod.executeCommand("filter global")
-	mod = next.(Model)
+	mod = next
 	assert.Equal(t, focusFilter, mod.focus)
 	assert.True(t, mod.filterGlobal)
 }
@@ -128,11 +126,11 @@ func TestNavKeyFocusSwitch(t *testing.T) {
 	m.fetching = false
 	m.focus = focusSecrets
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
-	assert.Equal(t, focusProjects, next.(Model).focus)
+	next, _ := m.Update(namedKey(tcell.KeyTab))
+	assert.Equal(t, focusProjects, next.focus)
 
-	next, _ = next.Update(tea.KeyMsg{Type: tea.KeyTab})
-	assert.Equal(t, focusSecrets, next.(Model).focus)
+	next, _ = next.Update(namedKey(tcell.KeyTab))
+	assert.Equal(t, focusSecrets, next.focus)
 }
 
 func TestMoveSecretsList(t *testing.T) {
@@ -146,11 +144,11 @@ func TestMoveSecretsList(t *testing.T) {
 	}
 	m.secretIdx = 0
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
-	assert.Equal(t, 1, next.(Model).secretIdx)
+	next, _ := m.Update(runeKey('j'))
+	assert.Equal(t, 1, next.secretIdx)
 
-	next, _ = next.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
-	assert.Equal(t, 0, next.(Model).secretIdx)
+	next, _ = next.Update(runeKey('k'))
+	assert.Equal(t, 0, next.secretIdx)
 }
 
 func TestPageUpDownSecrets(t *testing.T) {
@@ -168,17 +166,17 @@ func TestPageUpDownSecrets(t *testing.T) {
 	page := m.pageSize()
 	require.Greater(t, page, 1)
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
-	assert.Equal(t, page, next.(Model).secretIdx)
+	next, _ := m.Update(namedKey(tcell.KeyPgDn))
+	assert.Equal(t, page, next.secretIdx)
 
-	next, _ = next.Update(tea.KeyMsg{Type: tea.KeyPgUp})
-	assert.Equal(t, 0, next.(Model).secretIdx)
+	next, _ = next.Update(namedKey(tcell.KeyPgUp))
+	assert.Equal(t, 0, next.secretIdx)
 
-	next, _ = next.Update(tea.KeyMsg{Type: tea.KeyPgDown})
-	next, _ = next.Update(tea.KeyMsg{Type: tea.KeyPgDown})
-	next, _ = next.Update(tea.KeyMsg{Type: tea.KeyPgDown})
-	next, _ = next.Update(tea.KeyMsg{Type: tea.KeyPgDown})
-	assert.Equal(t, 29, next.(Model).secretIdx)
+	next, _ = next.Update(namedKey(tcell.KeyPgDn))
+	next, _ = next.Update(namedKey(tcell.KeyPgDn))
+	next, _ = next.Update(namedKey(tcell.KeyPgDn))
+	next, _ = next.Update(namedKey(tcell.KeyPgDn))
+	assert.Equal(t, 29, next.secretIdx)
 }
 
 func TestSidebarWidthConfig(t *testing.T) {
@@ -239,15 +237,15 @@ func TestSidebarToggle(t *testing.T) {
 	m.width = 100
 	m.height = 24
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'B'}})
-	mod := next.(Model)
+	next, _ := m.Update(runeKey('B'))
+	mod := next
 	assert.False(t, mod.cfg.Sidebar)
 	assert.Equal(t, focusSecrets, mod.focus)
 	assert.Equal(t, 100, mod.computeLayout().secrets.w)
 	assert.Equal(t, 0, mod.computeLayout().projects.w)
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'B'}})
-	mod = next.(Model)
+	next, _ = mod.Update(runeKey('B'))
+	mod = next
 	assert.True(t, mod.cfg.Sidebar)
 }
 
@@ -263,12 +261,12 @@ func TestJumpListEdge(t *testing.T) {
 	}
 	m.secretIdx = 5
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
-	mod := next.(Model)
+	next, _ := m.Update(runeKey('g'))
+	mod := next
 	assert.Equal(t, 0, mod.secretIdx)
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
-	mod = next.(Model)
+	next, _ = mod.Update(runeKey('G'))
+	mod = next
 	assert.Equal(t, 19, mod.secretIdx)
 }
 
@@ -314,10 +312,37 @@ func TestSidebarScrollOffsetStableOnMoveUp(t *testing.T) {
 }
 
 func TestVerticalScrollbar(t *testing.T) {
-	assert.Equal(t, "", renderVerticalScrollbar(10, 5, 0, 10))
-	bar := renderVerticalScrollbar(10, 100, 0, 10)
-	assert.Equal(t, 10, strings.Count(bar, "\n")+1)
-	assert.Contains(t, bar, "▐")
+	sc := tcell.NewSimulationScreen("UTF-8")
+	require.NoError(t, sc.Init())
+	t.Cleanup(sc.Fini)
+	sc.SetSize(4, 10)
+
+	// Nothing to scroll: the column is left untouched.
+	drawVerticalScrollbar(sc, 0, 0, 10, 5, 0, 10)
+	sc.Show()
+	assert.Equal(t, strings.Repeat(" ", 10), scrollColumn(sc, 0, 10))
+
+	drawVerticalScrollbar(sc, 0, 0, 10, 100, 0, 10)
+	sc.Show()
+	col := scrollColumn(sc, 0, 10)
+	assert.Len(t, []rune(col), 10)
+	assert.Contains(t, col, "▐")
+	assert.Contains(t, col, "│")
+}
+
+// scrollColumn reads one column of the simulation screen top to bottom.
+func scrollColumn(sc tcell.SimulationScreen, x, h int) string {
+	cells, w, _ := sc.GetContents()
+	var b strings.Builder
+	for y := 0; y < h; y++ {
+		c := cells[y*w+x]
+		if len(c.Runes) > 0 && c.Runes[0] != 0 {
+			b.WriteRune(c.Runes[0])
+		} else {
+			b.WriteRune(' ')
+		}
+	}
+	return b.String()
 }
 
 func TestSidebarScrollbarRightAlignedWhenUnfocused(t *testing.T) {
@@ -334,15 +359,13 @@ func TestSidebarScrollbarRightAlignedWhenUnfocused(t *testing.T) {
 	}
 	m.rebuildTree()
 
-	out := m.renderProjectTree(28, 18)
-	plain := ansi.Strip(out)
-	lines := strings.Split(plain, "\n")
+	lines := strings.Split(renderSidebar(t, m), "\n")
 	require.Greater(t, len(lines), 3)
 	body := lines[1 : len(lines)-1] // skip top/bottom border
-	width := lipgloss.Width(body[0])
+	width := textWidth(body[0])
 	assert.Equal(t, 28, width) // full panel width including borders
 	for i, line := range body {
-		assert.Equal(t, width, lipgloss.Width(line), "line %d", i)
+		assert.Equal(t, width, textWidth(line), "line %d", i)
 		runes := []rune(line)
 		require.Len(t, runes, width, "line %d", i)
 		// left border + content + scrollbar + right border
@@ -363,8 +386,8 @@ func TestPageLinesConfig(t *testing.T) {
 	}
 
 	assert.Equal(t, 5, m.pageSize())
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
-	assert.Equal(t, 5, next.(Model).secretIdx)
+	next, _ := m.Update(namedKey(tcell.KeyPgDn))
+	assert.Equal(t, 5, next.secretIdx)
 }
 
 func TestEnterInsertAndEsc(t *testing.T) {
@@ -373,13 +396,13 @@ func TestEnterInsertAndEsc(t *testing.T) {
 	m.focus = focusSecrets
 	m.secrets = []secretRow{newSecretRow("A", "val", "masked")}
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	mod := next.(Model)
+	next, _ := m.Update(namedKey(tcell.KeyEnter))
+	mod := next
 	assert.Equal(t, focusSecretInsert, mod.focus)
 	assert.Equal(t, "A", mod.cellInput.Value())
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	assert.Equal(t, focusSecrets, next.(Model).focus)
+	next, _ = mod.Update(namedKey(tcell.KeyEsc))
+	assert.Equal(t, focusSecrets, next.focus)
 }
 
 func TestVimColumnMoveAndInsert(t *testing.T) {
@@ -389,12 +412,12 @@ func TestVimColumnMoveAndInsert(t *testing.T) {
 	m.secrets = []secretRow{newSecretRow("A", "val", "masked")}
 	assert.Equal(t, colName, m.secretCol)
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
-	mod := next.(Model)
+	next, _ := m.Update(runeKey('l'))
+	mod := next
 	assert.Equal(t, colValue, mod.secretCol)
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
-	mod = next.(Model)
+	next, _ = mod.Update(runeKey('i'))
+	mod = next
 	assert.Equal(t, focusSecretInsert, mod.focus)
 	assert.Equal(t, "val", mod.cellInput.Value())
 }
@@ -409,20 +432,20 @@ func TestUndoAfterNavigatingAway(t *testing.T) {
 	}
 	m.secretCol = colValue
 
-	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
-	mod := next.(Model)
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
-	mod = next.(Model)
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	mod = next.(Model)
+	next, _ := m.Update(runeKey('i'))
+	mod := next
+	next, _ = mod.Update(runeKey('x'))
+	mod = next
+	next, _ = mod.Update(namedKey(tcell.KeyEsc))
+	mod = next
 	assert.True(t, mod.secrets[0].isDirty())
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
-	mod = next.(Model)
+	next, _ = mod.Update(runeKey('j'))
+	mod = next
 	assert.Equal(t, 1, mod.secretIdx)
 
-	next, _ = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'u'}})
-	mod = next.(Model)
+	next, _ = mod.Update(runeKey('u'))
+	mod = next
 	assert.False(t, mod.secrets[0].isDirty())
 	assert.Equal(t, "one", mod.secrets[0].value)
 	assert.Equal(t, 0, mod.secretIdx)
@@ -430,14 +453,14 @@ func TestUndoAfterNavigatingAway(t *testing.T) {
 
 func TestLoadedMsgSetsState(t *testing.T) {
 	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, ListScrollbarVertical: true, SidebarScrollbarVertical: true})
-	next, _ := m.Update(loadedMsg{
+	next, cmd := m.Update(loadedMsg{
 		projects:      []string{"p1", "p2"},
 		configs:       buildConfigTree([]models.ConfigInfo{{Name: "dev", Environment: "dev", Root: true}}),
 		secrets:       []secretRow{newSecretRow("X", "1", "masked")},
 		activeProject: "p2",
 		activeConfig:  "dev",
 	})
-	mod := next.(Model)
+	mod := next
 	assert.False(t, mod.fetching)
 	assert.Equal(t, []string{"p1", "p2"}, mod.projects)
 	assert.Equal(t, "p2", mod.activeProject)
@@ -446,6 +469,8 @@ func TestLoadedMsgSetsState(t *testing.T) {
 	assert.Equal(t, treeConfig, mod.tree[mod.treeIdx].kind)
 	assert.Equal(t, "dev", mod.tree[mod.treeIdx].config)
 	assert.Equal(t, "X", mod.secrets[0].name)
+	assert.True(t, mod.workplaceIndexing)
+	assert.NotNil(t, cmd)
 }
 
 func TestProjectSelectedMsgLoadsSecrets(t *testing.T) {
@@ -462,7 +487,7 @@ func TestProjectSelectedMsgLoadsSecrets(t *testing.T) {
 		project: "backend-ts",
 		config:  "dev_personal",
 	})
-	mod := next.(Model)
+	mod := next
 	assert.False(t, mod.fetching)
 	assert.Equal(t, "backend-ts", mod.activeProject)
 	assert.Equal(t, "dev_personal", mod.activeConfig)
@@ -492,21 +517,21 @@ func TestBuildConfigTree(t *testing.T) {
 
 func TestFormatTreeRowShowsLock(t *testing.T) {
 	row := treeRow{kind: treeConfig, project: "api", config: "prd", depth: 1, lastSibling: true, locked: true}
-	assert.Equal(t, "  └─ $prd", ansi.Strip(formatTreeRow(row, "api", "dev")))
+	assert.Equal(t, "  └─ $prd", formatTreeRow(row, "api", "dev"))
 
 	active := treeRow{kind: treeConfig, project: "api", config: "prd", depth: 1, lastSibling: true, locked: true}
-	assert.Equal(t, "  └─ *$prd", ansi.Strip(formatTreeRow(active, "api", "prd")))
+	assert.Equal(t, "  └─ *$prd", formatTreeRow(active, "api", "prd"))
 	active.dirty = true
-	assert.Equal(t, "  └─ *$prd +", ansi.Strip(formatTreeRow(active, "api", "prd")))
+	assert.Equal(t, "  └─ *$prd +", formatTreeRow(active, "api", "prd"))
 	active.dirty = false
 	active.cached = true
-	assert.Equal(t, "  └─ *$prd", ansi.Strip(formatTreeRow(active, "api", "prd")))
+	assert.Equal(t, "  └─ *$prd", formatTreeRow(active, "api", "prd"))
 
 	cached := treeRow{kind: treeConfig, project: "api", config: "prd", depth: 1, lastSibling: true, cached: true}
-	assert.Equal(t, "  └─ +prd", ansi.Strip(formatTreeRow(cached, "api", "dev")))
+	assert.Equal(t, "  └─ +prd", formatTreeRow(cached, "api", "dev"))
 	cached.locked = true
 	cached.dirty = true
-	assert.Equal(t, "  └─ +$prd +", ansi.Strip(formatTreeRow(cached, "api", "dev")))
+	assert.Equal(t, "  └─ +$prd +", formatTreeRow(cached, "api", "dev"))
 }
 
 func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
@@ -529,18 +554,18 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 	assert.Equal(t, 2, tree[2].depth)
 	assert.True(t, tree[2].parentContinues)
 	assert.True(t, tree[3].lastSibling)
-	assert.Equal(t, "▾ api", ansi.Strip(formatTreeRow(tree[0], "api", "dev")))
-	assert.Equal(t, "  ├─ ▾ *dev", ansi.Strip(formatTreeRow(tree[1], "api", "dev")))
-	assert.Equal(t, "  │  └─ dev_personal", ansi.Strip(formatTreeRow(tree[2], "api", "dev")))
-	assert.Equal(t, "  └─ prd", ansi.Strip(formatTreeRow(tree[3], "api", "dev")))
+	assert.Equal(t, "▾ api", formatTreeRow(tree[0], "api", "dev"))
+	assert.Equal(t, "  ├─ ▾ *dev", formatTreeRow(tree[1], "api", "dev"))
+	assert.Equal(t, "  │  └─ dev_personal", formatTreeRow(tree[2], "api", "dev"))
+	assert.Equal(t, "  └─ prd", formatTreeRow(tree[3], "api", "dev"))
 
 	expandedEnvs := map[string]bool{envKey("api", "dev"): false}
 	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, expandedEnvs, "api", "dev_personal", nil)
 	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd", "web"}, treeLabels(tree))
 	assert.True(t, tree[1].folded)
 	assert.True(t, tree[2].pinned)
-	assert.Equal(t, "  ├─ ▸ dev", ansi.Strip(formatTreeRow(tree[1], "api", "dev_personal")))
-	assert.Equal(t, "  │  └─ *dev_personal", ansi.Strip(formatTreeRow(tree[2], "api", "dev_personal")))
+	assert.Equal(t, "  ├─ ▸ dev", formatTreeRow(tree[1], "api", "dev_personal"))
+	assert.Equal(t, "  │  └─ *dev_personal", formatTreeRow(tree[2], "api", "dev_personal"))
 
 	expanded["api"] = false
 	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, nil, "api", "dev", nil)
@@ -549,7 +574,7 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 	assert.Equal(t, treeConfig, tree[1].kind)
 	assert.Equal(t, "dev", tree[1].config)
 	assert.True(t, tree[1].pinned)
-	assert.Equal(t, "  └─ *dev", ansi.Strip(formatTreeRow(tree[1], "api", "dev")))
+	assert.Equal(t, "  └─ *dev", formatTreeRow(tree[1], "api", "dev"))
 	assert.Equal(t, "web", tree[2].project)
 }
 
@@ -585,19 +610,19 @@ func TestBuildProjectTreeFoldKeepsCachedConfigs(t *testing.T) {
 	assert.True(t, tree[2].pinned)
 	assert.Equal(t, 2, tree[2].depth)
 	assert.True(t, tree[3].pinned)
-	assert.Equal(t, "  ├─ ▸ *dev", ansi.Strip(formatTreeRow(tree[1], "api", "dev")))
+	assert.Equal(t, "  ├─ ▸ *dev", formatTreeRow(tree[1], "api", "dev"))
 	tree[2].cached = true
-	assert.Equal(t, "  │  └─ +dev_personal", ansi.Strip(formatTreeRow(tree[2], "api", "dev")))
+	assert.Equal(t, "  │  └─ +dev_personal", formatTreeRow(tree[2], "api", "dev"))
 	tree[3].cached = true
-	assert.Equal(t, "  └─ +prd", ansi.Strip(formatTreeRow(tree[3], "api", "dev")))
+	assert.Equal(t, "  └─ +prd", formatTreeRow(tree[3], "api", "dev"))
 }
 
 func TestToggleProjectFoldKeepsCached(t *testing.T) {
 	m := cachedSidebarModel()
 	m.treeIdx = 0
 
-	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
-	mod := next.(Model)
+	next, cmd := m.Update(runeKey(' '))
+	mod := next
 	assert.Nil(t, cmd)
 	assert.False(t, mod.expanded["api"])
 	assert.Equal(t, []string{"api", "dev", "prd"}, treeLabels(mod.tree))
@@ -614,8 +639,8 @@ func TestToggleEnvFoldKeepsCached(t *testing.T) {
 	m.rebuildTree()
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
 
-	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
-	mod := next.(Model)
+	next, cmd := m.Update(runeKey(' '))
+	mod := next
 	assert.Nil(t, cmd)
 	assert.False(t, isEnvExpanded(mod.expandedEnvs, "api", "dev"))
 	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd"}, treeLabels(mod.tree))
@@ -637,8 +662,8 @@ func TestToggleProjectFold(t *testing.T) {
 	m.rebuildTree()
 	m.treeIdx = 0
 
-	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
-	mod := next.(Model)
+	next, cmd := m.Update(runeKey(' '))
+	mod := next
 	assert.Nil(t, cmd)
 	assert.False(t, mod.expanded["api"])
 	require.GreaterOrEqual(t, len(mod.tree), 2)
@@ -646,8 +671,8 @@ func TestToggleProjectFold(t *testing.T) {
 	assert.True(t, mod.tree[1].pinned)
 	assert.Equal(t, "dev", mod.tree[1].config)
 
-	next, cmd = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
-	mod = next.(Model)
+	next, cmd = mod.Update(runeKey(' '))
+	mod = next
 	assert.Nil(t, cmd)
 	assert.True(t, mod.expanded["api"])
 	assert.False(t, mod.tree[0].folded)
@@ -669,15 +694,15 @@ func TestToggleEnvFold(t *testing.T) {
 	m.rebuildTree()
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
 
-	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
-	mod := next.(Model)
+	next, cmd := m.Update(runeKey(' '))
+	mod := next
 	assert.Nil(t, cmd)
 	assert.False(t, isEnvExpanded(mod.expandedEnvs, "api", "dev"))
 	assert.Equal(t, []string{"api", "dev", "prd"}, treeLabels(mod.tree))
 	assert.True(t, mod.tree[mod.treeIdx].folded)
 
-	next, cmd = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
-	mod = next.(Model)
+	next, cmd = mod.Update(runeKey(' '))
+	mod = next
 	assert.Nil(t, cmd)
 	assert.True(t, isEnvExpanded(mod.expandedEnvs, "api", "dev"))
 	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd"}, treeLabels(mod.tree))
@@ -699,15 +724,15 @@ func TestSpaceOnLeafDoesNothing(t *testing.T) {
 	m.rebuildTree()
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "prd")
 
-	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
-	mod := next.(Model)
+	next, cmd := m.Update(runeKey(' '))
+	mod := next
 	assert.Nil(t, cmd)
 	assert.True(t, mod.expanded["api"])
 	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd"}, treeLabels(mod.tree))
 
 	mod.treeIdx = findTreeIndex(mod.tree, treeConfig, "api", "dev_personal")
-	next, cmd = mod.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
-	mod = next.(Model)
+	next, cmd = mod.Update(runeKey(' '))
+	mod = next
 	assert.Nil(t, cmd)
 	assert.True(t, isEnvExpanded(mod.expandedEnvs, "api", "dev"))
 	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd"}, treeLabels(mod.tree))

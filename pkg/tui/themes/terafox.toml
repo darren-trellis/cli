@@ -1,0 +1,34 @@
+name = "terafox"
+
+[colors]
+background = "#152528"
+foreground = "#e6eaea"
+selection_bg = "#293e40"
+selection_fg = "#e6eaea"
+overlay_bg = "#1d3337"
+status_bg = "#0f1c1e"
+status_fg = "#cbd9d8"
+border = "#254147"
+window_focus_border = "#fda47f"
+search_match = { fg = "#152528", bg = "#fda47f" }
+dim = "#587b7b"
+
+[levels]
+trace = "#587b7b"
+debug = "#5a93aa"
+info = "#7aa4a1"
+warn = "#fda47f"
+error = "#e85c51"
+fatal = "#ad5c7c"
+unknown = "#e6eaea"
+
+[ui]
+timestamp = "#a1cdd8"
+key = "#5a93aa"
+string = "#7aa4a1"
+number = "#ff8349"
+bool = "#ad5c7c"
+null = "#587b7b"
+border_color = { fg = "#254147", bg = "#152528" }
+border_width = 1
+border_padding = 1

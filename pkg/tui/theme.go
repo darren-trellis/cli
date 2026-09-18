@@ -20,9 +20,10 @@ import (
 	"fmt"
 	"io/fs"
 	"sort"
+	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"github.com/gdamore/tcell/v2"
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -33,27 +34,27 @@ var embeddedThemeFS embed.FS
 
 type Theme struct {
 	Name          string
-	Background    lipgloss.Color
-	Accent        lipgloss.Color
-	ActiveEnv     lipgloss.Color
-	Border        lipgloss.Color
-	Title         lipgloss.Color
-	Dim           lipgloss.Color
-	Dirty         lipgloss.Color
-	Delete        lipgloss.Color
-	Error         lipgloss.Color
-	Text          lipgloss.Color
-	SelectionBg   lipgloss.Color
-	SelectionFg   lipgloss.Color
-	SearchMatchFg lipgloss.Color
-	SearchMatchBg lipgloss.Color
+	Background    tcell.Color
+	Accent        tcell.Color
+	ActiveEnv     tcell.Color
+	Border        tcell.Color
+	Title         tcell.Color
+	Dim           tcell.Color
+	Dirty         tcell.Color
+	Delete        tcell.Color
+	Error         tcell.Color
+	Text          tcell.Color
+	SelectionBg   tcell.Color
+	SelectionFg   tcell.Color
+	SearchMatchFg tcell.Color
+	SearchMatchBg tcell.Color
 }
 
 type themeFile struct {
-	Name   string            `toml:"name"`
-	Colors themeFileColors   `toml:"colors"`
-	Levels themeFileLevels   `toml:"levels"`
-	UI     themeFileUI       `toml:"ui"`
+	Name   string          `toml:"name"`
+	Colors themeFileColors `toml:"colors"`
+	Levels themeFileLevels `toml:"levels"`
+	UI     themeFileUI     `toml:"ui"`
 }
 
 type themeFileColors struct {
@@ -84,60 +85,86 @@ func init() {
 	_ = applyTheme(defaultThemeName)
 }
 
+// parseColor turns a theme file colour into a tcell colour. An empty string
+// means "inherit the terminal default"; bare digits are ANSI palette indexes
+// (the built-in themes use those so they follow the user's own palette).
+func parseColor(s string) tcell.Color {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return tcell.ColorDefault
+	}
+	if n, err := strconv.Atoi(s); err == nil && n >= 0 && n <= 255 {
+		return tcell.PaletteColor(n)
+	}
+	c := tcell.GetColor(s)
+	if c == tcell.ColorDefault {
+		// GetColor returns ColorDefault for anything it cannot parse; treat
+		// that as "unset" rather than silently rendering an invalid colour.
+		return tcell.ColorDefault
+	}
+	return c
+}
+
 func registerBuiltinThemes() {
 	themes["default"] = Theme{
 		Name:        "default",
-		Background:  "",
-		Accent:      lipgloss.Color("5"),
-		ActiveEnv:   lipgloss.Color("2"),
-		Border:      lipgloss.Color("8"),
-		Title:       lipgloss.Color("15"),
-		Dim:         lipgloss.Color("8"),
-		Dirty:       lipgloss.Color("3"),
-		Delete:      lipgloss.Color("1"),
-		Error:       lipgloss.Color("1"),
-		Text:        lipgloss.Color("15"),
-		SelectionBg: "",
-		SelectionFg: lipgloss.Color("5"),
+		Background:  tcell.ColorDefault,
+		Accent:      tcell.PaletteColor(5),
+		ActiveEnv:   tcell.PaletteColor(2),
+		Border:      tcell.PaletteColor(8),
+		Title:       tcell.PaletteColor(15),
+		Dim:         tcell.PaletteColor(8),
+		Dirty:       tcell.PaletteColor(3),
+		Delete:      tcell.PaletteColor(1),
+		Error:       tcell.PaletteColor(1),
+		Text:        tcell.PaletteColor(15),
+		SelectionBg: tcell.ColorDefault,
+		SelectionFg: tcell.PaletteColor(5),
 	}
 	themes["cool"] = Theme{
 		Name:        "cool",
-		Accent:      lipgloss.Color("6"),
-		ActiveEnv:   lipgloss.Color("2"),
-		Border:      lipgloss.Color("8"),
-		Title:       lipgloss.Color("15"),
-		Dim:         lipgloss.Color("8"),
-		Dirty:       lipgloss.Color("4"),
-		Delete:      lipgloss.Color("1"),
-		Error:       lipgloss.Color("1"),
-		Text:        lipgloss.Color("15"),
-		SelectionFg: lipgloss.Color("6"),
+		Background:  tcell.ColorDefault,
+		Accent:      tcell.PaletteColor(6),
+		ActiveEnv:   tcell.PaletteColor(2),
+		Border:      tcell.PaletteColor(8),
+		Title:       tcell.PaletteColor(15),
+		Dim:         tcell.PaletteColor(8),
+		Dirty:       tcell.PaletteColor(4),
+		Delete:      tcell.PaletteColor(1),
+		Error:       tcell.PaletteColor(1),
+		Text:        tcell.PaletteColor(15),
+		SelectionBg: tcell.ColorDefault,
+		SelectionFg: tcell.PaletteColor(6),
 	}
 	themes["warm"] = Theme{
 		Name:        "warm",
-		Accent:      lipgloss.Color("208"),
-		ActiveEnv:   lipgloss.Color("2"),
-		Border:      lipgloss.Color("8"),
-		Title:       lipgloss.Color("15"),
-		Dim:         lipgloss.Color("8"),
-		Dirty:       lipgloss.Color("3"),
-		Delete:      lipgloss.Color("1"),
-		Error:       lipgloss.Color("1"),
-		Text:        lipgloss.Color("15"),
-		SelectionFg: lipgloss.Color("208"),
+		Background:  tcell.ColorDefault,
+		Accent:      tcell.PaletteColor(208),
+		ActiveEnv:   tcell.PaletteColor(2),
+		Border:      tcell.PaletteColor(8),
+		Title:       tcell.PaletteColor(15),
+		Dim:         tcell.PaletteColor(8),
+		Dirty:       tcell.PaletteColor(3),
+		Delete:      tcell.PaletteColor(1),
+		Error:       tcell.PaletteColor(1),
+		Text:        tcell.PaletteColor(15),
+		SelectionBg: tcell.ColorDefault,
+		SelectionFg: tcell.PaletteColor(208),
 	}
 	themes["mono"] = Theme{
 		Name:        "mono",
-		Accent:      lipgloss.Color("15"),
-		ActiveEnv:   lipgloss.Color("7"),
-		Border:      lipgloss.Color("8"),
-		Title:       lipgloss.Color("15"),
-		Dim:         lipgloss.Color("8"),
-		Dirty:       lipgloss.Color("7"),
-		Delete:      lipgloss.Color("1"),
-		Error:       lipgloss.Color("1"),
-		Text:        lipgloss.Color("15"),
-		SelectionFg: lipgloss.Color("15"),
+		Background:  tcell.ColorDefault,
+		Accent:      tcell.PaletteColor(15),
+		ActiveEnv:   tcell.PaletteColor(7),
+		Border:      tcell.PaletteColor(8),
+		Title:       tcell.PaletteColor(15),
+		Dim:         tcell.PaletteColor(8),
+		Dirty:       tcell.PaletteColor(7),
+		Delete:      tcell.PaletteColor(1),
+		Error:       tcell.PaletteColor(1),
+		Text:        tcell.PaletteColor(15),
+		SelectionBg: tcell.ColorDefault,
+		SelectionFg: tcell.PaletteColor(15),
 	}
 }
 
@@ -191,20 +218,20 @@ func parseTeleminatorTheme(data []byte) (Theme, error) {
 
 	return Theme{
 		Name:          name,
-		Background:    lipgloss.Color(bg),
-		Accent:        lipgloss.Color(accent),
-		ActiveEnv:     lipgloss.Color(activeEnv),
-		Border:        lipgloss.Color(border),
-		Title:         lipgloss.Color(fg),
-		Dim:           lipgloss.Color(dim),
-		Dirty:         lipgloss.Color(warn),
-		Delete:        lipgloss.Color(errColor),
-		Error:         lipgloss.Color(errColor),
-		Text:          lipgloss.Color(fg),
-		SelectionBg:   lipgloss.Color(selBg),
-		SelectionFg:   lipgloss.Color(selFg),
-		SearchMatchFg: lipgloss.Color(searchFg),
-		SearchMatchBg: lipgloss.Color(searchBg),
+		Background:    parseColor(bg),
+		Accent:        parseColor(accent),
+		ActiveEnv:     parseColor(activeEnv),
+		Border:        parseColor(border),
+		Title:         parseColor(fg),
+		Dim:           parseColor(dim),
+		Dirty:         parseColor(warn),
+		Delete:        parseColor(errColor),
+		Error:         parseColor(errColor),
+		Text:          parseColor(fg),
+		SelectionBg:   parseColor(selBg),
+		SelectionFg:   parseColor(selFg),
+		SearchMatchFg: parseColor(searchFg),
+		SearchMatchBg: parseColor(searchBg),
 	}, nil
 }
 
@@ -249,14 +276,28 @@ func themeNames() []string {
 	return names
 }
 
-func applyTheme(name string) error {
+func resolveTheme(name string) (Theme, error) {
 	name = strings.TrimSpace(strings.ToLower(name))
 	if name == "" {
 		name = defaultThemeName
 	}
 	theme, ok := themes[name]
 	if !ok {
-		return fmt.Errorf("unknown theme %q (available: %s)", name, strings.Join(themeNames(), ", "))
+		return Theme{}, fmt.Errorf("unknown theme %q (available: %s)", name, strings.Join(themeNames(), ", "))
+	}
+	return theme, nil
+}
+
+// CheckTheme reports whether name is a known TUI theme. An empty name is the default.
+func CheckTheme(name string) error {
+	_, err := resolveTheme(name)
+	return err
+}
+
+func applyTheme(name string) error {
+	theme, err := resolveTheme(name)
+	if err != nil {
+		return err
 	}
 	rebuildStyles(theme)
 	return nil

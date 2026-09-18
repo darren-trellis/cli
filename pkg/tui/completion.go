@@ -177,31 +177,52 @@ func (m *Model) refreshCompletions() {
 }
 
 func (m *Model) applySelectedCompletion() {
+	m.applyCompletionTo(&m.commandInput)
+}
+
+func (m *Model) applyCompletionTo(field *textField) {
 	sel := m.completions.SelectedItem()
 	if sel == nil || sel.Text == "" {
 		return
 	}
-	buf := m.commandInput.Value()
+	runes := []rune(field.Value())
+	cur := field.Cursor()
 	from := sel.ReplaceFrom
-	if from > len(buf) {
-		from = len(buf)
+	if from < 0 {
+		from = 0
 	}
-	m.commandInput.SetValue(buf[:from] + sel.Text)
-	m.commandInput.CursorEnd()
+	if cur > len(runes) {
+		cur = len(runes)
+	}
+	if from > cur {
+		from = cur
+	}
+	insert := []rune(sel.Text)
+	out := make([]rune, 0, from+len(insert)+len(runes)-cur)
+	out = append(out, runes[:from]...)
+	out = append(out, insert...)
+	out = append(out, runes[cur:]...)
+	field.SetValue(string(out))
+	field.SetCursor(from + len(insert))
 	m.completions.Browsed = false
 }
 
 func (m *Model) selectionApplied() bool {
+	return m.selectionAppliedTo(&m.commandInput)
+}
+
+func (m *Model) selectionAppliedTo(field *textField) bool {
 	sel := m.completions.SelectedItem()
 	if sel == nil {
 		return false
 	}
-	buf := m.commandInput.Value()
+	runes := []rune(field.Value())
 	from := sel.ReplaceFrom
-	if from > len(buf) {
+	cur := field.Cursor()
+	if from < 0 || from > cur || cur > len(runes) {
 		return false
 	}
-	return buf[from:] == sel.Text
+	return string(runes[from:cur]) == sel.Text
 }
 
 func (m *Model) tabComplete(next bool) {
@@ -211,8 +232,15 @@ func (m *Model) tabComplete(next bool) {
 			return
 		}
 	}
+	m.tabCompleteField(&m.commandInput, next)
+}
+
+func (m *Model) tabCompleteField(field *textField, next bool) {
+	if len(m.completions.Items) == 0 {
+		return
+	}
 	if m.completions.Browsed {
-		m.applySelectedCompletion()
+		m.applyCompletionTo(field)
 		return
 	}
 	if next {
@@ -220,7 +248,7 @@ func (m *Model) tabComplete(next bool) {
 	} else {
 		m.completions.SelectPrev()
 	}
-	m.applySelectedCompletion()
+	m.applyCompletionTo(field)
 }
 
 func suggestionsFor(buffer string) []Suggestion {
@@ -282,7 +310,7 @@ func commandPrefixHasChildren(tokens []string) bool {
 			return true
 		}
 	}
-	return false
+	return len(extraTokenSuggestions(tokens, "", 0, false)) > 0
 }
 
 func commandPathPrefix(fields, tokens []string) bool {
@@ -324,6 +352,13 @@ func nextTokenSuggestions(complete []string, partial string, replaceFrom int, le
 			Help:        nextTokenHelp(complete, next),
 			ReplaceFrom: replaceFrom,
 		})
+	}
+	for _, s := range extraTokenSuggestions(complete, partial, replaceFrom, leadSpace) {
+		if seen[s.Label] {
+			continue
+		}
+		seen[s.Label] = true
+		items = append(items, s)
 	}
 	return items
 }

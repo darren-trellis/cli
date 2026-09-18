@@ -1,0 +1,34 @@
+name = "kanagawa-dragon"
+
+[colors]
+background = "#181616"
+foreground = "#c5c9c5"
+selection_bg = "#393836"
+selection_fg = "#c5c9c5"
+overlay_bg = "#0d0c0c"
+status_bg = "#0d0c0c"
+status_fg = "#a6a69c"
+border = "#54546d"
+window_focus_border = "#c4b28a"
+search_match = { fg = "#181616", bg = "#c4b28a" }
+dim = "#7a8382"
+
+[levels]
+trace = "#7a8382"
+debug = "#8ba4b0"
+info = "#8a9a7b"
+warn = "#c4b28a"
+error = "#c4746e"
+fatal = "#a292a3"
+unknown = "#c5c9c5"
+
+[ui]
+timestamp = "#8ba4b0"
+key = "#8ea4a2"
+string = "#8a9a7b"
+number = "#b6927b"
+bool = "#8992a7"
+null = "#7a8382"
+border_color = { fg = "#54546d", bg = "#181616" }
+border_width = 1
+border_padding = 1
