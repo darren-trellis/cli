@@ -86,6 +86,45 @@ func TestTypingBraceShowsSecretRefSuggestions(t *testing.T) {
 	mod = next
 	require.NotEmpty(t, mod.completions.Items)
 	assert.True(t, suggestionLabels(mod.completions.Items)["api"])
+
+	mod.width = 80
+	mod.height = 24
+	assert.Equal(t, 0, mod.computeLayout().suggest.h)
+
+	sc := tcell.NewSimulationScreen("UTF-8")
+	require.NoError(t, sc.Init())
+	t.Cleanup(sc.Fini)
+	sc.SetSize(mod.width, mod.height)
+	cx, cy := mod.draw(sc)
+	require.GreaterOrEqual(t, cx, 0)
+	require.GreaterOrEqual(t, cy, 0)
+
+	r, ok := mod.secretRefPopupRect(cx, cy)
+	require.True(t, ok)
+	assert.Equal(t, cx, r.x)
+	assert.Equal(t, cy+1, r.y)
+	assert.Less(t, r.w, mod.width)
+
+	popup := renderRegion(t, mod, r)
+	assert.Contains(t, popup, "suggestions")
+	assert.Contains(t, popup, "api")
+}
+
+func TestSecretRefPopupRectFlipsAboveWhenNoRoomBelow(t *testing.T) {
+	m := cachedSidebarModel()
+	m.width = 80
+	m.height = 24
+	m.focus = focusSecretInsert
+	m.secretCol = colValue
+	m.completions.Items = make([]Suggestion, 8)
+	for i := range m.completions.Items {
+		m.completions.Items[i] = Suggestion{Label: "item", Help: "project"}
+	}
+
+	r, ok := m.secretRefPopupRect(10, 20)
+	require.True(t, ok)
+	assert.Equal(t, 10, r.h)
+	assert.Equal(t, 10, r.y)
 }
 
 func TestTabCompletesSecretRef(t *testing.T) {

@@ -388,6 +388,9 @@ func (m Model) draw(sc tcell.Screen) (int, int) {
 	if cx, cy := m.drawStatus(sc, layout.status); cx >= 0 {
 		cursorX, cursorY = cx, cy
 	}
+	if r, ok := m.secretRefPopupRect(cursorX, cursorY); ok {
+		m.drawCompletions(sc, r)
+	}
 
 	if spec, ok := m.currentModalSpec(); ok {
 		spec.draw(sc, m.width, m.height, m.modalBtnIdx, m.cfg.Border)

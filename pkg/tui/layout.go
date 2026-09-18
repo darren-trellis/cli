@@ -40,7 +40,7 @@ func (m Model) computeLayout() layoutRegions {
 
 	statusH := 1
 	suggestH := 0
-	if m.focus == focusCommand || (m.focus == focusSecretInsert && m.secretCol == colValue) {
+	if m.focus == focusCommand {
 		suggestH = m.completions.DesiredHeight(max(0, h-statusH-4))
 	}
 	topH := h - statusH - suggestH
@@ -89,4 +89,43 @@ func (m Model) secretColumnWidths(panelW int) (nameW, valueW int) {
 	nameW = max(12, avail*pct/100)
 	valueW = max(8, avail-nameW)
 	return nameW, valueW
+}
+
+func (m Model) secretRefPopupRect(cursorX, cursorY int) (rect, bool) {
+	if m.focus != focusSecretInsert || m.secretCol != colValue || len(m.completions.Items) == 0 {
+		return rect{}, false
+	}
+	if cursorX < 0 || cursorY < 0 || m.width < 8 || m.height < 6 {
+		return rect{}, false
+	}
+
+	innerN := len(m.completions.Items)
+	if innerN > 8 {
+		innerN = 8
+	}
+	h := innerN + 2
+
+	innerW := 20
+	for _, item := range m.completions.Items {
+		w := textWidth("▸ " + padRight(item.Label, 18) + " " + item.Help)
+		if w > innerW {
+			innerW = w
+		}
+	}
+	w := min(m.width, innerW+2)
+
+	statusY := m.height - 1
+	y := cursorY + 1
+	if y+h > statusY {
+		if above := cursorY - h; above >= 0 {
+			y = above
+		} else {
+			y = max(0, statusY-h)
+		}
+	}
+	x := cursorX
+	if x+w > m.width {
+		x = max(0, m.width-w)
+	}
+	return rect{x: x, y: y, w: w, h: h}, true
 }

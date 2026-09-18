@@ -568,7 +568,7 @@ func (m Model) renderHelpText() string {
 	b.WriteString("Secrets delete: dd line, d2j current+2 down, 5dd 5 lines.\n")
 	b.WriteString("Secrets paste: p imports yaml/json/env from the clipboard.\n")
 	b.WriteString("Enter on a value like ${project.config.SECRET} jumps to that secret; i still edits.\n")
-	b.WriteString("While editing a value, { opens project.config.secret suggestions; Tab completes.\n")
+	b.WriteString("While editing a value, { opens project.config.secret suggestions at the cursor; Tab completes.\n")
 	b.WriteString("Saving a root config asks whether to apply the same changes to other environments.\n")
 	return b.String()
 }
