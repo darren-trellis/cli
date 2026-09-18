@@ -45,6 +45,7 @@ var commandCatalog = []commandInfo{
 	{"fold off", "Collapse project or env"},
 	{"fold toggle", "Fold/unfold project or env"},
 	{"edit", "Edit selected secret cell"},
+	{"secret change", "Clear selected secret cell and edit"},
 	{"secret open", "Jump to a Doppler secret reference in the selected value, or edit"},
 	{"secret add", "Add a secret"},
 	{"secret delete", "Delete/mark delete the current secret"},
@@ -375,6 +376,11 @@ func (m Model) execSecret(args []string) (Model, Cmd) {
 	switch args[0] {
 	case "add":
 		return m.addSecret()
+	case "change":
+		if m.focus == focusSecrets {
+			m.enterChange()
+		}
+		return m, nil
 	case "open":
 		return m.openSecretLink()
 	case "delete":
@@ -554,7 +560,7 @@ func (m Model) renderHelpText() string {
 		"yank name", "yank yaml", "yank json", "yank env",
 	})
 	writeSection("Secrets:", focusSecrets, []string{
-		"edit", "secret open", "secret add", "delete", "secret undo", "yank", "secret yank", "paste", "secret save",
+		"edit", "secret change", "secret open", "secret add", "delete", "secret undo", "yank", "secret yank", "paste", "secret save",
 	})
 	b.WriteString("Typing modes (search/filter/insert/create/rename) use Esc/Enter locally.\n")
 	b.WriteString("Command and search ↑/↓ (C-p/C-n) recall history; ↓ in : focuses suggestions.\n")
@@ -568,6 +574,7 @@ func (m Model) renderHelpText() string {
 	b.WriteString("Secrets delete: dd line, d2j current+2 down, 5dd 5 lines.\n")
 	b.WriteString("Secrets paste: p imports yaml/json/env from the clipboard.\n")
 	b.WriteString("Enter on a value like ${project.config.SECRET} jumps to that secret; i still edits.\n")
+	b.WriteString("c clears the selected cell and edits.\n")
 	b.WriteString("While editing a value, { opens project.config.secret suggestions at the cursor; Tab completes.\n")
 	b.WriteString("Saving a root config asks whether to apply the same changes to other environments, and can rewrite Doppler references to match each environment.\n")
 	return b.String()

@@ -108,6 +108,10 @@ func TestResolveDefaultOverlays(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "secret add", cmd)
 
+	cmd, ok = keys.Resolve(focusSecrets, "c")
+	require.True(t, ok)
+	assert.Equal(t, "secret change", cmd)
+
 	cmd, ok = keys.Resolve(focusProjects, "o")
 	require.True(t, ok)
 	assert.Equal(t, "config create", cmd)

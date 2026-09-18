@@ -422,6 +422,26 @@ func TestVimColumnMoveAndInsert(t *testing.T) {
 	assert.Equal(t, "val", mod.cellInput.Value())
 }
 
+func TestCClearsCellThenEdits(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	m.fetching = false
+	m.focus = focusSecrets
+	m.secrets = []secretRow{newSecretRow("A", "val", "masked")}
+	m.secretCol = colValue
+
+	next, _ := m.Update(runeKey('c'))
+	mod := next
+	assert.Equal(t, focusSecretInsert, mod.focus)
+	assert.Equal(t, "", mod.cellInput.Value())
+	assert.Equal(t, "", mod.secrets[0].value)
+	assert.True(t, mod.secrets[0].isDirty())
+
+	next, _ = mod.Update(namedKey(tcell.KeyEsc))
+	mod = next
+	assert.Equal(t, focusSecrets, mod.focus)
+	assert.Equal(t, "", mod.secrets[0].value)
+}
+
 func TestUndoAfterNavigatingAway(t *testing.T) {
 	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true, ListScrollbarVertical: true, SidebarScrollbarVertical: true})
 	m.fetching = false

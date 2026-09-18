@@ -499,6 +499,16 @@ func (m *Model) enterInsert() {
 	m.setFocus(focusSecretInsert)
 }
 
+func (m *Model) enterChange() {
+	if _, ok := m.selectedSecretIndex(); !ok {
+		return
+	}
+	m.setFocus(focusSecretInsert)
+	m.cellInput.SetValue("")
+	m.cellInput.SetCursor(0)
+	m.applyCellToSelection()
+}
+
 func (m *Model) cyclePane(delta int) {
 	if m.inModal() || m.inSecretInsert() {
 		return
