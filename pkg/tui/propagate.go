@@ -231,13 +231,36 @@ func rewriteSecretRefsInChanges(changes []models.ChangeRequest, project, fromCon
 	return out
 }
 
-func formatSaveStatus(applied, failed []string) string {
+func changesForPropagateTarget(changes []models.ChangeRequest, project, fromConfig, toConfig string, rewrite bool) []models.ChangeRequest {
+	var out []models.ChangeRequest
+	if rewrite {
+		out = rewriteSecretRefsInChanges(changes, project, fromConfig, toConfig)
+	} else {
+		out = append([]models.ChangeRequest(nil), changes...)
+	}
+	for i := range out {
+		out[i].OriginalValue = nil
+		deleting := false
+		if out[i].ShouldDelete != nil {
+			deleting = *out[i].ShouldDelete
+		}
+		if !deleting {
+			out[i].OriginalName = nil
+		}
+	}
+	return out
+}
+
+func formatSaveStatus(applied, failed []string, failErr string) string {
 	s := "Saved"
 	if len(applied) > 0 {
 		s += " · applied to " + strings.Join(applied, ", ")
 	}
 	if len(failed) > 0 {
 		s += " · failed on " + strings.Join(failed, ", ")
+		if failErr != "" {
+			s += ": " + failErr
+		}
 	}
 	return s
 }

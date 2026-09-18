@@ -17,6 +17,7 @@ package tui
 
 import (
 	"context"
+	"strings"
 	"sync"
 
 	"github.com/DopplerHQ/cli/pkg/controllers"
@@ -74,6 +75,7 @@ type secretsLoadedMsg struct {
 	saved         bool
 	applied       []string
 	failed        []string
+	failErr       string
 }
 
 type workplaceSearchMsg struct {
@@ -209,20 +211,21 @@ func saveSecretsCmd(opts models.ScopedOptions, project, config string, changes [
 			return errMsg{err.Unwrap()}
 		}
 		var applied, failed []string
+		failErr := ""
 		for _, extra := range also {
 			if extra == "" || extra == config {
 				continue
 			}
-			extraChanges := changes
-			if rewriteRefs {
-				extraChanges = rewriteSecretRefsInChanges(changes, project, config, extra)
-			}
+			extraChanges := changesForPropagateTarget(changes, project, config, extra, rewriteRefs)
 			_, extraErr := controllers.SetSecrets(withProjectConfig(opts, project, extra), extraChanges)
-			if extraErr.Unwrap() != nil {
-				failed = append(failed, extra)
+			if extraErr.IsNil() {
+				applied = append(applied, extra)
 				continue
 			}
-			applied = append(applied, extra)
+			failed = append(failed, extra)
+			if failErr == "" {
+				failErr = setSecretsErrorText(extraErr)
+			}
 		}
 		return secretsLoadedMsg{
 			secrets:       secretsFromComputed(computed),
@@ -231,8 +234,18 @@ func saveSecretsCmd(opts models.ScopedOptions, project, config string, changes [
 			saved:         true,
 			applied:       applied,
 			failed:        failed,
+			failErr:       failErr,
 		}
 	}
+}
+
+func setSecretsErrorText(err controllers.Error) string {
+	if u := err.Unwrap(); u != nil {
+		if s := strings.TrimSpace(u.Error()); s != "" && s != "Request failed" {
+			return s
+		}
+	}
+	return strings.TrimSpace(err.Message)
 }
 
 type quitNowMsg struct{}

@@ -211,7 +211,7 @@ func (m Model) update(msg Msg) (Model, Cmd) {
 			for _, name := range msg.applied {
 				m.dropSecretsCache(msg.activeProject, name)
 			}
-			m.statusMsg = formatSaveStatus(msg.applied, msg.failed)
+			m.statusMsg = formatSaveStatus(msg.applied, msg.failed, msg.failErr)
 		}
 		if m.pendingSearchName != "" {
 			m.applyPendingSecretName()

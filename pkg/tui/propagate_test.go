@@ -220,10 +220,11 @@ func TestPropagateModalCopy(t *testing.T) {
 }
 
 func TestFormatSaveStatus(t *testing.T) {
-	assert.Equal(t, "Saved", formatSaveStatus(nil, nil))
-	assert.Equal(t, "Saved · applied to stg, prd", formatSaveStatus([]string{"stg", "prd"}, nil))
-	assert.Equal(t, "Saved · failed on prd", formatSaveStatus(nil, []string{"prd"}))
-	assert.Equal(t, "Saved · applied to stg · failed on prd", formatSaveStatus([]string{"stg"}, []string{"prd"}))
+	assert.Equal(t, "Saved", formatSaveStatus(nil, nil, ""))
+	assert.Equal(t, "Saved · applied to stg, prd", formatSaveStatus([]string{"stg", "prd"}, nil, ""))
+	assert.Equal(t, "Saved · failed on prd", formatSaveStatus(nil, []string{"prd"}, ""))
+	assert.Equal(t, "Saved · applied to stg · failed on prd", formatSaveStatus([]string{"stg"}, []string{"prd"}, ""))
+	assert.Equal(t, "Saved · failed on prd: config is locked", formatSaveStatus(nil, []string{"prd"}, "config is locked"))
 }
 
 func TestPropagateClickTogglesRow(t *testing.T) {
@@ -326,4 +327,38 @@ func TestRewriteSecretRefsInChangesCopiesValue(t *testing.T) {
 	got := rewriteSecretRefsInChanges(changes, "api", "dev", "prd")
 	assert.Equal(t, "{api.prd.SECRET}", got[0].Value)
 	assert.Equal(t, "{api.dev.SECRET}", changes[0].Value)
+}
+
+func TestChangesForPropagateTargetDropsSourceOriginals(t *testing.T) {
+	del := false
+	changes := []models.ChangeRequest{{
+		Name:          "LINK",
+		OriginalName:  "LINK",
+		Value:         "{api.dev.SECRET}",
+		OriginalValue: "old",
+		ShouldDelete:  &del,
+	}}
+	got := changesForPropagateTarget(changes, "api", "dev", "prd", true)
+	assert.Equal(t, "{api.prd.SECRET}", got[0].Value)
+	assert.Nil(t, got[0].OriginalValue)
+	assert.Nil(t, got[0].OriginalName)
+	assert.Equal(t, "old", changes[0].OriginalValue)
+	assert.Equal(t, "LINK", changes[0].OriginalName)
+
+	got = changesForPropagateTarget(changes, "api", "dev", "prd", false)
+	assert.Equal(t, "{api.dev.SECRET}", got[0].Value)
+	assert.Nil(t, got[0].OriginalValue)
+	assert.Nil(t, got[0].OriginalName)
+}
+
+func TestChangesForPropagateTargetKeepsOriginalNameOnDelete(t *testing.T) {
+	del := true
+	changes := []models.ChangeRequest{{
+		Name:         "LINK",
+		OriginalName: "LINK",
+		ShouldDelete: &del,
+	}}
+	got := changesForPropagateTarget(changes, "api", "dev", "prd", false)
+	assert.Equal(t, "LINK", got[0].OriginalName)
+	assert.Nil(t, got[0].OriginalValue)
 }
