@@ -123,6 +123,10 @@ type Model struct {
 	errMsg    string
 	spinner   spinnerState
 
+	highlightLoadSeq   int
+	highlightScheduled string
+	highlightLoading   string
+
 	activeProject string
 	activeConfig  string
 

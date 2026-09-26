@@ -708,16 +708,16 @@ func TestToggleEnvFold(t *testing.T) {
 	m.rebuildTree()
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
 
-	next, cmd := m.Update(runeKey(' '))
+	next, _ := m.Update(runeKey(' '))
 	mod := next
-	assert.Nil(t, cmd)
+	assert.False(t, mod.fetching)
 	assert.False(t, isEnvExpanded(mod.expandedEnvs, "api", "dev"))
 	assert.Equal(t, []string{"api", "dev", "prd"}, treeLabels(mod.tree))
 	assert.True(t, mod.tree[mod.treeIdx].folded)
 
-	next, cmd = mod.Update(runeKey(' '))
+	next, _ = mod.Update(runeKey(' '))
 	mod = next
-	assert.Nil(t, cmd)
+	assert.False(t, mod.fetching)
 	assert.True(t, isEnvExpanded(mod.expandedEnvs, "api", "dev"))
 	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd"}, treeLabels(mod.tree))
 }
@@ -738,16 +738,16 @@ func TestSpaceOnLeafDoesNothing(t *testing.T) {
 	m.rebuildTree()
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "prd")
 
-	next, cmd := m.Update(runeKey(' '))
+	next, _ := m.Update(runeKey(' '))
 	mod := next
-	assert.Nil(t, cmd)
+	assert.False(t, mod.fetching)
 	assert.True(t, mod.expanded["api"])
 	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd"}, treeLabels(mod.tree))
 
 	mod.treeIdx = findTreeIndex(mod.tree, treeConfig, "api", "dev_personal")
-	next, cmd = mod.Update(runeKey(' '))
+	next, _ = mod.Update(runeKey(' '))
 	mod = next
-	assert.Nil(t, cmd)
+	assert.False(t, mod.fetching)
 	assert.True(t, isEnvExpanded(mod.expandedEnvs, "api", "dev"))
 	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd"}, treeLabels(mod.tree))
 }

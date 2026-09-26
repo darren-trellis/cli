@@ -263,6 +263,9 @@ func (m Model) drawStatus(sc tcell.Screen, r rect) (int, int) {
 	switch {
 	case m.fetching:
 		left = m.spinner.View() + " Loading…"
+	case m.highlightLoading != "":
+		project, config, _ := splitSecretsCacheKey(m.highlightLoading)
+		left = m.spinner.View() + " Loading " + project + " / " + config + "…"
 	case m.workplaceIndexing && (m.searchGlobal || m.focus == focusSearch):
 		left = m.spinner.View() + " Indexing secret names…"
 	case m.errMsg != "":

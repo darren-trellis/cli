@@ -68,6 +68,67 @@ func TestHighlightUncachedConfigKeepsCurrentSecrets(t *testing.T) {
 	assert.False(t, m.configIsCached("api", "dev_personal"))
 }
 
+func TestHighlightUncachedConfigLoadsAfterDelay(t *testing.T) {
+	m := cachedSidebarModel()
+	require.Equal(t, focusProjects, m.focus)
+
+	next, cmd := m.Update(runeKey('j'))
+	mod := next
+	require.True(t, mod.highlightIs("api", "dev_personal"))
+	require.NotNil(t, cmd, "landing on an unloaded config schedules a load")
+	assert.Equal(t, "dev", mod.activeConfig, "the load is delayed, not immediate")
+
+	due := highlightLoadDueMsg{seq: mod.highlightLoadSeq, project: "api", config: "dev_personal"}
+	next, cmd = mod.Update(due)
+	mod = next
+	require.NotNil(t, cmd)
+	assert.False(t, mod.fetching, "background loads do not block input")
+	assert.Equal(t, secretsCacheKey("api", "dev_personal"), mod.highlightLoading)
+
+	next, _ = mod.Update(highlightLoadedMsg{
+		seq:     due.seq,
+		project: "api",
+		config:  "dev_personal",
+		secrets: []secretRow{newSecretRow("PERSONAL", "1", "masked")},
+	})
+	mod = next
+	assert.Empty(t, mod.highlightLoading)
+	assert.Equal(t, "dev_personal", mod.activeConfig)
+	assert.Equal(t, "PERSONAL", mod.secrets[0].name)
+	assert.True(t, mod.configIsCached("api", "dev"))
+}
+
+func TestHighlightLoadIgnoresStaleTick(t *testing.T) {
+	m := cachedSidebarModel()
+	next, _ := m.Update(runeKey('j'))
+	mod := next
+	stale := highlightLoadDueMsg{seq: mod.highlightLoadSeq - 1, project: "api", config: "dev_personal"}
+
+	next, cmd := mod.Update(stale)
+	assert.Nil(t, cmd)
+	assert.Empty(t, next.highlightLoading)
+}
+
+func TestHighlightLoadAfterMovingAwayOnlyCaches(t *testing.T) {
+	m := cachedSidebarModel()
+	next, _ := m.Update(runeKey('j'))
+	mod := next
+	seq := mod.highlightLoadSeq
+	next, _ = mod.Update(runeKey('k'))
+	mod = next
+	require.True(t, mod.highlightIs("api", "dev"))
+
+	next, _ = mod.Update(highlightLoadedMsg{
+		seq:     seq,
+		project: "api",
+		config:  "dev_personal",
+		secrets: []secretRow{newSecretRow("PERSONAL", "1", "masked")},
+	})
+	mod = next
+	assert.Equal(t, "dev", mod.activeConfig)
+	assert.True(t, mod.configIsCached("api", "dev_personal"))
+}
+
 func TestSecretsLoadedKeepsSidebarFocus(t *testing.T) {
 	m := cachedSidebarModel()
 	m.focus = focusProjects

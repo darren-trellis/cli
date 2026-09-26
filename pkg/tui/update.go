@@ -35,7 +35,7 @@ func watchConfigCmd() Cmd {
 func (m Model) Update(msg Msg) (Model, Cmd) {
 	next, cmd := m.update(msg)
 	next.syncScrollOffsets()
-	return next, cmd
+	return next, Batch(cmd, next.scheduleHighlightLoad())
 }
 
 func (m Model) update(msg Msg) (Model, Cmd) {
@@ -52,9 +52,15 @@ func (m Model) update(msg Msg) (Model, Cmd) {
 		m.helpViewport.Height = min(24, m.height-8)
 		return m, nil
 
+	case highlightLoadDueMsg:
+		return m.handleHighlightLoadDue(msg)
+
+	case highlightLoadedMsg:
+		return m.handleHighlightLoaded(msg)
+
 	case spinnerTickMsg:
 		m.spinner.advance()
-		if m.fetching || m.workplaceIndexing {
+		if m.fetching || m.workplaceIndexing || m.highlightLoading != "" {
 			return m, m.spinner.Tick
 		}
 		return m, nil

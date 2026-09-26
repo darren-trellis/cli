@@ -16,6 +16,8 @@ limitations under the License.
 package tui
 
 import (
+	"time"
+
 	"github.com/DopplerHQ/cli/pkg/models"
 )
 
@@ -144,6 +146,91 @@ func (m *Model) revealHighlightedConfig() {
 	}
 	m.stashCurrentSecrets()
 	m.applyCachedSecrets(row.project, row.config)
+}
+
+// highlightLoadDelay lets a held j/k scroll past configs without fetching each
+// one; only the row the cursor settles on is loaded.
+const highlightLoadDelay = 150 * time.Millisecond
+
+type highlightLoadDueMsg struct {
+	seq     int
+	project string
+	config  string
+}
+
+type highlightLoadedMsg struct {
+	seq     int
+	project string
+	config  string
+	secrets []secretRow
+	err     error
+}
+
+func (m Model) highlightIs(project, config string) bool {
+	row, ok := m.currentTreeRow()
+	return ok && row.kind == treeConfig && row.project == project && row.config == config
+}
+
+func (m Model) needsHighlightLoad(project, config string) bool {
+	if project == "" || config == "" || m.fetching {
+		return false
+	}
+	if project == m.activeProject && config == m.activeConfig {
+		return false
+	}
+	return !m.configIsCached(project, config)
+}
+
+// scheduleHighlightLoad starts the delayed load for a highlighted config that
+// is not loaded yet. It runs after every update, so any way of moving the
+// sidebar cursor (keys, mouse, search jumps) loads what it lands on, but only
+// while the sidebar has focus so prompts and modals never trigger a fetch.
+func (m *Model) scheduleHighlightLoad() Cmd {
+	row, ok := m.currentTreeRow()
+	if !ok || m.focus != focusProjects || row.kind != treeConfig || !m.needsHighlightLoad(row.project, row.config) {
+		m.highlightScheduled = ""
+		return nil
+	}
+	key := secretsCacheKey(row.project, row.config)
+	if key == m.highlightScheduled || key == m.highlightLoading {
+		return nil
+	}
+	m.highlightScheduled = key
+	m.highlightLoadSeq++
+	seq, project, config := m.highlightLoadSeq, row.project, row.config
+	return Tick(highlightLoadDelay, func(time.Time) Msg {
+		return highlightLoadDueMsg{seq: seq, project: project, config: config}
+	})
+}
+
+func (m Model) handleHighlightLoadDue(msg highlightLoadDueMsg) (Model, Cmd) {
+	if msg.seq != m.highlightLoadSeq || !m.highlightIs(msg.project, msg.config) || !m.needsHighlightLoad(msg.project, msg.config) {
+		return m, nil
+	}
+	m.highlightLoading = secretsCacheKey(msg.project, msg.config)
+	return m, Batch(m.spinner.Tick, loadHighlightedConfigCmd(m.opts, msg.seq, msg.project, msg.config))
+}
+
+func (m Model) handleHighlightLoaded(msg highlightLoadedMsg) (Model, Cmd) {
+	key := secretsCacheKey(msg.project, msg.config)
+	if m.highlightLoading == key {
+		m.highlightLoading = ""
+	}
+	if msg.err != nil {
+		if m.highlightIs(msg.project, msg.config) {
+			m.errMsg = msg.err.Error()
+		}
+		return m, nil
+	}
+	if m.needsHighlightLoad(msg.project, msg.config) {
+		m.rememberLoadedSecrets(msg.project, msg.config, msg.secrets)
+	}
+	if m.highlightIs(msg.project, msg.config) && (m.focus == focusProjects || m.focus == focusSecrets) {
+		m.revealHighlightedConfig()
+		return m, nil
+	}
+	m.rebuildTree()
+	return m, nil
 }
 
 func (m *Model) dropSecretsCache(project, config string) {
