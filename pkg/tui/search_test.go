@@ -141,7 +141,7 @@ func TestSearchSpansCoverOnlyMatchedText(t *testing.T) {
 
 func TestSpansForNeedleOffsetsPastTreeDecoration(t *testing.T) {
 	re := regexp.MustCompile(`dev`)
-	display := "├── ◇ ◉ dev"
+	display := "├──◇ dev"
 
 	spans := spansForNeedle(display, "dev", re)
 	require.Len(t, spans, 1)

@@ -155,10 +155,15 @@ func TestSidebarMarksCachedConfigs(t *testing.T) {
 	m.width = 80
 	m.height = 24
 	out := renderSidebar(t, m)
-	assert.Contains(t, out, "◉ dev")
-	assert.Contains(t, out, "◉ prd")
-	assert.Contains(t, out, "○ dev_p")
-	assert.NotContains(t, out, " ·")
+	assert.Contains(t, out, "dev")
+	assert.Contains(t, out, "prd")
+	assert.NotContains(t, out, "◉")
+	assert.NotContains(t, out, "○")
+
+	prd := m.tree[findTreeIndex(m.tree, treeConfig, "api", "prd")]
+	personal := m.tree[findTreeIndex(m.tree, treeConfig, "api", "dev_personal")]
+	assert.Equal(t, cachedConfigStyle, m.treeRowStyle(prd, false))
+	assert.Equal(t, baseStyle, m.treeRowStyle(personal, false))
 }
 
 func TestBackspaceUnloadsCachedConfig(t *testing.T) {
@@ -177,7 +182,8 @@ func TestBackspaceUnloadsCachedConfig(t *testing.T) {
 	assert.Equal(t, "DEV", mod.secrets[0].name)
 	assert.Equal(t, findTreeIndex(mod.tree, treeConfig, "api", "prd"), mod.treeIdx)
 	assert.Contains(t, mod.statusMsg, "Unloaded api / prd")
-	assert.Contains(t, renderSidebar(t, mod), "○ prd")
+	prd := mod.tree[findTreeIndex(mod.tree, treeConfig, "api", "prd")]
+	assert.False(t, prd.cached)
 }
 
 func TestBackspaceUnloadsLastCachedConfig(t *testing.T) {

@@ -72,7 +72,7 @@ func (m Model) drawProjectsPane(sc tcell.Screen, r rect) {
 			continue
 		}
 		row := m.tree[idx]
-		text := formatTreeRow(row, m.activeProject, m.activeConfig)
+		text := formatTreeRow(row)
 		selected := active && idx == m.treeIdx
 		style := m.treeRowStyle(row, selected)
 
