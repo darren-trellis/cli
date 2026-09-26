@@ -101,6 +101,7 @@ type Model struct {
 	createConfigInput   textField
 	createConfigProject string
 	createConfigEnv     string
+	createConfigPrefix  string           // fixed "<env>_" for branch prompts
 	configPromptMode    configPromptKind // create or rename
 	renameFromConfig    string
 

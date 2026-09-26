@@ -309,9 +309,59 @@ func TestConfigLoadCommands(t *testing.T) {
 
 func TestNKeyHopsCachedWhenNotSearching(t *testing.T) {
 	m := cachedSidebarModel()
+	m.focus = focusSecrets
 	next, _ := m.Update(runeKey('n'))
 	mod := next
 	assert.Equal(t, "prd", mod.activeConfig)
+}
+
+func TestNKeyInProjectsPromptsForBranch(t *testing.T) {
+	m := cachedSidebarModel()
+	require.True(t, m.highlightIs("api", "dev"))
+
+	next, _ := m.Update(runeKey('n'))
+	mod := next
+	assert.Equal(t, focusCreateConfig, mod.focus)
+	assert.Equal(t, configPromptCreate, mod.configPromptMode)
+	assert.Equal(t, "+ dev_", mod.createConfigInput.Prompt)
+	assert.Equal(t, "", mod.createConfigInput.Value())
+
+	for _, r := range "ci" {
+		next, _ = mod.Update(runeKey(r))
+		mod = next
+	}
+	next, cmd := mod.Update(namedKey(tcell.KeyEnter))
+	mod = next
+	require.NotNil(t, cmd)
+	assert.True(t, mod.fetching)
+	assert.Empty(t, mod.createConfigPrefix)
+}
+
+func TestBranchPromptName(t *testing.T) {
+	m := cachedSidebarModel()
+	next, _ := m.beginBranchConfig()
+	mod := next
+	assert.Equal(t, "dev_", mod.createConfigPrefix)
+	assert.Equal(t, "dev", mod.createConfigEnv)
+
+	mod.createConfigInput.SetValue("ci")
+	assert.Equal(t, "dev_ci", mod.createConfigName())
+	mod.createConfigInput.SetValue("dev_ci")
+	assert.Equal(t, "dev_ci", mod.createConfigName(), "an already-prefixed name is not doubled")
+
+	mod.treeIdx = findTreeIndex(mod.tree, treeProject, "api", "")
+	next, _ = mod.beginBranchConfig()
+	assert.Equal(t, "Select a config to branch from", next.errMsg)
+}
+
+func TestNKeyInProjectsStillStepsSearch(t *testing.T) {
+	m := cachedSidebarModel()
+	m.searchPane = focusProjects
+	require.NoError(t, m.applySearch("prd", false))
+
+	next, _ := m.Update(runeKey('n'))
+	assert.Equal(t, focusProjects, next.focus)
+	assert.True(t, next.highlightIs("api", "prd"))
 }
 
 func sidebarRowClick(m Model, idx int) mouseMsg {

@@ -70,6 +70,7 @@ var commandCatalog = []commandInfo{
 	{"config create", "Create a config"},
 	{"config rename", "Rename selected config"},
 	{"config refresh", "Reload the selected config's secrets, or a project's configs"},
+	{"config branch", "Create a branch config in the selected config's environment"},
 	{"config lock", "Lock or unlock the selected config"},
 	{"config lock on", "Lock selected config"},
 	{"config lock off", "Unlock selected config"},
@@ -163,7 +164,7 @@ func (m Model) executeCommand(line string) (Model, Cmd) {
 		return m.execFilter(args)
 	case "config":
 		if len(args) == 0 {
-			m.errMsg = "usage: config create|rename|refresh|lock|load|delete|get|set"
+			m.errMsg = "usage: config create|branch|rename|refresh|lock|load|delete|get|set"
 			return m, nil
 		}
 		switch args[0] {
@@ -171,6 +172,8 @@ func (m Model) executeCommand(line string) (Model, Cmd) {
 			return m.beginCreateConfig()
 		case "rename":
 			return m.beginRenameConfig()
+		case "branch":
+			return m.beginBranchConfig()
 		case "refresh":
 			return m.refreshSelection()
 		case "lock":
@@ -559,7 +562,7 @@ func (m Model) renderHelpText() string {
 		"nav up", "nav down", "nav top", "nav bottom", "nav page up", "nav page down", "nav left", "nav right",
 	})
 	writeSection("Projects:", focusProjects, []string{
-		"fold toggle", "config load on", "config load off", "config refresh", "config create", "config rename", "config lock toggle", "delete",
+		"fold toggle", "config load on", "config load off", "config refresh", "config create", "config branch", "config rename", "config lock toggle", "delete",
 		"yank name", "yank yaml", "yank json", "yank env",
 	})
 	writeSection("Secrets:", focusSecrets, []string{
@@ -568,7 +571,7 @@ func (m Model) renderHelpText() string {
 	b.WriteString("Typing modes (search/filter/insert/create/rename) use Esc/Enter locally.\n")
 	b.WriteString("Command and search ↑/↓ (C-p/C-n) recall history; ↓ in : focuses suggestions.\n")
 	b.WriteString("Counts: 7j / 3k / 10G (G with a count jumps to that row).\n")
-	b.WriteString("Sidebar: ◇ expanded, ◆ folded; ◉ after a config means it is locked; loaded configs are coloured. Highlighting a config loads and shows its secrets. n/N hops loaded configs when not searching. Backspace unloads a config. Click selects a sidebar row. Folding a project or env keeps the active and loaded configs visible.\n")
+	b.WriteString("Sidebar: ◇ expanded, ◆ folded; ◉ after a config means it is locked; loaded configs are coloured. Highlighting a config loads and shows its secrets. n/N hop search matches; in Projects without a search, n adds a branch config and N hops loaded configs. Backspace unloads a config. Click selects a sidebar row. Folding a project or env keeps the active and loaded configs visible.\n")
 	b.WriteString("Search: / filter secret names across configs (typeahead); :search highlights in the current pane.\n")
 	b.WriteString("Filter: f this config; F every config (local applies after global).\n")
 	b.WriteString("Projects yank: y then n/y/j/e (name / yaml / json / env).\n")

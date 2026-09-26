@@ -70,6 +70,7 @@ func defaultProjectsKeys() map[string]string {
 		"space":     "fold toggle",
 		"enter":     "config load on",
 		"o":         "config create",
+		"n":         "config branch",
 		"r":         "config refresh",
 		"R":         "config rename",
 		"L":         "config lock toggle",

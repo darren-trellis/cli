@@ -113,6 +113,7 @@ func (m Model) update(msg Msg) (Model, Cmd) {
 		m.pruneSecretsCache()
 		m.createConfigProject = ""
 		m.createConfigEnv = ""
+		m.createConfigPrefix = ""
 		m.renameFromConfig = ""
 		m.configPromptMode = configPromptCreate
 		if msg.config != "" {
@@ -559,6 +560,7 @@ func (m Model) handleCreateConfigKey(msg keyMsg) (Model, Cmd) {
 		m.createConfigInput.SetValue("")
 		m.createConfigProject = ""
 		m.createConfigEnv = ""
+		m.createConfigPrefix = ""
 		m.renameFromConfig = ""
 		m.configPromptMode = configPromptCreate
 		m.setFocus(focusProjects)
@@ -576,8 +578,16 @@ func (m Model) handleCreateConfigKey(msg keyMsg) (Model, Cmd) {
 	return m, nil
 }
 
-func (m Model) submitCreateConfig() (Model, Cmd) {
+func (m Model) createConfigName() string {
 	name := strings.TrimSpace(m.createConfigInput.Value())
+	if prefix := m.createConfigPrefix; prefix != "" && name != "" && !strings.HasPrefix(name, prefix) {
+		name = prefix + name
+	}
+	return name
+}
+
+func (m Model) submitCreateConfig() (Model, Cmd) {
+	name := m.createConfigName()
 	project := m.createConfigProject
 	environment := m.createConfigEnv
 	if environment == "" {
@@ -603,6 +613,7 @@ func (m Model) submitCreateConfig() (Model, Cmd) {
 	m.statusMsg = ""
 	m.fetching = true
 	m.createConfigInput.SetValue("")
+	m.createConfigPrefix = ""
 	m.renameFromConfig = ""
 	m.configPromptMode = configPromptCreate
 	m.setFocus(focusProjects)
@@ -764,6 +775,9 @@ func (m Model) handleNavKey(msg keyMsg) (Model, Cmd) {
 	if !ok {
 		m.motionCount = 0
 		return m, nil
+	}
+	if cmd == "config branch" && chord == "n" && m.searchQuery != "" {
+		cmd = "search next"
 	}
 	if !commandUsesMotionCount(cmd) {
 		m.motionCount = 0
@@ -1105,6 +1119,7 @@ func (m Model) beginCreateConfig() (Model, Cmd) {
 
 	m.createConfigProject = row.project
 	m.createConfigEnv = ""
+	m.createConfigPrefix = ""
 	m.renameFromConfig = ""
 	m.configPromptMode = configPromptCreate
 	prefill := ""
@@ -1117,6 +1132,32 @@ func (m Model) beginCreateConfig() (Model, Cmd) {
 	m.createConfigInput.Prompt = "+ "
 	m.createConfigInput.Placeholder = "New config (e.g. dev_personal)…"
 	m.createConfigInput.SetValue(prefill)
+	m.errMsg = ""
+	m.statusMsg = ""
+	m.setFocus(focusCreateConfig)
+	return m, nil
+}
+
+func (m Model) beginBranchConfig() (Model, Cmd) {
+	row, ok := m.currentTreeRow()
+	if !ok || row.kind != treeConfig || row.config == "" {
+		m.errMsg = "Select a config to branch from"
+		return m, nil
+	}
+	env := m.configEnvironment(row.project, row.config)
+	if env == "" {
+		m.errMsg = "Config has no environment to branch in"
+		return m, nil
+	}
+
+	m.createConfigProject = row.project
+	m.createConfigEnv = env
+	m.createConfigPrefix = env + "_"
+	m.renameFromConfig = ""
+	m.configPromptMode = configPromptCreate
+	m.createConfigInput.Prompt = "+ " + m.createConfigPrefix
+	m.createConfigInput.Placeholder = "branch name…"
+	m.createConfigInput.SetValue("")
 	m.errMsg = ""
 	m.statusMsg = ""
 	m.setFocus(focusCreateConfig)
@@ -1136,6 +1177,7 @@ func (m Model) beginRenameConfig() (Model, Cmd) {
 
 	m.createConfigProject = row.project
 	m.createConfigEnv = m.configEnvironment(row.project, row.config)
+	m.createConfigPrefix = ""
 	m.renameFromConfig = row.config
 	m.configPromptMode = configPromptRename
 	m.createConfigInput.Prompt = "~ "
