@@ -112,6 +112,19 @@ func TestGlobalSearchRenderHidesNonMatches(t *testing.T) {
 	assert.Contains(t, out, "Secrets (1)")
 }
 
+func TestSidebarKeepsHighlightWhenUnfocused(t *testing.T) {
+	m := renderFixture(configuration.TUISettings{Border: true, Sidebar: true})
+	m.focus = focusSecrets
+	m.treeIdx = 1
+
+	layout := m.computeLayout()
+	sc := drawModel(t, m)
+	cells, w, _ := sc.GetContents()
+	rowY := layout.projects.y + 1 + m.treeIdx
+	x := layout.projects.x + layout.projects.w - 2
+	assert.Equal(t, selectedStyle, cells[rowY*w+x].Style)
+}
+
 func TestStatusBarShowsFilterAndSearchLabels(t *testing.T) {
 	m := renderFixture(configuration.TUISettings{Border: true, Sidebar: true})
 	m.filter = "ALP"
