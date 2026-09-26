@@ -155,9 +155,9 @@ func TestSidebarMarksCachedConfigs(t *testing.T) {
 	m.width = 80
 	m.height = 24
 	out := renderSidebar(t, m)
-	assert.Contains(t, out, "*dev")
-	assert.Contains(t, out, "+prd")
-	assert.NotContains(t, out, "+dev_personal")
+	assert.Contains(t, out, "◉ dev")
+	assert.Contains(t, out, "◉ prd")
+	assert.Contains(t, out, "○ dev_p")
 	assert.NotContains(t, out, " ·")
 }
 
@@ -177,7 +177,7 @@ func TestBackspaceUnloadsCachedConfig(t *testing.T) {
 	assert.Equal(t, "DEV", mod.secrets[0].name)
 	assert.Equal(t, findTreeIndex(mod.tree, treeConfig, "api", "prd"), mod.treeIdx)
 	assert.Contains(t, mod.statusMsg, "Unloaded api / prd")
-	assert.NotContains(t, renderSidebar(t, mod), "+prd")
+	assert.Contains(t, renderSidebar(t, mod), "○ prd")
 }
 
 func TestBackspaceUnloadsLastCachedConfig(t *testing.T) {

@@ -277,16 +277,25 @@ func findTreeIndex(tree []treeRow, kind treeKind, project, config string) int {
 	return 0
 }
 
+const (
+	treeExpanded  = "◇"
+	treeCollapsed = "◆"
+	treeLoaded    = "◉"
+	treeUnloaded  = "○"
+)
+
+func treeFoldMark(folded bool) string {
+	if folded {
+		return treeCollapsed + " "
+	}
+	return treeExpanded + " "
+}
+
 func formatTreeRow(row treeRow, activeProject, activeConfig string) string {
 	if row.kind == treeProject {
-		icon := "▾ "
-		if row.folded {
-			icon = "▸ "
-		}
-		return icon + row.project
+		return treeFoldMark(row.folded) + row.project
 	}
 
-	active := row.project == activeProject && row.config == activeConfig
 	label := row.config
 	if row.locked {
 		label = "$" + label
@@ -294,36 +303,28 @@ func formatTreeRow(row treeRow, activeProject, activeConfig string) string {
 	if row.dirty {
 		label = label + " +"
 	}
-	name := label
-	switch {
-	case active:
-		name = "*" + label
-	case row.cached:
-		name = "+" + label
+	loaded := row.cached || (row.project == activeProject && row.config == activeConfig)
+	status := treeUnloaded
+	if loaded {
+		status = treeLoaded
 	}
+	name := status + " " + label
 	if row.hasChildren {
-		icon := "▾ "
-		if row.folded {
-			icon = "▸ "
-		}
-		name = icon + name
+		name = treeFoldMark(row.folded) + name
 	}
 
-	branch := "├─ "
+	branch := "├── "
 	if row.lastSibling {
-		branch = "└─ "
+		branch = "└── "
 	}
-
-	switch row.depth {
-	case 2:
-		guide := "│  "
+	if row.depth == 2 {
+		guide := "│   "
 		if !row.parentContinues {
-			guide = "   "
+			guide = "    "
 		}
-		return "  " + guide + branch + name
-	default:
-		return "  " + branch + name
+		return guide + branch + name
 	}
+	return branch + name
 }
 
 func configIsLocked(configs []configRow, name string) bool {

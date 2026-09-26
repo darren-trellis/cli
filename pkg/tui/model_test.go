@@ -537,21 +537,21 @@ func TestBuildConfigTree(t *testing.T) {
 
 func TestFormatTreeRowShowsLock(t *testing.T) {
 	row := treeRow{kind: treeConfig, project: "api", config: "prd", depth: 1, lastSibling: true, locked: true}
-	assert.Equal(t, "  └─ $prd", formatTreeRow(row, "api", "dev"))
+	assert.Equal(t, "└── ○ $prd", formatTreeRow(row, "api", "dev"))
 
 	active := treeRow{kind: treeConfig, project: "api", config: "prd", depth: 1, lastSibling: true, locked: true}
-	assert.Equal(t, "  └─ *$prd", formatTreeRow(active, "api", "prd"))
+	assert.Equal(t, "└── ◉ $prd", formatTreeRow(active, "api", "prd"))
 	active.dirty = true
-	assert.Equal(t, "  └─ *$prd +", formatTreeRow(active, "api", "prd"))
+	assert.Equal(t, "└── ◉ $prd +", formatTreeRow(active, "api", "prd"))
 	active.dirty = false
 	active.cached = true
-	assert.Equal(t, "  └─ *$prd", formatTreeRow(active, "api", "prd"))
+	assert.Equal(t, "└── ◉ $prd", formatTreeRow(active, "api", "prd"))
 
 	cached := treeRow{kind: treeConfig, project: "api", config: "prd", depth: 1, lastSibling: true, cached: true}
-	assert.Equal(t, "  └─ +prd", formatTreeRow(cached, "api", "dev"))
+	assert.Equal(t, "└── ◉ prd", formatTreeRow(cached, "api", "dev"))
 	cached.locked = true
 	cached.dirty = true
-	assert.Equal(t, "  └─ +$prd +", formatTreeRow(cached, "api", "dev"))
+	assert.Equal(t, "└── ◉ $prd +", formatTreeRow(cached, "api", "dev"))
 }
 
 func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
@@ -574,18 +574,21 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 	assert.Equal(t, 2, tree[2].depth)
 	assert.True(t, tree[2].parentContinues)
 	assert.True(t, tree[3].lastSibling)
-	assert.Equal(t, "▾ api", formatTreeRow(tree[0], "api", "dev"))
-	assert.Equal(t, "  ├─ ▾ *dev", formatTreeRow(tree[1], "api", "dev"))
-	assert.Equal(t, "  │  └─ dev_personal", formatTreeRow(tree[2], "api", "dev"))
-	assert.Equal(t, "  └─ prd", formatTreeRow(tree[3], "api", "dev"))
+	assert.Equal(t, "◇ api", formatTreeRow(tree[0], "api", "dev"))
+	assert.Equal(t, "├── ◇ ◉ dev", formatTreeRow(tree[1], "api", "dev"))
+	assert.Equal(t, "│   └── ○ dev_personal", formatTreeRow(tree[2], "api", "dev"))
+	assert.Equal(t, "└── ○ prd", formatTreeRow(tree[3], "api", "dev"))
+	assert.Equal(t, "◆ web", formatTreeRow(tree[4], "api", "dev"))
+	assert.Equal(t, '◇', []rune(formatTreeRow(tree[1], "api", "dev"))[4])
+	assert.Equal(t, '└', []rune(formatTreeRow(tree[2], "api", "dev"))[4], "child elbow sits under the parent diamond")
 
 	expandedEnvs := map[string]bool{envKey("api", "dev"): false}
 	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, expandedEnvs, "api", "dev_personal", nil)
 	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd", "web"}, treeLabels(tree))
 	assert.True(t, tree[1].folded)
 	assert.True(t, tree[2].pinned)
-	assert.Equal(t, "  ├─ ▸ dev", formatTreeRow(tree[1], "api", "dev_personal"))
-	assert.Equal(t, "  │  └─ *dev_personal", formatTreeRow(tree[2], "api", "dev_personal"))
+	assert.Equal(t, "├── ◆ ○ dev", formatTreeRow(tree[1], "api", "dev_personal"))
+	assert.Equal(t, "│   └── ◉ dev_personal", formatTreeRow(tree[2], "api", "dev_personal"))
 
 	expanded["api"] = false
 	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, nil, "api", "dev", nil)
@@ -594,7 +597,7 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 	assert.Equal(t, treeConfig, tree[1].kind)
 	assert.Equal(t, "dev", tree[1].config)
 	assert.True(t, tree[1].pinned)
-	assert.Equal(t, "  └─ *dev", formatTreeRow(tree[1], "api", "dev"))
+	assert.Equal(t, "└── ◉ dev", formatTreeRow(tree[1], "api", "dev"))
 	assert.Equal(t, "web", tree[2].project)
 }
 
@@ -630,11 +633,11 @@ func TestBuildProjectTreeFoldKeepsCachedConfigs(t *testing.T) {
 	assert.True(t, tree[2].pinned)
 	assert.Equal(t, 2, tree[2].depth)
 	assert.True(t, tree[3].pinned)
-	assert.Equal(t, "  ├─ ▸ *dev", formatTreeRow(tree[1], "api", "dev"))
+	assert.Equal(t, "├── ◆ ◉ dev", formatTreeRow(tree[1], "api", "dev"))
 	tree[2].cached = true
-	assert.Equal(t, "  │  └─ +dev_personal", formatTreeRow(tree[2], "api", "dev"))
+	assert.Equal(t, "│   └── ◉ dev_personal", formatTreeRow(tree[2], "api", "dev"))
 	tree[3].cached = true
-	assert.Equal(t, "  └─ +prd", formatTreeRow(tree[3], "api", "dev"))
+	assert.Equal(t, "└── ◉ prd", formatTreeRow(tree[3], "api", "dev"))
 }
 
 func TestToggleProjectFoldKeepsCached(t *testing.T) {
