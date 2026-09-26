@@ -138,11 +138,55 @@ func TestRenameConfigKeybindingFromProjects(t *testing.T) {
 	m.rebuildTree()
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
 
-	next, _ := m.handleNavKey(runeKey('r'))
+	next, _ := m.handleNavKey(runeKey('R'))
 	mod := next
 	assert.Equal(t, focusCreateConfig, mod.focus)
 	assert.Equal(t, configPromptRename, mod.configPromptMode)
 	assert.Equal(t, "dev", mod.renameFromConfig)
+}
+
+func TestRefreshConfigKeybindingReloadsSecrets(t *testing.T) {
+	m := cachedSidebarModel()
+	require.True(t, m.highlightIs("api", "dev"))
+
+	next, cmd := m.handleNavKey(runeKey('r'))
+	mod := next
+	require.NotNil(t, cmd)
+	assert.True(t, mod.fetching)
+	assert.Equal(t, focusProjects, mod.focus)
+
+	mod.secretIdx = 0
+	next, _ = mod.Update(configRefreshedMsg{
+		project: "api",
+		config:  "dev",
+		secrets: []secretRow{newSecretRow("DEV", "2", "masked"), newSecretRow("NEW", "x", "masked")},
+	})
+	mod = next
+	assert.False(t, mod.fetching)
+	require.Len(t, mod.secrets, 2)
+	assert.Equal(t, "2", mod.secrets[0].value)
+	assert.Equal(t, "Refreshed api / dev", mod.statusMsg)
+}
+
+func TestRefreshConfigRefusesUnsavedChanges(t *testing.T) {
+	m := cachedSidebarModel()
+	m.secrets[0].value = "edited"
+
+	next, cmd := m.handleNavKey(runeKey('r'))
+	mod := next
+	assert.Nil(t, cmd)
+	assert.False(t, mod.fetching)
+	assert.Equal(t, "Save or discard unsaved changes first", mod.errMsg)
+	assert.Equal(t, "edited", mod.secrets[0].value)
+}
+
+func TestRefreshProjectReloadsConfigs(t *testing.T) {
+	m := cachedSidebarModel()
+	m.treeIdx = findTreeIndex(m.tree, treeProject, "api", "")
+
+	next, cmd := m.handleNavKey(runeKey('r'))
+	require.NotNil(t, cmd)
+	assert.True(t, next.fetching)
 }
 
 func TestSubmitRenameConfigNoopSameName(t *testing.T) {

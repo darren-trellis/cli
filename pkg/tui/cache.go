@@ -233,6 +233,43 @@ func (m Model) handleHighlightLoaded(msg highlightLoadedMsg) (Model, Cmd) {
 	return m, nil
 }
 
+func (m Model) refreshSelection() (Model, Cmd) {
+	row, ok := m.currentTreeRow()
+	if !ok || row.project == "" {
+		m.errMsg = "Select a project or config to refresh"
+		return m, nil
+	}
+	m.errMsg = ""
+	m.statusMsg = ""
+	if row.kind == treeProject {
+		m.fetching = true
+		return m, Batch(m.spinner.Tick, fetchProjectConfigsCmd(m.opts, row.project))
+	}
+	if m.configIsDirty(row.project, row.config) {
+		m.errMsg = "Save or discard unsaved changes first"
+		return m, nil
+	}
+	m.fetching = true
+	return m, Batch(m.spinner.Tick, refreshConfigCmd(m.opts, row.project, row.config))
+}
+
+func (m Model) handleConfigRefreshed(msg configRefreshedMsg) (Model, Cmd) {
+	m.fetching = false
+	m.errMsg = ""
+	if msg.project == m.activeProject && msg.config == m.activeConfig {
+		m.secrets = msg.secrets
+		m.undoStack = nil
+		m.clampSecretIdx()
+		if m.searchPane == focusSecrets && m.searchRe != nil {
+			m.refreshSearchMatches()
+		}
+	}
+	m.rememberLoadedSecrets(msg.project, msg.config, msg.secrets)
+	m.rebuildTree()
+	m.statusMsg = "Refreshed " + msg.project + " / " + msg.config
+	return m, nil
+}
+
 func (m *Model) dropSecretsCache(project, config string) {
 	if m.secretsCache == nil || project == "" || config == "" {
 		return

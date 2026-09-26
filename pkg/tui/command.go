@@ -69,6 +69,7 @@ var commandCatalog = []commandInfo{
 	{"filter global", "Open workplace secrets filter"},
 	{"config create", "Create a config"},
 	{"config rename", "Rename selected config"},
+	{"config refresh", "Reload the selected config's secrets, or a project's configs"},
 	{"config lock", "Lock or unlock the selected config"},
 	{"config lock on", "Lock selected config"},
 	{"config lock off", "Unlock selected config"},
@@ -162,7 +163,7 @@ func (m Model) executeCommand(line string) (Model, Cmd) {
 		return m.execFilter(args)
 	case "config":
 		if len(args) == 0 {
-			m.errMsg = "usage: config create|rename|lock|load|delete|get|set"
+			m.errMsg = "usage: config create|rename|refresh|lock|load|delete|get|set"
 			return m, nil
 		}
 		switch args[0] {
@@ -170,6 +171,8 @@ func (m Model) executeCommand(line string) (Model, Cmd) {
 			return m.beginCreateConfig()
 		case "rename":
 			return m.beginRenameConfig()
+		case "refresh":
+			return m.refreshSelection()
 		case "lock":
 			return m.execOnOffToggle(args[1:], "config lock", m.lockOn, m.lockOff, m.lockToggle)
 		case "unlock":
@@ -556,7 +559,7 @@ func (m Model) renderHelpText() string {
 		"nav up", "nav down", "nav top", "nav bottom", "nav page up", "nav page down", "nav left", "nav right",
 	})
 	writeSection("Projects:", focusProjects, []string{
-		"fold toggle", "config load on", "config load off", "config create", "config rename", "config lock toggle", "delete",
+		"fold toggle", "config load on", "config load off", "config refresh", "config create", "config rename", "config lock toggle", "delete",
 		"yank name", "yank yaml", "yank json", "yank env",
 	})
 	writeSection("Secrets:", focusSecrets, []string{

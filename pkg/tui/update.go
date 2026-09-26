@@ -58,6 +58,9 @@ func (m Model) update(msg Msg) (Model, Cmd) {
 	case highlightLoadedMsg:
 		return m.handleHighlightLoaded(msg)
 
+	case configRefreshedMsg:
+		return m.handleConfigRefreshed(msg)
+
 	case spinnerTickMsg:
 		m.spinner.advance()
 		if m.fetching || m.workplaceIndexing || m.highlightLoading != "" {

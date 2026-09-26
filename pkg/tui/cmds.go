@@ -204,6 +204,22 @@ func selectConfigCmd(opts models.ScopedOptions, project, config string) Cmd {
 	}
 }
 
+type configRefreshedMsg struct {
+	project string
+	config  string
+	secrets []secretRow
+}
+
+func refreshConfigCmd(opts models.ScopedOptions, project, config string) Cmd {
+	return func() Msg {
+		computed, err := controllers.GetSecrets(withProjectConfig(opts, project, config))
+		if err.Unwrap() != nil {
+			return errMsg{err.Unwrap()}
+		}
+		return configRefreshedMsg{project: project, config: config, secrets: secretsFromComputed(computed)}
+	}
+}
+
 func loadHighlightedConfigCmd(opts models.ScopedOptions, seq int, project, config string) Cmd {
 	return func() Msg {
 		msg := highlightLoadedMsg{seq: seq, project: project, config: config}
