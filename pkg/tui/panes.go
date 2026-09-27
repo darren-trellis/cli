@@ -75,7 +75,7 @@ func (m Model) drawProjectsPane(sc tcell.Screen, r rect) {
 		lead, label, trail := treeRowParts(row)
 		text := lead + label + trail
 		selected := idx == m.treeIdx
-		style := m.treeRowStyle(row, selected)
+		style := treeRowStyle(selected)
 
 		if selected {
 			text = padRight(text, bodyW)
@@ -94,25 +94,11 @@ func (m Model) drawProjectsPane(sc tcell.Screen, r rect) {
 	}
 }
 
-// treeRowStyle picks the colour for a sidebar row: the active config, a cached
-// config and an ordinary row each read differently, and the selected row keeps
-// that distinction against the selection background.
-func (m Model) treeRowStyle(row treeRow, selected bool) tcell.Style {
-	activeCfg := row.kind == treeConfig && row.project == m.activeProject && row.config == m.activeConfig
-	switch {
-	case selected && activeCfg:
-		return selectedActiveStyle
-	case selected && row.cached:
-		return selectedCachedStyle
-	case selected:
+func treeRowStyle(selected bool) tcell.Style {
+	if selected {
 		return selectedStyle
-	case activeCfg:
-		return activeEnvStyle
-	case row.cached:
-		return cachedConfigStyle
-	default:
-		return baseStyle
 	}
+	return baseStyle
 }
 
 // drawSecretsPane paints the secrets table and returns the cursor position when

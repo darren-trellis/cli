@@ -211,20 +211,26 @@ func TestGlobalFilterSurvivesConfigSwitch(t *testing.T) {
 	assert.Equal(t, "TOKEN", m.globalFilter)
 }
 
-func TestSidebarMarksCachedConfigs(t *testing.T) {
+func TestSidebarDoesNotColourLoadedOrActiveConfigs(t *testing.T) {
 	m := cachedSidebarModel()
 	m.width = 80
 	m.height = 24
-	out := renderSidebar(t, m)
-	assert.Contains(t, out, "dev")
-	assert.Contains(t, out, "prd")
-	assert.NotContains(t, out, "◉")
-	assert.NotContains(t, out, "○")
+	m.treeIdx = 0
+	require.Equal(t, "dev", m.activeConfig)
+	require.True(t, m.configIsCached("api", "prd"))
 
-	prd := m.tree[findTreeIndex(m.tree, treeConfig, "api", "prd")]
-	personal := m.tree[findTreeIndex(m.tree, treeConfig, "api", "dev_personal")]
-	assert.Equal(t, cachedConfigStyle, m.treeRowStyle(prd, false))
-	assert.Equal(t, baseStyle, m.treeRowStyle(personal, false))
+	layout := m.computeLayout()
+	sc := drawModel(t, m)
+	cells, w, _ := sc.GetContents()
+	labelStyle := func(config string) tcell.Style {
+		idx := findTreeIndex(m.tree, treeConfig, "api", config)
+		lead, _, _ := treeRowParts(m.tree[idx])
+		y := layout.projects.y + 1 + idx
+		return cells[y*w+layout.projects.x+1+len([]rune(lead))].Style
+	}
+	assert.Equal(t, baseStyle, labelStyle("dev"), "active config")
+	assert.Equal(t, baseStyle, labelStyle("prd"), "loaded config")
+	assert.Equal(t, baseStyle, labelStyle("dev_personal"), "unloaded config")
 }
 
 func TestBackspaceUnloadsCachedConfig(t *testing.T) {
@@ -243,8 +249,6 @@ func TestBackspaceUnloadsCachedConfig(t *testing.T) {
 	assert.Equal(t, "DEV", mod.secrets[0].name)
 	assert.Equal(t, findTreeIndex(mod.tree, treeConfig, "api", "prd"), mod.treeIdx)
 	assert.Contains(t, mod.statusMsg, "Unloaded api / prd")
-	prd := mod.tree[findTreeIndex(mod.tree, treeConfig, "api", "prd")]
-	assert.False(t, prd.cached)
 }
 
 func TestBackspaceUnloadsLastCachedConfig(t *testing.T) {

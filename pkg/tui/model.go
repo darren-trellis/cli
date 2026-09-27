@@ -404,7 +404,7 @@ func (m *Model) rebuildTree() {
 	}
 
 	m.tree = buildProjectTree(projects, configs, m.expanded, m.expandedEnvs)
-	m.annotateTreeCache()
+	m.annotateTreeDirty()
 	m.treeIdx = findTreeIndex(m.tree, kind, project, config)
 	if m.treeIdx >= len(m.tree) {
 		m.treeIdx = max(0, len(m.tree)-1)
@@ -418,13 +418,12 @@ func (m Model) inModal() bool {
 	return m.focus == focusHelp || m.focus == focusSave || m.focus == focusSwitchConfirm || m.focus == focusDeleteConfirm || m.focus == focusPropagate
 }
 
-func (m *Model) annotateTreeCache() {
+func (m *Model) annotateTreeDirty() {
 	for i := range m.tree {
 		row := &m.tree[i]
 		if row.kind != treeConfig || row.config == "" {
 			continue
 		}
-		row.cached = m.configIsCached(row.project, row.config)
 		row.dirty = m.configIsDirty(row.project, row.config)
 	}
 }

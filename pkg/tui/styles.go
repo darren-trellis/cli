@@ -31,27 +31,24 @@ var (
 	selectionBg tcell.Color
 	activeEnv   tcell.Color
 
-	baseStyle           tcell.Style
-	dimStyle            tcell.Style
-	dirtyStyle          tcell.Style
-	deleteStyle         tcell.Style
-	errorStyle          tcell.Style
-	statusStyle         tcell.Style
-	helpStyle           tcell.Style
-	titleStyle          tcell.Style
-	activeTitleStyle    tcell.Style
-	selectedStyle       tcell.Style
-	selectedActiveStyle tcell.Style
-	selectedCachedStyle tcell.Style
-	activeEnvStyle      tcell.Style
-	cachedConfigStyle   tcell.Style
-	searchHitStyle      tcell.Style
-	borderStyle         tcell.Style
-	activeBorderStyle   tcell.Style
-	buttonStyle         tcell.Style
-	buttonFocusStyle    tcell.Style
-	scrollTrackStyle    tcell.Style
-	scrollThumbStyle    tcell.Style
+	baseStyle         tcell.Style
+	dimStyle          tcell.Style
+	dirtyStyle        tcell.Style
+	deleteStyle       tcell.Style
+	errorStyle        tcell.Style
+	statusStyle       tcell.Style
+	helpStyle         tcell.Style
+	titleStyle        tcell.Style
+	activeTitleStyle  tcell.Style
+	selectedStyle     tcell.Style
+	activeEnvStyle    tcell.Style
+	searchHitStyle    tcell.Style
+	borderStyle       tcell.Style
+	activeBorderStyle tcell.Style
+	buttonStyle       tcell.Style
+	buttonFocusStyle  tcell.Style
+	scrollTrackStyle  tcell.Style
+	scrollThumbStyle  tcell.Style
 
 	currentTheme Theme
 )
@@ -103,17 +100,8 @@ func rebuildStyles(theme Theme) {
 		Background(selectionBg).
 		Foreground(theme.SelectionFg).
 		Bold(true)
-	selectedActiveStyle = tcell.StyleDefault.
-		Background(selectionBg).
-		Foreground(activeEnv).
-		Bold(true)
-	selectedCachedStyle = tcell.StyleDefault.
-		Background(selectionBg).
-		Foreground(theme.Accent).
-		Bold(true)
 
 	activeEnvStyle = base.Foreground(activeEnv).Bold(true)
-	cachedConfigStyle = base.Foreground(theme.Accent).Bold(true)
 
 	hitBg := theme.SearchMatchBg
 	if hitBg == tcell.ColorDefault {

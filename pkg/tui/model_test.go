@@ -541,7 +541,7 @@ func TestFormatTreeRowShowsLock(t *testing.T) {
 	row.dirty = true
 	assert.Equal(t, "└─── prd + ◉", formatTreeRow(row))
 
-	unlocked := treeRow{kind: treeConfig, project: "api", config: "prd", depth: 1, lastSibling: true, cached: true}
+	unlocked := treeRow{kind: treeConfig, project: "api", config: "prd", depth: 1, lastSibling: true}
 	assert.Equal(t, "└─── prd", formatTreeRow(unlocked))
 	unlocked.dirty = true
 	assert.Equal(t, "└─── prd +", formatTreeRow(unlocked))

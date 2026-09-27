@@ -33,7 +33,6 @@ type treeRow struct {
 	hasChildren     bool
 	locked          bool
 	foldRoot        string // root config name for env fold target
-	cached          bool
 	dirty           bool
 }
 
