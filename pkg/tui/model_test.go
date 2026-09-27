@@ -559,6 +559,12 @@ func TestBuildProjectTreeFold(t *testing.T) {
 	expanded := map[string]bool{"api": true}
 
 	tree := buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, nil)
+	assert.Equal(t, []string{"api", "dev", "prd", "web"}, treeLabels(tree), "root configs start folded")
+	assert.True(t, tree[1].folded)
+	assert.Equal(t, "├──◆ dev", formatTreeRow(tree[1]))
+
+	expandedEnvs := map[string]bool{envKey("api", "dev"): true}
+	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, expandedEnvs)
 	assert.Equal(t, []treeKind{treeProject, treeConfig, treeConfig, treeConfig, treeProject}, treeKinds(tree))
 	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd", "web"}, treeLabels(tree))
 	assert.Equal(t, 1, tree[1].depth)
@@ -574,12 +580,6 @@ func TestBuildProjectTreeFold(t *testing.T) {
 	assert.Equal(t, "◆ web", formatTreeRow(tree[4]))
 	assert.Equal(t, '◇', []rune(formatTreeRow(tree[1]))[3])
 	assert.Equal(t, '└', []rune(formatTreeRow(tree[2]))[3], "child elbow sits under the parent diamond")
-
-	expandedEnvs := map[string]bool{envKey("api", "dev"): false}
-	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, expandedEnvs)
-	assert.Equal(t, []string{"api", "dev", "prd", "web"}, treeLabels(tree))
-	assert.True(t, tree[1].folded)
-	assert.Equal(t, "├──◆ dev", formatTreeRow(tree[1]))
 
 	expanded["api"] = false
 	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, nil)
@@ -612,6 +612,24 @@ func TestLoadingBranchFromOutsideSidebarUnfoldsItsEnv(t *testing.T) {
 	})
 	assert.True(t, next.expanded["api"])
 	assert.True(t, isEnvExpanded(next.expandedEnvs, "api", "dev"))
+	assert.True(t, next.highlightIs("api", "dev_personal"))
+}
+
+func TestStartupOnBranchUnfoldsOnlyItsEnv(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Border: true, Sidebar: true})
+	next, _ := m.Update(loadedMsg{
+		projects: []string{"api"},
+		configs: buildConfigTree([]models.ConfigInfo{
+			{Name: "dev", Environment: "dev", Root: true},
+			{Name: "dev_personal", Environment: "dev", Root: false},
+			{Name: "prd", Environment: "prd", Root: true},
+			{Name: "prd_hotfix", Environment: "prd", Root: false},
+		}),
+		secrets:       []secretRow{newSecretRow("LOCAL", "1", "masked")},
+		activeProject: "api",
+		activeConfig:  "dev_personal",
+	})
+	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd"}, treeLabels(next.tree))
 	assert.True(t, next.highlightIs("api", "dev_personal"))
 }
 
@@ -673,19 +691,21 @@ func TestToggleEnvFold(t *testing.T) {
 	m.activeConfig = "prd"
 	m.rebuildTree()
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev")
+	assert.Equal(t, []string{"api", "dev", "prd"}, treeLabels(m.tree))
+	assert.True(t, m.tree[m.treeIdx].folded)
 
 	next, _ := m.Update(runeKey(' '))
 	mod := next
 	assert.False(t, mod.fetching)
-	assert.False(t, isEnvExpanded(mod.expandedEnvs, "api", "dev"))
-	assert.Equal(t, []string{"api", "dev", "prd"}, treeLabels(mod.tree))
-	assert.True(t, mod.tree[mod.treeIdx].folded)
+	assert.True(t, isEnvExpanded(mod.expandedEnvs, "api", "dev"))
+	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd"}, treeLabels(mod.tree))
 
 	next, _ = mod.Update(runeKey(' '))
 	mod = next
 	assert.False(t, mod.fetching)
-	assert.True(t, isEnvExpanded(mod.expandedEnvs, "api", "dev"))
-	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd"}, treeLabels(mod.tree))
+	assert.False(t, isEnvExpanded(mod.expandedEnvs, "api", "dev"))
+	assert.Equal(t, []string{"api", "dev", "prd"}, treeLabels(mod.tree))
+	assert.True(t, mod.tree[mod.treeIdx].folded)
 }
 
 func TestSpaceOnLeafDoesNothing(t *testing.T) {
@@ -699,6 +719,7 @@ func TestSpaceOnLeafDoesNothing(t *testing.T) {
 		{Name: "prd", Environment: "prd", Root: true},
 	})
 	m.expanded["api"] = true
+	m.expandedEnvs[envKey("api", "dev")] = true
 	m.activeProject = "api"
 	m.activeConfig = "prd"
 	m.rebuildTree()

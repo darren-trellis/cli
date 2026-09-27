@@ -38,6 +38,7 @@ func cachedSidebarModel() Model {
 		{Name: "prd", Environment: "prd", Root: true},
 	})
 	m.expanded["api"] = true
+	m.expandedEnvs[envKey("api", "dev")] = true
 	m.secrets = []secretRow{newSecretRow("DEV", "1", "masked")}
 	m.rememberLoadedSecrets("api", "dev", m.secrets)
 	m.putSecretsCache("api", "prd", secretsCacheEntry{

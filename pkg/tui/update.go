@@ -90,6 +90,7 @@ func (m Model) update(msg Msg) (Model, Cmd) {
 		m.activeProject = msg.activeProject
 		m.activeConfig = msg.activeConfig
 		m.rememberLoadedSecrets(msg.activeProject, msg.activeConfig, msg.secrets)
+		m.expandEnvFor(msg.activeProject, msg.activeConfig)
 		m.rebuildTree()
 		m.treeIdx = findTreeIndex(m.tree, treeConfig, msg.activeProject, msg.activeConfig)
 		m.persistSession()
@@ -146,6 +147,7 @@ func (m Model) update(msg Msg) (Model, Cmd) {
 			if msg.config != "" {
 				m.rememberLoadedSecrets(msg.project, msg.config, msg.secrets)
 			}
+			m.expandEnvFor(msg.project, msg.config)
 			m.setFocus(focusProjects)
 		} else if m.activeProject == msg.deleted {
 			m.activeProject = ""

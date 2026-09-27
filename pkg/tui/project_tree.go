@@ -41,14 +41,7 @@ func envKey(project, rootConfig string) string {
 }
 
 func isEnvExpanded(expandedEnvs map[string]bool, project, rootConfig string) bool {
-	if expandedEnvs == nil {
-		return true
-	}
-	expanded, ok := expandedEnvs[envKey(project, rootConfig)]
-	if !ok {
-		return true
-	}
-	return expanded
+	return expandedEnvs[envKey(project, rootConfig)]
 }
 
 func buildProjectTree(

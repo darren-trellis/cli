@@ -55,6 +55,7 @@ func TestBeginDeleteConfigOpensConfirm(t *testing.T) {
 		{Name: "dev_personal", Environment: "dev", Root: false},
 	})
 	m.expanded["api"] = true
+	m.expandedEnvs[envKey("api", "dev")] = true
 	m.rebuildTree()
 	m.treeIdx = findTreeIndex(m.tree, treeConfig, "api", "dev_personal")
 
