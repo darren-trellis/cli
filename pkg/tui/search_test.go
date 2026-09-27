@@ -251,6 +251,71 @@ func TestGlobalSearchKeybinding(t *testing.T) {
 	assert.Equal(t, "", mod.searchInput.Value())
 }
 
+func projectFilterModel() Model {
+	m := cachedSidebarModel()
+	m.width = 90
+	m.height = 24
+	m.projects = []string{"api", "billing", "web-api"}
+	m.rebuildTree()
+	return m
+}
+
+func TestSlashInProjectsFiltersProjects(t *testing.T) {
+	m := projectFilterModel()
+	require.Equal(t, focusProjects, m.focus)
+
+	next, _ := m.Update(runeKey('/'))
+	mod := next
+	assert.Equal(t, focusFilter, mod.focus)
+	assert.True(t, mod.filterProjects)
+	assert.False(t, mod.searchGlobal, "does not start the workplace secret search")
+	assert.Equal(t, "/ ", mod.filterInput.Prompt)
+
+	for _, r := range "api" {
+		next, _ = mod.Update(runeKey(r))
+		mod = next
+	}
+	assert.Equal(t, 2, mod.visibleProjectCount())
+	assert.NotContains(t, treeLabels(mod.tree), "billing")
+	assert.Equal(t, []string{"DEV"}, filteredSecretNames(mod), "secrets are not filtered")
+	assert.Contains(t, renderSidebar(t, mod), "/api (2)")
+
+	next, _ = mod.Update(namedKey(tcell.KeyEnter))
+	mod = next
+	assert.Equal(t, focusProjects, mod.focus)
+	assert.Equal(t, "api", mod.projectFilter)
+	assert.Contains(t, renderSidebar(t, mod), "/api (2)")
+	assert.Equal(t, "Projects (2) /api", mod.projectsTitle(40), "a wide sidebar keeps the full title")
+}
+
+func TestProjectFilterEscClears(t *testing.T) {
+	m := projectFilterModel()
+	next, _ := m.Update(runeKey('/'))
+	mod := next
+	next, _ = mod.Update(runeKey('w'))
+	mod = next
+	require.Equal(t, 1, mod.visibleProjectCount())
+
+	next, _ = mod.Update(namedKey(tcell.KeyEsc))
+	mod = next
+	assert.Equal(t, focusProjects, mod.focus)
+	assert.Empty(t, mod.projectFilter)
+	assert.Equal(t, 3, mod.visibleProjectCount())
+	assert.Contains(t, renderSidebar(t, mod), "Projects (3)")
+	assert.NotContains(t, renderSidebar(t, mod), "/")
+}
+
+func TestProjectFilterStartsEmpty(t *testing.T) {
+	m := projectFilterModel()
+	m.projectFilter = "bill"
+	m.rebuildTree()
+	require.Equal(t, 1, m.visibleProjectCount())
+
+	next, _ := m.Update(runeKey('/'))
+	assert.Equal(t, "", next.filterInput.Value())
+	assert.Equal(t, 3, next.visibleProjectCount())
+}
+
 func TestGlobalSearchStartsEmpty(t *testing.T) {
 	m := cachedSidebarModel()
 	m.beginGlobalSearch()

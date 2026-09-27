@@ -170,6 +170,16 @@ func filterSecretIndexes(secrets []secretRow, global, local, caseMode string) []
 	return idxs
 }
 
+func filterProjectNames(projects []string, filter, caseMode string) []string {
+	var out []string
+	for _, p := range projects {
+		if matchWithCaseMode(p, filter, caseMode) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 func matchesFilter(name, filter, caseMode string) bool {
 	return filter == "" || matchWithCaseMode(name, filter, caseMode)
 }

@@ -49,7 +49,7 @@ func (m Model) paneBox(sc tcell.Screen, r rect, title string, active bool) rect 
 
 func (m Model) drawProjectsPane(sc tcell.Screen, r rect) {
 	active := m.focus == focusProjects
-	inner := m.paneBox(sc, r, fmt.Sprintf("Projects (%d)", m.visibleProjectCount()), active)
+	inner := m.paneBox(sc, r, m.projectsTitle(r.w), active)
 
 	var searchRe *regexp.Regexp
 	if m.searchPane == focusProjects && !m.searchGlobal {
@@ -293,6 +293,24 @@ func (m Model) drawStatus(sc tcell.Screen, r rect) (int, int) {
 		drawText(sc, rx, r.y, textWidth(right), right, rightStyle)
 	}
 	return -1, -1
+}
+
+// projectsTitle shows the project count and any active project filter. A
+// narrow sidebar drops the "Projects" word before it would cut off the filter.
+func (m Model) projectsTitle(paneW int) string {
+	n := m.visibleProjectCount()
+	if m.projectFilter == "" {
+		return fmt.Sprintf("Projects (%d)", n)
+	}
+	full := fmt.Sprintf("Projects (%d) /%s", n, m.projectFilter)
+	avail := paneW
+	if m.cfg.Border {
+		avail -= 4
+	}
+	if textWidth(full) <= avail {
+		return full
+	}
+	return fmt.Sprintf("/%s (%d)", m.projectFilter, n)
 }
 
 func (m Model) visibleProjectCount() int {

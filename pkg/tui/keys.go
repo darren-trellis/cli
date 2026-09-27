@@ -71,6 +71,7 @@ func defaultProjectsKeys() map[string]string {
 		"enter":     "config load on",
 		"o":         "config create",
 		"n":         "config branch",
+		"/":         "filter projects",
 		"r":         "config refresh",
 		"R":         "config rename",
 		"L":         "config lock toggle",

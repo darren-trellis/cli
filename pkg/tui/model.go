@@ -79,10 +79,12 @@ type Model struct {
 	secretCol    secretCol
 	undoStack    []int // secret store indexes, most recent last
 
-	filter       string
-	globalFilter string
-	filterGlobal bool
-	filterInput  textField
+	filter         string
+	globalFilter   string
+	filterGlobal   bool
+	projectFilter  string
+	filterProjects bool
+	filterInput    textField
 
 	searchQuery       string
 	searchInput       textField
@@ -403,6 +405,10 @@ func (m *Model) rebuildTree() {
 		projects, configs = m.filteredSearchTree()
 	}
 
+	if m.projectFilter != "" {
+		projects = filterProjectNames(projects, m.projectFilter, m.cfg.CaseMode)
+	}
+
 	m.tree = buildProjectTree(projects, configs, m.expanded, m.expandedEnvs)
 	m.annotateTreeDirty()
 	m.treeIdx = findTreeIndex(m.tree, kind, project, config)
@@ -474,9 +480,12 @@ func (m *Model) setFocus(f focusArea) {
 		m.loadCellFromSelection()
 		m.cellInput.Focus()
 	case focusFilter:
-		if m.filterGlobal {
+		switch {
+		case m.filterProjects:
+			m.filterInput.SetValue(m.projectFilter)
+		case m.filterGlobal:
 			m.filterInput.SetValue(m.globalFilter)
-		} else {
+		default:
 			m.filterInput.SetValue(m.filter)
 		}
 		m.filterInput.CursorEnd()

@@ -67,6 +67,7 @@ var commandCatalog = []commandInfo{
 	{"filter", "Open local secrets filter"},
 	{"filter local", "Open local secrets filter"},
 	{"filter global", "Open workplace secrets filter"},
+	{"filter projects", "Filter the projects sidebar by name"},
 	{"config create", "Create a config"},
 	{"config rename", "Rename selected config"},
 	{"config refresh", "Reload the selected config's secrets, or a project's configs"},
@@ -440,8 +441,11 @@ func (m Model) execFilter(args []string) (Model, Cmd) {
 			global = true
 		case "local":
 			global = false
+		case "projects":
+			m.beginProjectFilter()
+			return m, nil
 		default:
-			m.errMsg = "usage: filter [local|global]"
+			m.errMsg = "usage: filter [local|global|projects]"
 			return m, nil
 		}
 	}
@@ -562,7 +566,7 @@ func (m Model) renderHelpText() string {
 		"nav up", "nav down", "nav top", "nav bottom", "nav page up", "nav page down", "nav left", "nav right",
 	})
 	writeSection("Projects:", focusProjects, []string{
-		"fold toggle", "config load on", "config load off", "config refresh", "config create", "config branch", "config rename", "config lock toggle", "delete",
+		"fold toggle", "filter projects", "config load on", "config load off", "config refresh", "config create", "config branch", "config rename", "config lock toggle", "delete",
 		"yank name", "yank yaml", "yank json", "yank env",
 	})
 	writeSection("Secrets:", focusSecrets, []string{
@@ -572,8 +576,8 @@ func (m Model) renderHelpText() string {
 	b.WriteString("Command and search ↑/↓ (C-p/C-n) recall history; ↓ in : focuses suggestions.\n")
 	b.WriteString("Counts: 7j / 3k / 10G (G with a count jumps to that row).\n")
 	b.WriteString("Sidebar: ◇ expanded, ◆ folded; ◉ after a config means it is locked. Highlighting a config loads and shows its secrets. n/N hop search matches; in Projects without a search, n adds a branch config and N hops loaded configs. Backspace unloads a config. Click selects a sidebar row.\n")
-	b.WriteString("Search: / filter secret names across configs (typeahead); :search highlights in the current pane.\n")
-	b.WriteString("Filter: f this config; F every config (local applies after global).\n")
+	b.WriteString("Search: / in Secrets filters secret names across configs (typeahead); :search highlights in the current pane.\n")
+	b.WriteString("Filter: f this config; F every config (local applies after global); / in Projects filters project names (Esc clears).\n")
 	b.WriteString("Projects yank: y then n/y/j/e (name / yaml / json / env).\n")
 	b.WriteString("Projects delete: d on a project or branch config (root configs cannot be deleted).\n")
 	b.WriteString("Secrets yank: y[j|e] then motion (yy line, yn cell, y2j current+2 down, yjy json line).\n")

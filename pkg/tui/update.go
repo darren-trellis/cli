@@ -447,7 +447,18 @@ func (m Model) requestQuit() (Model, Cmd) {
 	return m.openQuitConfirm()
 }
 
+func (m *Model) beginProjectFilter() {
+	m.filterProjects = true
+	m.filterGlobal = false
+	m.projectFilter = ""
+	m.rebuildTree()
+	m.filterInput.Prompt = "/ "
+	m.filterInput.Placeholder = "Filter projects…"
+	m.setFocus(focusFilter)
+}
+
 func (m *Model) beginFilter(global bool) {
+	m.filterProjects = false
 	m.filterGlobal = global
 	if global {
 		m.filterInput.Prompt = "F "
@@ -460,6 +471,11 @@ func (m *Model) beginFilter(global bool) {
 }
 
 func (m *Model) commitFilterInput() {
+	if m.filterProjects {
+		m.projectFilter = m.filterInput.Value()
+		m.rebuildTree()
+		return
+	}
 	if m.filterGlobal {
 		m.globalFilter = m.filterInput.Value()
 	} else {
@@ -468,6 +484,9 @@ func (m *Model) commitFilterInput() {
 }
 
 func (m Model) handleFilterKey(msg keyMsg) (Model, Cmd) {
+	if m.filterProjects {
+		return m.handleProjectFilterKey(msg)
+	}
 	switch msg.String() {
 	case "tab", "backtab", "enter", "esc":
 		m.commitFilterInput()
@@ -484,6 +503,24 @@ func (m Model) handleFilterKey(msg keyMsg) (Model, Cmd) {
 	if m.searchPane == focusSecrets && m.searchRe != nil {
 		m.refreshSearchMatches()
 	}
+	return m, nil
+}
+
+func (m Model) handleProjectFilterKey(msg keyMsg) (Model, Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.filterInput.SetValue("")
+		fallthrough
+	case "tab", "backtab", "enter":
+		m.commitFilterInput()
+		m.filterProjects = false
+		m.setFocus(focusProjects)
+		return m, nil
+	case "C-c":
+		return m, Quit
+	}
+	m.filterInput.Update(msg)
+	m.commitFilterInput()
 	return m, nil
 }
 
