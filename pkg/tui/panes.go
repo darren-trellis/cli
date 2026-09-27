@@ -72,7 +72,8 @@ func (m Model) drawProjectsPane(sc tcell.Screen, r rect) {
 			continue
 		}
 		row := m.tree[idx]
-		text := formatTreeRow(row)
+		lead, label, trail := treeRowParts(row)
+		text := lead + label + trail
 		selected := idx == m.treeIdx
 		style := m.treeRowStyle(row, selected)
 
@@ -80,7 +81,12 @@ func (m Model) drawProjectsPane(sc tcell.Screen, r rect) {
 			text = padRight(text, bodyW)
 		}
 		spans := spansForNeedle(text, searchableTreeText(row), searchRe)
-		drawSpans(sc, inner.x, y, bodyW, truncate(text, bodyW), style, searchHitStyle, spans)
+		var decor []runeSpan
+		if !selected {
+			leadN, labelN := len([]rune(lead)), len([]rune(label))
+			decor = []runeSpan{{0, leadN}, {leadN + labelN, leadN + labelN + len([]rune(trail))}}
+		}
+		drawTreeText(sc, inner.x, y, bodyW, truncate(text, bodyW), style, borderStyle, decor, spans)
 	}
 
 	if showSB {

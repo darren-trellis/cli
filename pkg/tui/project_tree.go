@@ -291,16 +291,24 @@ func treeFoldMark(folded bool) string {
 }
 
 func formatTreeRow(row treeRow) string {
+	lead, label, trail := treeRowParts(row)
+	return lead + label + trail
+}
+
+// treeRowParts splits a sidebar row into its tree decoration (lines and fold
+// mark), the label, and the trailing lock mark, so the decoration can be drawn
+// in the border colour.
+func treeRowParts(row treeRow) (lead, label, trail string) {
 	if row.kind == treeProject {
-		return treeFoldMark(row.folded) + " " + row.project
+		return treeFoldMark(row.folded) + " ", row.project, ""
 	}
 
-	label := row.config
+	label = row.config
 	if row.dirty {
 		label += " +"
 	}
 	if row.locked {
-		label += " " + treeLocked
+		trail = " " + treeLocked
 	}
 
 	node := "─"
@@ -311,15 +319,15 @@ func formatTreeRow(row treeRow) string {
 	if row.lastSibling {
 		branch = "└──"
 	}
-	line := branch + node + " " + label
+	lead = branch + node + " "
 	if row.depth == 2 {
 		guide := "│  "
 		if !row.parentContinues {
 			guide = "   "
 		}
-		return guide + line
+		lead = guide + lead
 	}
-	return line
+	return lead, label, trail
 }
 
 func configIsLocked(configs []configRow, name string) bool {

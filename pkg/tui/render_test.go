@@ -125,6 +125,33 @@ func TestSidebarKeepsHighlightWhenUnfocused(t *testing.T) {
 	assert.Equal(t, selectedStyle, cells[rowY*w+x].Style)
 }
 
+func TestSidebarTreeGlyphsUseBorderColour(t *testing.T) {
+	m := renderFixture(configuration.TUISettings{Border: true, Sidebar: true})
+	m.projectConfigs["api"] = buildConfigTree([]models.ConfigInfo{
+		{Name: "dev", Environment: "dev", Root: true},
+		{Name: "prd", Environment: "prd", Root: true, Locked: true},
+	})
+	m.expanded["api"] = true
+	m.rebuildTree()
+	m.treeIdx = 0
+	prdIdx := findTreeIndex(m.tree, treeConfig, "api", "prd")
+	require.Equal(t, "└─── prd ◉", formatTreeRow(m.tree[prdIdx]))
+
+	layout := m.computeLayout()
+	sc := drawModel(t, m)
+	cells, w, _ := sc.GetContents()
+	x0 := layout.projects.x + 1
+	y := layout.projects.y + 1 + prdIdx
+	at := func(col int) tcell.Style { return cells[y*w+x0+col].Style }
+
+	assert.Equal(t, borderStyle, at(0), "tree line")
+	assert.Equal(t, borderStyle, at(9), "lock mark")
+	assert.NotEqual(t, borderStyle, at(5), "label keeps the row colour")
+
+	projectY := layout.projects.y + 1
+	assert.Equal(t, selectedStyle, cells[projectY*w+x0].Style, "selected row keeps the selection colour")
+}
+
 func TestStatusBarShowsFilterAndSearchLabels(t *testing.T) {
 	m := renderFixture(configuration.TUISettings{Border: true, Sidebar: true})
 	m.filter = "ALP"

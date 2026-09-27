@@ -184,8 +184,9 @@ func spansForNeedle(display, needle string, re *regexp.Regexp) []runeSpan {
 	return spans
 }
 
-// drawSpans draws s into w columns, painting the given rune spans in hitStyle.
-func drawSpans(sc tcell.Screen, x, y, w int, s string, base, hit tcell.Style, spans []runeSpan) {
+// drawTreeText draws s into w columns, painting search hits in
+// searchHitStyle and the tree decoration spans in decorStyle.
+func drawTreeText(sc tcell.Screen, x, y, w int, s string, base, decorStyle tcell.Style, decor, hits []runeSpan) {
 	if w <= 0 {
 		return
 	}
@@ -200,8 +201,11 @@ func drawSpans(sc tcell.Screen, x, y, w int, s string, base, hit tcell.Style, sp
 			break
 		}
 		style := base
-		if inSpans(spans, i) {
-			style = hit
+		switch {
+		case inSpans(hits, i):
+			style = searchHitStyle
+		case inSpans(decor, i):
+			style = decorStyle
 		}
 		sc.SetContent(x+col, y, r, nil, style)
 		for j := 1; j < rw; j++ {
