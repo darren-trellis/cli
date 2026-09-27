@@ -399,13 +399,11 @@ func (m *Model) rebuildTree() {
 
 	projects := m.projects
 	configs := m.projectConfigs
-	keep := m.visibleFoldedConfigs()
 	if m.searchGlobal && m.searchRe != nil && m.searchQuery != "" {
 		projects, configs = m.filteredSearchTree()
-		keep = nil
 	}
 
-	m.tree = buildProjectTree(projects, configs, m.expanded, m.expandedEnvs, m.activeProject, m.activeConfig, keep)
+	m.tree = buildProjectTree(projects, configs, m.expanded, m.expandedEnvs)
 	m.annotateTreeCache()
 	m.treeIdx = findTreeIndex(m.tree, kind, project, config)
 	if m.treeIdx >= len(m.tree) {

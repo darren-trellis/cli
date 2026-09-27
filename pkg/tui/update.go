@@ -116,19 +116,7 @@ func (m Model) update(msg Msg) (Model, Cmd) {
 		m.createConfigPrefix = ""
 		m.renameFromConfig = ""
 		m.configPromptMode = configPromptCreate
-		if msg.config != "" {
-			for _, c := range msg.configs {
-				if c.name == msg.config && c.environment != "" {
-					for _, root := range msg.configs {
-						if root.environment == c.environment && root.root {
-							m.expandedEnvs[envKey(msg.project, root.name)] = true
-							break
-						}
-					}
-					break
-				}
-			}
-		}
+		m.expandEnvFor(msg.project, msg.config)
 		m.rebuildTree()
 		if msg.config != "" {
 			m.treeIdx = findTreeIndex(m.tree, treeConfig, msg.project, msg.config)
@@ -231,6 +219,7 @@ func (m Model) update(msg Msg) (Model, Cmd) {
 		}
 		if _, ok := m.projectConfigs[msg.activeProject]; ok {
 			m.expanded[msg.activeProject] = true
+			m.expandEnvFor(msg.activeProject, msg.activeConfig)
 		}
 		m.rebuildTree()
 		m.treeIdx = findTreeIndex(m.tree, treeConfig, msg.activeProject, msg.activeConfig)
@@ -1351,6 +1340,29 @@ func (m Model) setSelectedConfigLock(lock *bool) (Model, Cmd) {
 }
 
 func boolPtr(v bool) *bool { return &v }
+
+// expandEnvFor unfolds the environment holding a branch config, so a config
+// loaded from outside the sidebar (a search hit or reference jump) is visible.
+func (m *Model) expandEnvFor(project, config string) {
+	if config == "" {
+		return
+	}
+	env := m.configEnvironment(project, config)
+	if env == "" {
+		return
+	}
+	for _, c := range m.projectConfigs[project] {
+		if c.root && c.environment == env {
+			if c.name != config {
+				if m.expandedEnvs == nil {
+					m.expandedEnvs = map[string]bool{}
+				}
+				m.expandedEnvs[envKey(project, c.name)] = true
+			}
+			return
+		}
+	}
+}
 
 func (m Model) configEnvironment(project, configName string) string {
 	for _, c := range m.projectConfigs[project] {

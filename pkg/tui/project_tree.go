@@ -30,7 +30,6 @@ type treeRow struct {
 	lastSibling     bool
 	parentContinues bool // for depth 2: draw │ under non-final parent
 	folded          bool
-	pinned          bool
 	hasChildren     bool
 	locked          bool
 	foldRoot        string // root config name for env fold target
@@ -53,23 +52,11 @@ func isEnvExpanded(expandedEnvs map[string]bool, project, rootConfig string) boo
 	return expanded
 }
 
-func keepConfig(project, config, activeProject, activeConfig string, keep map[string]bool) bool {
-	if config == "" {
-		return false
-	}
-	if project == activeProject && config == activeConfig {
-		return true
-	}
-	return keep[secretsCacheKey(project, config)]
-}
-
 func buildProjectTree(
 	projects []string,
 	projectConfigs map[string][]configRow,
 	expanded map[string]bool,
 	expandedEnvs map[string]bool,
-	activeProject, activeConfig string,
-	keep map[string]bool,
 ) []treeRow {
 	tree := make([]treeRow, 0, len(projects)*2)
 	for _, project := range projects {
@@ -79,14 +66,9 @@ func buildProjectTree(
 			project: project,
 			folded:  !isExpanded,
 		})
-
-		configs := projectConfigs[project]
 		if isExpanded {
-			tree = append(tree, configTreeRows(project, configs, expandedEnvs, activeProject, activeConfig, keep)...)
-			continue
+			tree = append(tree, configTreeRows(project, projectConfigs[project], expandedEnvs)...)
 		}
-
-		tree = append(tree, pinnedProjectRows(project, configs, activeProject, activeConfig, keep)...)
 	}
 	return tree
 }
@@ -112,92 +94,7 @@ func groupConfigs(configs []configRow) []envGroup {
 	return groups
 }
 
-func pinnedKids(project string, kids []configRow, activeProject, activeConfig string, keep map[string]bool) []configRow {
-	var out []configRow
-	for _, kid := range kids {
-		if keepConfig(project, kid.name, activeProject, activeConfig, keep) {
-			out = append(out, kid)
-		}
-	}
-	return out
-}
-
-func pinnedProjectRows(
-	project string,
-	configs []configRow,
-	activeProject, activeConfig string,
-	keep map[string]bool,
-) []treeRow {
-	groups := groupConfigs(configs)
-	type part struct {
-		root     configRow
-		showRoot bool
-		kids     []configRow
-	}
-	var parts []part
-	for _, g := range groups {
-		showRoot := keepConfig(project, g.root.name, activeProject, activeConfig, keep)
-		kids := pinnedKids(project, g.kids, activeProject, activeConfig, keep)
-		if !showRoot && len(kids) == 0 {
-			continue
-		}
-		parts = append(parts, part{root: g.root, showRoot: showRoot, kids: kids})
-	}
-
-	rows := make([]treeRow, 0, len(parts)*2)
-	for pi, p := range parts {
-		parentIsLast := pi == len(parts)-1
-		if p.showRoot {
-			showKids := len(p.kids) > 0
-			rows = append(rows, treeRow{
-				kind:        treeConfig,
-				project:     project,
-				config:      p.root.name,
-				depth:       1,
-				lastSibling: parentIsLast,
-				folded:      showKids,
-				hasChildren: showKids,
-				foldRoot:    p.root.name,
-				locked:      p.root.locked,
-				pinned:      true,
-			})
-			for i, kid := range p.kids {
-				rows = append(rows, treeRow{
-					kind:            treeConfig,
-					project:         project,
-					config:          kid.name,
-					depth:           2,
-					lastSibling:     i == len(p.kids)-1,
-					parentContinues: !parentIsLast,
-					pinned:          true,
-					foldRoot:        p.root.name,
-					locked:          kid.locked,
-				})
-			}
-			continue
-		}
-		for i, kid := range p.kids {
-			rows = append(rows, treeRow{
-				kind:        treeConfig,
-				project:     project,
-				config:      kid.name,
-				depth:       1,
-				lastSibling: parentIsLast && i == len(p.kids)-1,
-				pinned:      true,
-				locked:      kid.locked,
-			})
-		}
-	}
-	return rows
-}
-
-func configTreeRows(
-	project string,
-	configs []configRow,
-	expandedEnvs map[string]bool,
-	activeProject, activeConfig string,
-	keep map[string]bool,
-) []treeRow {
+func configTreeRows(project string, configs []configRow, expandedEnvs map[string]bool) []treeRow {
 	groups := groupConfigs(configs)
 	rows := make([]treeRow, 0, len(configs))
 
@@ -217,38 +114,17 @@ func configTreeRows(
 			foldRoot:    g.root.name,
 			locked:      g.root.locked,
 		})
-
-		if !hasChildren {
+		if !envExpanded {
 			continue
 		}
-
-		if envExpanded {
-			for i, kid := range g.kids {
-				rows = append(rows, treeRow{
-					kind:            treeConfig,
-					project:         project,
-					config:          kid.name,
-					depth:           2,
-					lastSibling:     i == len(g.kids)-1,
-					parentContinues: !parentIsLast,
-					foldRoot:        g.root.name,
-					hasChildren:     false,
-					locked:          kid.locked,
-				})
-			}
-			continue
-		}
-
-		pinned := pinnedKids(project, g.kids, activeProject, activeConfig, keep)
-		for i, kid := range pinned {
+		for i, kid := range g.kids {
 			rows = append(rows, treeRow{
 				kind:            treeConfig,
 				project:         project,
 				config:          kid.name,
 				depth:           2,
-				lastSibling:     i == len(pinned)-1,
+				lastSibling:     i == len(g.kids)-1,
 				parentContinues: !parentIsLast,
-				pinned:          true,
 				foldRoot:        g.root.name,
 				locked:          kid.locked,
 			})

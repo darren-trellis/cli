@@ -547,7 +547,7 @@ func TestFormatTreeRowShowsLock(t *testing.T) {
 	assert.Equal(t, "└─── prd +", formatTreeRow(unlocked))
 }
 
-func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
+func TestBuildProjectTreeFold(t *testing.T) {
 	configs := buildConfigTree([]models.ConfigInfo{
 		{Name: "dev", Environment: "dev", Root: true},
 		{Name: "dev_personal", Environment: "dev", Root: false},
@@ -558,7 +558,7 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 	}
 	expanded := map[string]bool{"api": true}
 
-	tree := buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, nil, "api", "dev", nil)
+	tree := buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, nil)
 	assert.Equal(t, []treeKind{treeProject, treeConfig, treeConfig, treeConfig, treeProject}, treeKinds(tree))
 	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd", "web"}, treeLabels(tree))
 	assert.Equal(t, 1, tree[1].depth)
@@ -576,62 +576,18 @@ func TestBuildProjectTreeFoldAndPinnedActive(t *testing.T) {
 	assert.Equal(t, '└', []rune(formatTreeRow(tree[2]))[3], "child elbow sits under the parent diamond")
 
 	expandedEnvs := map[string]bool{envKey("api", "dev"): false}
-	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, expandedEnvs, "api", "dev_personal", nil)
-	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd", "web"}, treeLabels(tree))
+	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, expandedEnvs)
+	assert.Equal(t, []string{"api", "dev", "prd", "web"}, treeLabels(tree))
 	assert.True(t, tree[1].folded)
-	assert.True(t, tree[2].pinned)
 	assert.Equal(t, "├──◆ dev", formatTreeRow(tree[1]))
-	assert.Equal(t, "│  └─── dev_personal", formatTreeRow(tree[2]))
 
 	expanded["api"] = false
-	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, nil, "api", "dev", nil)
-	require.Len(t, tree, 3)
+	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, nil)
+	assert.Equal(t, []string{"api", "web"}, treeLabels(tree))
 	assert.True(t, tree[0].folded)
-	assert.Equal(t, treeConfig, tree[1].kind)
-	assert.Equal(t, "dev", tree[1].config)
-	assert.True(t, tree[1].pinned)
-	assert.Equal(t, "└─── dev", formatTreeRow(tree[1]))
-	assert.Equal(t, "web", tree[2].project)
 }
 
-func TestBuildProjectTreeFoldKeepsCachedConfigs(t *testing.T) {
-	configs := buildConfigTree([]models.ConfigInfo{
-		{Name: "dev", Environment: "dev", Root: true},
-		{Name: "dev_personal", Environment: "dev", Root: false},
-		{Name: "dev_ci", Environment: "dev", Root: false},
-		{Name: "prd", Environment: "prd", Root: true},
-	})
-	projectConfigs := map[string][]configRow{"api": configs}
-	keep := map[string]bool{
-		secretsCacheKey("api", "dev"):          true,
-		secretsCacheKey("api", "dev_personal"): true,
-		secretsCacheKey("api", "prd"):          true,
-	}
-
-	expanded := map[string]bool{"api": true}
-	expandedEnvs := map[string]bool{envKey("api", "dev"): false}
-	tree := buildProjectTree([]string{"api"}, projectConfigs, expanded, expandedEnvs, "api", "dev", keep)
-	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd"}, treeLabels(tree))
-	assert.True(t, tree[1].folded)
-	assert.True(t, tree[2].pinned)
-	assert.Equal(t, "dev_personal", tree[2].config)
-	assert.False(t, tree[3].pinned)
-
-	expanded["api"] = false
-	tree = buildProjectTree([]string{"api", "web"}, projectConfigs, expanded, nil, "api", "dev", keep)
-	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd", "web"}, treeLabels(tree))
-	assert.True(t, tree[0].folded)
-	assert.True(t, tree[1].pinned)
-	assert.True(t, tree[1].folded)
-	assert.True(t, tree[2].pinned)
-	assert.Equal(t, 2, tree[2].depth)
-	assert.True(t, tree[3].pinned)
-	assert.Equal(t, "├──◆ dev", formatTreeRow(tree[1]))
-	assert.Equal(t, "│  └─── dev_personal", formatTreeRow(tree[2]))
-	assert.Equal(t, "└─── prd", formatTreeRow(tree[3]))
-}
-
-func TestToggleProjectFoldKeepsCached(t *testing.T) {
+func TestToggleProjectFoldHidesLoadedConfigs(t *testing.T) {
 	m := cachedSidebarModel()
 	m.treeIdx = 0
 
@@ -639,13 +595,27 @@ func TestToggleProjectFoldKeepsCached(t *testing.T) {
 	mod := next
 	assert.Nil(t, cmd)
 	assert.False(t, mod.expanded["api"])
-	assert.Equal(t, []string{"api", "dev", "prd"}, treeLabels(mod.tree))
-	assert.True(t, mod.tree[1].pinned)
-	assert.True(t, mod.tree[2].pinned)
-	assert.Equal(t, "prd", mod.tree[2].config)
+	assert.Equal(t, []string{"api"}, treeLabels(mod.tree))
+	assert.Equal(t, "dev", mod.activeConfig, "folding does not unload the active config")
 }
 
-func TestToggleEnvFoldKeepsCached(t *testing.T) {
+func TestLoadingBranchFromOutsideSidebarUnfoldsItsEnv(t *testing.T) {
+	m := cachedSidebarModel()
+	m.expandedEnvs[envKey("api", "dev")] = false
+	m.expanded["api"] = false
+	m.rebuildTree()
+
+	next, _ := m.Update(secretsLoadedMsg{
+		secrets:       []secretRow{newSecretRow("LOCAL", "1", "masked")},
+		activeProject: "api",
+		activeConfig:  "dev_personal",
+	})
+	assert.True(t, next.expanded["api"])
+	assert.True(t, isEnvExpanded(next.expandedEnvs, "api", "dev"))
+	assert.True(t, next.highlightIs("api", "dev_personal"))
+}
+
+func TestToggleEnvFoldHidesLoadedBranches(t *testing.T) {
 	m := cachedSidebarModel()
 	m.putSecretsCache("api", "dev_personal", secretsCacheEntry{
 		secrets: []secretRow{newSecretRow("LOCAL", "1", "masked")},
@@ -657,9 +627,7 @@ func TestToggleEnvFoldKeepsCached(t *testing.T) {
 	mod := next
 	assert.Nil(t, cmd)
 	assert.False(t, isEnvExpanded(mod.expandedEnvs, "api", "dev"))
-	assert.Equal(t, []string{"api", "dev", "dev_personal", "prd"}, treeLabels(mod.tree))
-	assert.True(t, mod.tree[2].pinned)
-	assert.Equal(t, "dev_personal", mod.tree[2].config)
+	assert.Equal(t, []string{"api", "dev", "prd"}, treeLabels(mod.tree))
 }
 
 func TestToggleProjectFold(t *testing.T) {
@@ -680,10 +648,8 @@ func TestToggleProjectFold(t *testing.T) {
 	mod := next
 	assert.Nil(t, cmd)
 	assert.False(t, mod.expanded["api"])
-	require.GreaterOrEqual(t, len(mod.tree), 2)
 	assert.True(t, mod.tree[0].folded)
-	assert.True(t, mod.tree[1].pinned)
-	assert.Equal(t, "dev", mod.tree[1].config)
+	assert.Equal(t, []string{"api", "web"}, treeLabels(mod.tree))
 
 	next, cmd = mod.Update(runeKey(' '))
 	mod = next
