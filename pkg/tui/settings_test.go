@@ -20,6 +20,7 @@ import (
 
 	"github.com/DopplerHQ/cli/pkg/configuration"
 	"github.com/DopplerHQ/cli/pkg/models"
+	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -56,7 +57,61 @@ func TestConfigGetAndSet(t *testing.T) {
 	assert.False(t, mod.cfg.Sidebar)
 
 	mod, _ = m.executeCommand("config set")
-	assert.Equal(t, "usage: config set <name> <value>", mod.errMsg)
+	assert.Equal(t, "usage: config set <name> [value]", mod.errMsg)
+
+	mod, _ = m.executeCommand("config set sidebar-width")
+	assert.Equal(t, "usage: config set sidebar-width <value>", mod.errMsg)
+}
+
+func TestConfigSetWithoutValueOpensPicker(t *testing.T) {
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Theme: "default", Sidebar: true, Border: true})
+	m.fetching = false
+	m.width = 80
+	m.height = 24
+
+	mod, _ := m.executeCommand("config set sidebar")
+	assert.Equal(t, focusConfigPick, mod.focus)
+	assert.Equal(t, "sidebar", mod.configPickName)
+	assert.Equal(t, []string{"on", "off"}, mod.configPickValues)
+	assert.Equal(t, "on", mod.configPickValues[mod.configPickIdx])
+	assert.Contains(t, modalText(mod), "● on")
+	assert.Contains(t, modalText(mod), "Set sidebar")
+
+	next, _ := mod.Update(runeKey('j'))
+	mod = next
+	assert.Equal(t, "off", mod.configPickValues[mod.configPickIdx])
+	assert.False(t, mod.cfg.Sidebar, "the highlighted value is previewed")
+
+	next, _ = mod.Update(namedKey(tcell.KeyEnter))
+	mod = next
+	assert.Equal(t, focusSecrets, mod.focus)
+	assert.False(t, mod.cfg.Sidebar)
+	assert.Equal(t, "sidebar=off", mod.statusMsg)
+	assert.Empty(t, mod.configPickName)
+}
+
+func TestConfigPickCancelRestoresPreview(t *testing.T) {
+	t.Cleanup(func() { require.NoError(t, applyTheme(defaultThemeName)) })
+
+	m := newModel(models.ScopedOptions{}, configuration.TUISettings{Theme: "default", Sidebar: true})
+	m.fetching = false
+	m.width = 80
+	m.height = 24
+	require.NoError(t, applyTheme("default"))
+
+	mod, _ := m.executeCommand("config set theme")
+	require.Equal(t, focusConfigPick, mod.focus)
+	start := mod.configPickIdx
+	next, _ := mod.Update(runeKey('j'))
+	mod = next
+	require.NotEqual(t, start, mod.configPickIdx)
+	assert.Equal(t, mod.configPickValues[mod.configPickIdx], mod.cfg.Theme)
+
+	next, _ = mod.Update(namedKey(tcell.KeyEsc))
+	mod = next
+	assert.Equal(t, focusSecrets, mod.focus)
+	assert.Equal(t, "default", mod.cfg.Theme)
+	assert.Equal(t, themes["default"].Accent, accent)
 }
 
 func TestConfigSettingSuggestions(t *testing.T) {

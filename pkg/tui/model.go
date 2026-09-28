@@ -39,6 +39,7 @@ const (
 	focusSwitchConfirm
 	focusDeleteConfirm
 	focusPropagate
+	focusConfigPick
 )
 
 type secretCol int
@@ -143,6 +144,12 @@ type Model struct {
 	propagateTargets     []propagateTarget
 	propagateIdx         int
 	propagateRewriteRefs bool
+
+	configPickName     string
+	configPickValues   []string
+	configPickIdx      int
+	configPickScroll   int
+	configPickOriginal string
 
 	modalBtnIdx int
 
@@ -421,7 +428,7 @@ func (m *Model) rebuildTree() {
 }
 
 func (m Model) inModal() bool {
-	return m.focus == focusHelp || m.focus == focusSave || m.focus == focusSwitchConfirm || m.focus == focusDeleteConfirm || m.focus == focusPropagate
+	return m.focus == focusHelp || m.focus == focusSave || m.focus == focusSwitchConfirm || m.focus == focusDeleteConfirm || m.focus == focusPropagate || m.focus == focusConfigPick
 }
 
 func (m *Model) annotateTreeDirty() {

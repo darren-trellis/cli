@@ -577,6 +577,7 @@ func (m Model) renderHelpText() string {
 	b.WriteString("Counts: 7j / 3k / 10G (G with a count jumps to that row).\n")
 	b.WriteString("Sidebar: ◇ expanded, ◆ folded; ◉ after a config means it is locked. Highlighting a config loads and shows its secrets. n/N hop search matches; in Projects without a search, n adds a branch config and N hops loaded configs. Backspace unloads a config. Click selects a sidebar row.\n")
 	b.WriteString("Search: / in Secrets filters secret names across configs (typeahead); :search highlights in the current pane.\n")
+	b.WriteString(":config set <name> without a value opens a picker for settings that have fixed options.\n")
 	b.WriteString("Filter: f this config; F every config (local applies after global); / in Projects filters project names (Esc clears).\n")
 	b.WriteString("Projects yank: y then n/y/j/e (name / yaml / json / env).\n")
 	b.WriteString("Projects delete: d on a project or branch config (root configs cannot be deleted).\n")

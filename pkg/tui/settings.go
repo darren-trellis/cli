@@ -258,8 +258,8 @@ func (m Model) execConfigGet(args []string) (Model, Cmd) {
 }
 
 func (m Model) execConfigSet(args []string) (Model, Cmd) {
-	if len(args) != 2 {
-		m.errMsg = "usage: config set <name> <value>"
+	if len(args) == 0 || len(args) > 2 {
+		m.errMsg = "usage: config set <name> [value]"
 		return m, nil
 	}
 	s, ok := lookupTUISetting(args[0])
@@ -267,7 +267,18 @@ func (m Model) execConfigSet(args []string) (Model, Cmd) {
 		m.errMsg = unknownSettingError(args[0])
 		return m, nil
 	}
-	if err := s.set(&m, args[1]); err != nil {
+	if len(args) == 1 {
+		if s.values == nil || len(s.values()) == 0 {
+			m.errMsg = "usage: config set " + s.name + " <value>"
+			return m, nil
+		}
+		return m.openConfigPick(s)
+	}
+	return m.commitSetting(s, args[1])
+}
+
+func (m Model) commitSetting(s tuiSetting, value string) (Model, Cmd) {
+	if err := s.set(&m, value); err != nil {
 		m.errMsg = err.Error()
 		return m, nil
 	}
@@ -276,6 +287,121 @@ func (m Model) execConfigSet(args []string) (Model, Cmd) {
 	}
 	m.statusMsg = s.name + "=" + s.get(m)
 	m.errMsg = ""
+	return m, nil
+}
+
+func (m Model) openConfigPick(s tuiSetting) (Model, Cmd) {
+	values := s.values()
+	current := s.get(m)
+	idx := 0
+	for i, v := range values {
+		if v == current {
+			idx = i
+			break
+		}
+	}
+	m.configPickName = s.name
+	m.configPickValues = values
+	m.configPickIdx = idx
+	m.configPickScroll = 0
+	m.configPickOriginal = current
+	m.modalBtnIdx = 0
+	m.ensureConfigPickVisible()
+	m.setFocus(focusConfigPick)
+	m.errMsg = ""
+	m.statusMsg = ""
+	return m, nil
+}
+
+func (m *Model) clearConfigPick() {
+	m.configPickName = ""
+	m.configPickValues = nil
+	m.configPickIdx = 0
+	m.configPickScroll = 0
+	m.configPickOriginal = ""
+}
+
+func (m Model) configPickVisible() int {
+	return max(3, min(len(m.configPickValues), m.height-8))
+}
+
+func (m *Model) ensureConfigPickVisible() {
+	visible := m.configPickVisible()
+	if visible < 1 {
+		m.configPickScroll = 0
+		return
+	}
+	if m.configPickIdx < m.configPickScroll {
+		m.configPickScroll = m.configPickIdx
+	}
+	if m.configPickIdx >= m.configPickScroll+visible {
+		m.configPickScroll = m.configPickIdx - visible + 1
+	}
+}
+
+func (m *Model) moveConfigPick(delta int) {
+	n := len(m.configPickValues)
+	if n == 0 {
+		return
+	}
+	m.configPickIdx = clamp(m.configPickIdx+delta, 0, n-1)
+	m.ensureConfigPickVisible()
+	m.previewConfigPick()
+}
+
+func (m *Model) previewConfigPick() {
+	s, ok := lookupTUISetting(m.configPickName)
+	if !ok || m.configPickIdx < 0 || m.configPickIdx >= len(m.configPickValues) {
+		return
+	}
+	_ = s.set(m, m.configPickValues[m.configPickIdx])
+}
+
+func (m Model) acceptConfigPick() (Model, Cmd) {
+	s, ok := lookupTUISetting(m.configPickName)
+	if !ok || m.configPickIdx < 0 || m.configPickIdx >= len(m.configPickValues) {
+		m.clearConfigPick()
+		m.setFocus(focusSecrets)
+		return m, nil
+	}
+	value := m.configPickValues[m.configPickIdx]
+	m.clearConfigPick()
+	m.setFocus(focusSecrets)
+	return m.commitSetting(s, value)
+}
+
+func (m Model) cancelConfigPick() (Model, Cmd) {
+	s, ok := lookupTUISetting(m.configPickName)
+	original := m.configPickOriginal
+	m.clearConfigPick()
+	m.setFocus(focusSecrets)
+	if ok {
+		_ = s.set(&m, original)
+	}
+	return m, nil
+}
+
+func (m Model) handleConfigPickKey(msg keyMsg) (Model, Cmd) {
+	buttons := m.configPickButtons()
+	if delta, ok := modalCycleDelta(msg.String()); ok {
+		m.cycleModalButton(len(buttons), delta)
+		return m, nil
+	}
+	switch msg.Chord {
+	case "j", "down":
+		m.moveConfigPick(1)
+	case "k", "up":
+		m.moveConfigPick(-1)
+	case "enter":
+		if m.modalBtnIdx == 1 {
+			return m.cancelConfigPick()
+		}
+		return m.acceptConfigPick()
+	case "esc", "q":
+		return m.cancelConfigPick()
+	case "C-c":
+		return m, Quit
+	}
 	return m, nil
 }
 

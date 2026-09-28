@@ -87,6 +87,13 @@ func (m Model) propagateModalButtons() []modalButton {
 	}
 }
 
+func (m Model) configPickButtons() []modalButton {
+	return []modalButton{
+		{Label: "Select", Key: "enter"},
+		{Label: "Cancel", Key: "esc"},
+	}
+}
+
 func (m Model) deleteConfirmButtons() []modalButton {
 	return []modalButton{
 		{Label: "Delete", Key: "d"},
@@ -114,6 +121,8 @@ func (m Model) currentModalButtons() []modalButton {
 		return m.deleteConfirmButtons()
 	case focusPropagate:
 		return m.propagateModalButtons()
+	case focusConfigPick:
+		return m.configPickButtons()
 	default:
 		return nil
 	}
@@ -140,6 +149,8 @@ func (m Model) currentModalSpec() (modalSpec, bool) {
 		return m.deleteConfirmModalSpec(), true
 	case focusPropagate:
 		return m.propagateModalSpec(), true
+	case focusConfigPick:
+		return m.configPickModalSpec(), true
 	default:
 		return modalSpec{}, false
 	}
@@ -285,6 +296,32 @@ func (m Model) propagateModalSpec() modalSpec {
 		lines:   lines,
 		buttons: m.propagateModalButtons(),
 		width:   m.modalWidth(60, 28),
+		height:  m.modalHeight(len(lines)),
+	}
+}
+
+func (m Model) configPickModalSpec() modalSpec {
+	lines := []modalLine{plainLine("Choose a value")}
+	visible := m.configPickVisible()
+	start := m.configPickScroll
+	for i := start; i < len(m.configPickValues) && i < start+visible; i++ {
+		value := m.configPickValues[i]
+		marker := " "
+		if value == m.configPickOriginal {
+			marker = "●"
+		}
+		line := modalLine{text: marker + " " + value, row: i}
+		if i == m.configPickIdx {
+			line.kind = modalLineSelected
+		}
+		lines = append(lines, line)
+	}
+	lines = append(lines, plainLine(""), dimLine("j/k moves · enter selects"))
+	return modalSpec{
+		title:   "Set " + m.configPickName,
+		lines:   lines,
+		buttons: m.configPickButtons(),
+		width:   m.modalWidth(48, 24),
 		height:  m.modalHeight(len(lines)),
 	}
 }

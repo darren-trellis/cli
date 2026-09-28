@@ -270,6 +270,8 @@ func (m Model) handleKey(msg keyMsg) (Model, Cmd) {
 		return m.handleDeleteConfirmKey(msg)
 	case focusPropagate:
 		return m.handlePropagateKey(msg)
+	case focusConfigPick:
+		return m.handleConfigPickKey(msg)
 	case focusFilter:
 		return m.handleFilterKey(msg)
 	case focusSearch:
@@ -1640,6 +1642,15 @@ func (m Model) handleModalMouse(msg mouseMsg) (Model, Cmd) {
 				m.propagateIdx = i
 				m.togglePropagateAt(i)
 				return m, nil
+			}
+		}
+	}
+	if m.focus == focusConfigPick {
+		for i, r := range g.rows {
+			if r.contains(msg.X, msg.Y) {
+				m.configPickIdx = i
+				m.ensureConfigPickVisible()
+				return m.acceptConfigPick()
 			}
 		}
 	}
