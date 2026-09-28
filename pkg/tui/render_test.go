@@ -149,7 +149,17 @@ func TestSidebarTreeGlyphsUseBorderColour(t *testing.T) {
 	assert.NotEqual(t, borderStyle, at(5), "label keeps the row colour")
 
 	projectY := layout.projects.y + 1
-	assert.Equal(t, selectedStyle, cells[projectY*w+x0].Style, "selected row keeps the selection colour")
+	selectedDecor := selectedStyle.Foreground(borderColor).Bold(false)
+	assert.Equal(t, selectedDecor, cells[projectY*w+x0].Style, "selected diamond keeps the border colour")
+	assert.Equal(t, selectedStyle, cells[projectY*w+x0+2].Style, "selected label keeps the selection colour")
+
+	m.treeIdx = prdIdx
+	sc = drawModel(t, m)
+	cells, w, _ = sc.GetContents()
+	y = layout.projects.y + 1 + prdIdx
+	assert.Equal(t, selectedDecor, at(0), "highlighted tree line keeps the border colour")
+	assert.Equal(t, selectedDecor, at(9), "highlighted lock mark keeps the border colour")
+	assert.Equal(t, selectedStyle, at(5), "highlighted label keeps the selection colour")
 }
 
 func TestStatusBarShowsFilterAndSearchLabels(t *testing.T) {

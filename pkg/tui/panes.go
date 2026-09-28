@@ -81,12 +81,13 @@ func (m Model) drawProjectsPane(sc tcell.Screen, r rect) {
 			text = padRight(text, bodyW)
 		}
 		spans := spansForNeedle(text, searchableTreeText(row), searchRe)
-		var decor []runeSpan
-		if !selected {
-			leadN, labelN := len([]rune(lead)), len([]rune(label))
-			decor = []runeSpan{{0, leadN}, {leadN + labelN, leadN + labelN + len([]rune(trail))}}
+		leadN, labelN := len([]rune(lead)), len([]rune(label))
+		decor := []runeSpan{{0, leadN}, {leadN + labelN, leadN + labelN + len([]rune(trail))}}
+		decorSt := borderStyle
+		if selected {
+			decorSt = selectedStyle.Foreground(borderColor).Bold(false)
 		}
-		drawTreeText(sc, inner.x, y, bodyW, truncate(text, bodyW), style, borderStyle, decor, spans)
+		drawTreeText(sc, inner.x, y, bodyW, truncate(text, bodyW), style, decorSt, decor, spans)
 	}
 
 	if showSB {
